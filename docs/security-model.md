@@ -2,24 +2,28 @@
 
 ## Intended use
 
-SENTINEL is intended for assets owned by the operator or covered by written authorization. The configured domain allowlist is the first control, not a substitute for legal authorization or network segmentation.
+SENTINEL assesses only assets owned by the operator or covered by written authorization. The configured allowlist is a technical guardrail, not proof of legal authorization.
 
-## Current safeguards
+## Implemented safeguards in 0.2
 
-- Explicit allowlist with exact and proper subdomain matching.
+- IDNA hostname normalization and exact/proper-subdomain allowlist matching.
 - Rejects URLs, IP literals and malformed hostnames.
-- Resolves target hostnames and refuses non-global addresses.
-- HTTPS only, default certificate verification, no redirects, short timeout, no proxy environment inheritance.
-- API key comparison uses constant-time comparison.
-- Protected API routes fail closed if no API key is configured.
-- Audit events record assessment success and scope denial.
-- Secret scanner returns redacted fingerprints rather than raw matched values.
+- Resolves DNS and rejects any non-global address in the answer set.
+- Connects to a literal validated IP while retaining the canonical hostname for TLS SNI, certificate validation and HTTP Host.
+- HTTPS only; TLS certificate validation enabled; no redirects; shared timeout budget; maximum header size; response body not downloaded.
+- API-key comparison uses constant-time comparison.
+- Production startup rejects weak API keys, missing authorization scope, wildcard CORS and SQLite.
 - CORS origins are explicitly configured.
+- Security response headers, request correlation ID, liveness and database readiness endpoints.
+- Assessment history retention cap.
+- Secret scanner returns redacted fingerprints, not raw matched values.
 
 ## Known limitations
 
-This initial release is not a WAF, EDR, SIEM, exploit engine, compliance certification or replacement for an established enterprise scanner. DNS resolution and connection establishment occur in separate operations; a production egress proxy/firewall with DNS pinning is required to address DNS-rebinding races. API-key authentication is single-operator and should be replaced with managed identity, RBAC and secret rotation for multi-user deployments. Audit records are stored in the application database and are not immutable against a database administrator.
+API-key authentication is still single-operator. Audit events are stored in the application database and are not immutable against a database administrator. Multi-tenant isolation, durable queue workers, distributed rate limiting, managed secrets, Alembic migrations and immutable audit export are not implemented. Production egress firewall/proxy enforcement remains mandatory defence in depth.
+
+SENTINEL is not a WAF, EDR, SIEM, exploit engine or compliance certification. Docker runtime, external penetration testing, production egress controls and backup restore have not been certified by this release.
 
 ## Responsible operation
 
-Never add third-party domains to the allowlist without written authorization. Start with a small test scope. Review findings with an engineer before making production configuration changes.
+Never assess third-party systems without written authorization. Do not add domains to the allowlist without approval. Review all findings before changing production infrastructure.

@@ -25,6 +25,13 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.headers["x-content-type-options"] == "nosniff"
+    assert len(response.headers["x-request-id"]) == 32
+
+
+def test_readiness_endpoint_checks_database_connection(client):
+    response = client.get("/readyz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "database": "reachable"}
 
 
 def test_protected_config_rejects_missing_api_key(client):
@@ -36,6 +43,7 @@ def test_protected_config_returns_only_configured_scope(client):
     response = client.get("/api/v1/config", headers=API_HEADERS)
     assert response.status_code == 200
     assert response.json()["authorized_domains"] == ["example.com"]
+    assert "dns-pinned-https-headers" in response.json()["features"]
 
 
 def test_assessment_rejects_target_outside_scope_before_network_access(client):

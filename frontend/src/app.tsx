@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 
 type Finding = { code: string; title: string; severity: string; description: string; recommendation: string; category: string };
-type Assessment = { id: string; target: string; status: string; score: number; risk_level: string; findings: Finding[]; evidence: Record<string, unknown>; created_at: string };
+type RiskExplanation = { model?: string; unique_findings?: number; drivers?: { code: string; severity: string; weighted_points: number }[] };
+type Assessment = { id: string; target: string; status: string; score: number; risk_level: string; findings: Finding[]; evidence: Record<string, unknown> & { risk_explanation?: RiskExplanation }; created_at: string };
 type Overview = { assessment_count: number; findings_count: number; high_risk_count: number; authorized_domains: string[] };
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 function severityClass(value: string) { return ["critical", "high", "medium", "low"].includes(value) ? value : "info"; }
@@ -85,6 +86,7 @@ export default function App() {
 
   const risk = selected?.risk_level ?? latest?.risk_level ?? "informational";
   const score = selected?.score ?? latest?.score ?? 0;
+  const riskExplanation = selected?.evidence?.risk_explanation ?? latest?.evidence?.risk_explanation;
 
   return <div className="shell">
     <aside className="sidebar">
@@ -130,14 +132,15 @@ export default function App() {
             <div className="card-top"><div className="card-icon"><Cpu size={18} /></div><span className="micro-tag">LATEST ASSESSMENT</span></div>
             <div className="posture-main"><div className={"score-ring " + severityClass(risk)} style={{ "--score": score + "%" } as CSSProperties}><div><strong>{score}</strong><span>/ 100</span></div></div><div className="risk-copy"><span>OVERALL RISK</span><b className={severityClass(risk)}>{risk.toUpperCase()}</b><small>{selected?.target ?? "Awaiting first assessment"}</small></div></div>
             <div className="risk-scale"><span>LOW EXPOSURE</span><span>HIGH EXPOSURE</span></div><div className="risk-line"><i style={{ width: score + "%" }} /></div>
-            <div className="posture-foot"><span><Zap size={13} /> Evidence-based score</span><span>{selected ? prettyDate(selected.created_at) : "No data"}</span></div>
+            <div className="posture-foot"><span><Zap size={13} /> Explainable risk model</span><span>{selected ? prettyDate(selected.created_at) : "No data"}</span></div>
+            <div className="risk-model-meta"><div><span>MODEL</span><b>{riskExplanation?.model ?? "Awaiting assessment"}</b></div><div><span>UNIQUE FINDINGS</span><b>{riskExplanation?.unique_findings ?? "—"}</b></div><div><span>TOP RISK DRIVERS</span><b>{riskExplanation?.drivers?.slice(0, 3).map((driver) => driver.code).join(" · ") || "No data"}</b></div></div>
           </div>
         </div>
         <div className="section-head findings-head"><div><div className="eyebrow">EVIDENCE & REMEDIATION</div><h2>Security findings</h2></div><div className="filter-wrap"><Search size={15} /><select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div></div>
         <div className="findings-card">{(selected?.findings ?? latest?.findings ?? []).length === 0 ? <div className="empty-state"><ShieldCheck size={24} /><b>No findings loaded</b><span>Connect the API and run an authorized assessment to populate evidence.</span></div> : visibleFindings.map((finding) => <div className="finding-row" key={finding.code}><div className={"severity-icon " + severityClass(finding.severity)}><AlertTriangle size={16} /></div><div className="finding-detail"><b>{finding.title}</b><span>{finding.description}</span><small>RECOMMENDATION Â· {finding.recommendation}</small></div><span className={"severity-label " + severityClass(finding.severity)}>{finding.severity}</span></div>)}</div>
         <div className="section-head history-head"><div><div className="eyebrow">TRACEABILITY</div><h2>Assessment history</h2></div><button className="text-button" onClick={connect}><RefreshCw size={14} /> Refresh history</button></div>
         <div className="history-card">{assessments.length === 0 ? <div className="history-empty"><TerminalSquare size={17} /> No recorded assessments. Your history will appear here.</div> : assessments.map((item) => <button className={"history-row " + (selected?.id === item.id ? "selected" : "")} key={item.id} onClick={() => setSelected(item)}><span className="history-target"><Globe2 size={15} /> {item.target}</span><span className={"severity-label " + severityClass(item.risk_level)}>{item.risk_level}</span><span className="history-score">{item.score}/100</span><span className="history-date">{prettyDate(item.created_at)}</span><ArrowUpRight size={14} /></button>)}</div>
-        <footer><span><Command size={13} /> SENTINEL <b>0.1.0</b></span><span>DEFENSIVE POSTURE PLATFORM Â· DEVELOPMENT BUILD</span><span><LockKeyhole size={12} /> AUTHORIZATION FIRST</span></footer>
+        <footer><span><Command size={13} /> SENTINEL <b>0.2.0</b></span><span>DEFENSIVE POSTURE PLATFORM Â· DEVELOPMENT BUILD</span><span><LockKeyhole size={12} /> AUTHORIZATION FIRST</span></footer>
       </section>
     </main>
   </div>;
