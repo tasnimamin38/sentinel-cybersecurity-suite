@@ -12,8 +12,8 @@ os.environ["SENTINEL_CORS_ORIGINS"] = "http://localhost:5173"
 from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
-from app.main import app
-from app.models import Assessment
+from app.main import _persist_assessment, app, settings
+from app.models import Assessment, RemediationTask
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -248,3 +248,63 @@ def test_csv_export_rejects_unknown_dataset_and_missing_key(client):
     assert unknown.status_code == 404
     denied = client.get("/api/v1/exports/assets.csv")
     assert denied.status_code == 401
+
+
+def test_assessment_retention_preserves_records_referenced_by_remediation(client):
+    db = SessionLocal()
+    try:
+        old_assessment = Assessment(
+            target=f"retained-{uuid4().hex[:8]}.example.com",
+            status="completed",
+            score=72,
+            risk_level="high",
+            findings=[
+                {
+                    "code": "MISSING_CSP",
+                    "title": "Content Security Policy is not present",
+                    "severity": "medium",
+                    "category": "web-security",
+                    "description": "No CSP header.",
+                    "recommendation": "Deploy a restrictive CSP.",
+                }
+            ],
+            evidence={},
+        )
+        db.add(old_assessment)
+        db.flush()
+        task = RemediationTask(
+            assessment_id=old_assessment.id,
+            finding_code="MISSING_CSP",
+            title="Content Security Policy is not present",
+            severity="medium",
+            assignee="AppSec",
+            status="in_progress",
+            notes="Preserve this operational record.",
+        )
+        db.add(task)
+        db.commit()
+        assessment_id = old_assessment.id
+        task_id = task.id
+
+        previous_limit = settings.max_assessment_records
+        settings.max_assessment_records = 1
+        try:
+            _persist_assessment(
+                db,
+                {
+                    "target": "new.example.com",
+                    "status": "completed",
+                    "score": 5,
+                    "risk_level": "low",
+                    "findings": [],
+                    "evidence": {},
+                    "risk_explanation": {"model": "sentinel-exponential-v2", "drivers": []},
+                },
+            )
+        finally:
+            settings.max_assessment_records = previous_limit
+
+        assert db.get(Assessment, assessment_id) is not None
+        assert db.get(RemediationTask, task_id) is not None
+    finally:
+        db.close()
