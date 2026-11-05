@@ -1,32 +1,34 @@
 # SENTINEL Architecture
 
-SENTINEL 0.2 is a defensive asset-posture platform built from a FastAPI API, React/TypeScript console, SQL persistence and container deployment scaffolding.
+SENTINEL 0.3 is a defensive asset-governance and posture-operations baseline built from FastAPI, React, SQLAlchemy, Alembic and PostgreSQL/SQLite.
 
-## Current request flow
+## Current execution path
 
-1. Authenticate the operator using the configured API key.
-2. Normalize the target hostname and validate it against the explicit allowlist.
-3. Resolve DNS and reject the entire answer set if any result is non-public.
-4. Connect to a literal IP from the validated DNS answer set. Preserve the hostname for TLS SNI, certificate validation and HTTP Host.
-5. Send one bounded HTTPS GET, read headers only, do not follow redirects and do not consume the response body.
-6. Evaluate HTTPS headers, TLS certificate expiry and DNS MX/SPF/DMARC posture.
-7. Deduplicate and score findings with explainable risk model v2.
-8. Store the assessment and audit event; enforce the configured assessment-history cap.
+1. Authenticate using the configured API key.
+2. Normalize and authorize a DNS hostname.
+3. For registered assets, check active status and expiry-dated authorization.
+4. Resolve DNS and reject non-global addresses.
+5. Connect to a literal validated public IP while keeping hostname-bound TLS SNI and HTTP Host.
+6. Read one bounded HTTPS response-header block; do not follow redirects or download the body.
+7. Inspect selected headers, TLS certificate lifecycle and DNS MX/SPF/DMARC posture.
+8. Normalize findings and apply explainable risk v2.
+9. Persist the assessment and audit event.
+10. Create remediation tasks from actual stored findings.
 
-## Runtime boundaries
+## 0.3 operational modules
 
-- No port scanning, exploit checks, brute force, credential validation or arbitrary IP-range discovery.
-- No redirects are followed and no response body is downloaded.
-- Target must be a DNS hostname in the configured scope.
-- Production configuration rejects weak API keys, missing authorized domains, wildcard CORS and SQLite.
-- Production network isolation still requires an egress firewall/proxy and network-level destination enforcement.
+- Asset inventory and authorization expiry
+- Web/TLS/DNS posture assessment
+- Explainable risk and finding normalization
+- Remediation workflow
+- Operational control mapping
+- Redacting inline secret-pattern scanning
+- Hash-linked audit chain and verification
+- Versioned database migration
+- React security operations console
 
-## Target architecture
+See the blueprint directory for target architecture, decision algorithms, threat model and roadmap.
 
-The advanced target design separates the control plane (identity, scope, authorization, inventory and versioned policy) from the data plane (API gateway, orchestrator, durable queue, isolated workers and egress gateway). Evidence storage, tenant-scoped relational data, append-only audit export and telemetry become independent services.
+## Current boundary
 
-See the system architecture, security algorithms, threat model and roadmap in the docs/blueprint directory.
-
-## Current limitations
-
-This release is not a certified enterprise product. It does not yet include OIDC/SSO, RBAC, multi-tenant isolation, Alembic migrations, durable workers/queues, distributed rate limits, immutable audit export, production egress proxy, disaster recovery or independent penetration testing.
+The current release is a single-workspace engineering baseline. It does not include multi-user identity, RBAC, multi-tenant isolation, durable background workers, distributed rate limits, external immutable audit storage, egress gateway, metrics/tracing or independent penetration-testing evidence.
