@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - sentinel-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [sentinel-internal]
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      SENTINEL_ENVIRONMENT: production
+      SENTINEL_API_KEY: ${SENTINEL_API_KEY:?Set SENTINEL_API_KEY in .env}
+      SENTINEL_ALLOWED_DOMAINS: ${SENTINEL_ALLOWED_DOMAINS:?Set SENTINEL_ALLOWED_DOMAINS in .env}
+      SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:${POSTGRES_PASSWORD}@db:5432/sentinel
+      SENTINEL_CORS_ORIGINS: ${SENTINEL_CORS_ORIGINS:-http://localhost:8080}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["127.0.0.1:8000:8000"]
+    networks: [sentinel-internal]
+  console:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["127.0.0.1:8080:80"]
+    networks: [sentinel-internal]
+volumes:
+  sentinel-db:
+networks:
+  sentinel-internal:
+    driver: bridge

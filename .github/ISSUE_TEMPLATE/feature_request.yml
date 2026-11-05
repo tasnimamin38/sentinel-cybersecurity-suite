@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a defensive capability or workflow improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the defensive or operational need.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain the smallest useful implementation.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety considerations
+      options:
+        - label: This is for owned or explicitly authorized assets.
+          required: true
+        - label: This does not require exploit, stealth or credential-attack behavior.
+          required: true
