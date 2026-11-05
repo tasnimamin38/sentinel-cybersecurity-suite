@@ -28,7 +28,7 @@ async def assess_domain(target: str, allowed_domains: list[str], timeout: float 
 
     # Resolve once, reject the entire answer set if any answer is non-global,
     # then connect to one of these literal validated addresses (DNS pinning).
-    resolved_addresses = assert_public_dns_resolution(domain)
+    resolved_addresses = await asyncio.to_thread(assert_public_dns_resolution, domain)
     findings: list[dict] = []
     evidence: dict = {"resolved_addresses": resolved_addresses, "web": {}, "tls": {}, "dns": {}}
 

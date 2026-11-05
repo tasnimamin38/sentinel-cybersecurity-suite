@@ -174,8 +174,9 @@ async def create_assessment(payload: AssessmentRequest, db: Session = Depends(ge
     # not grow without bound. Audit events are intentionally not pruned here.
     excess_ids = db.scalars(
         select(Assessment.id)
+        .where(Assessment.id != item.id)
         .order_by(desc(Assessment.created_at), desc(Assessment.id))
-        .offset(settings.max_assessment_records)
+        .offset(settings.max_assessment_records - 1)
     ).all()
     if excess_ids:
         db.execute(delete(Assessment).where(Assessment.id.in_(excess_ids)))
