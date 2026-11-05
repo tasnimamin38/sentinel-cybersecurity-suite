@@ -8,7 +8,7 @@ from app.services.security_headers import evaluate_security_headers
 
 
 def _tls_expiry_findings(days_remaining: int | None) -> list[dict]:
-    if days_remaining is None or days_remaining > 14:
+    if days_remaining is None or days_remaining > 30:
         return []
     return [
         {
@@ -16,21 +16,31 @@ def _tls_expiry_findings(days_remaining: int | None) -> list[dict]:
             "title": "TLS certificate expires soon",
             "severity": "high" if days_remaining <= 3 else "medium",
             "category": "tls",
+            "confidence": 1.0,
             "description": f"The certificate has {days_remaining} days remaining.",
             "recommendation": "Renew the certificate and verify automated certificate lifecycle monitoring.",
         }
     ]
 
 
-async def assess_domain(target: str, allowed_domains: list[str], timeout: float = 8.0) -> dict:
+async def assess_domain(
+    target: str,
+    allowed_domains: list[str],
+    timeout: float = 8.0,
+    context: dict | None = None,
+) -> dict:
     domain = authorize_domain(target, allowed_domains)
-    from app.services.network_safety import assert_public_dns_resolution
+    from app.services.network_safety import assert_public_dns_resolution_async
 
-    # Resolve once, reject the entire answer set if any answer is non-global,
-    # then connect to one of these literal validated addresses (DNS pinning).
-    resolved_addresses = await asyncio.to_thread(assert_public_dns_resolution, domain)
+    resolved_addresses = await assert_public_dns_resolution_async(domain, timeout=min(timeout, 3.5))
     findings: list[dict] = []
-    evidence: dict = {"resolved_addresses": resolved_addresses, "web": {}, "tls": {}, "dns": {}}
+    evidence: dict = {
+        "resolved_addresses": resolved_addresses,
+        "web": {},
+        "tls": {},
+        "dns": {},
+        "assessment_context": context or {},
+    }
 
     try:
         web_result = await inspect_https_endpoint(domain, resolved_addresses, timeout=timeout)
@@ -49,13 +59,16 @@ async def assess_domain(target: str, allowed_domains: list[str], timeout: float 
                 "title": "HTTPS and TLS could not be safely assessed",
                 "severity": "medium",
                 "category": "transport-security",
+                "confidence": 0.8,
                 "description": str(exc),
                 "recommendation": "Verify HTTPS availability, certificate trust, DNS records and outbound egress policy.",
             }
         )
 
     try:
-        evidence["dns"], dns_findings = await asyncio.to_thread(inspect_dns_posture, domain)
+        evidence["dns"], dns_findings = await asyncio.to_thread(
+            inspect_dns_posture, domain, min(timeout, 4.0)
+        )
         findings.extend(dns_findings)
     except Exception as exc:
         findings.append(
@@ -64,12 +77,13 @@ async def assess_domain(target: str, allowed_domains: list[str], timeout: float 
                 "title": "DNS posture checks were incomplete",
                 "severity": "low",
                 "category": "dns",
+                "confidence": 0.6,
                 "description": f"DNS posture inspection failed: {type(exc).__name__}.",
                 "recommendation": "Verify authoritative DNS availability and resolver connectivity.",
             }
         )
 
-    risk = calculate_risk(findings)
+    risk = calculate_risk(findings, context=context)
     return {
         "target": domain,
         "status": "completed",

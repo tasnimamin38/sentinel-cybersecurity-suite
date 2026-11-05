@@ -1,60 +1,66 @@
 # SENTINEL Threat Model
 
-**Status:** Engineering threat model for version 0.2.  
-**Method:** STRIDE-style review of the current single-operator architecture.
+**Version:** 0.3 engineering baseline  
+**Method:** STRIDE-style review for the current single-workspace architecture.
 
-## Assets to protect
+## Protected assets
 
-- API authentication key and deployment configuration
-- Authorized asset scope and proof-of-authorization records
-- Assessment history, audit events and collected evidence
-- Database credentials and backups
-- Build pipeline and release artifacts
+- API key and deployment configuration
+- Authorization records, allowlist and asset ownership metadata
+- Assessment evidence, findings and remediation tasks
+- Database credentials, audit history and backups
+- Source repository, CI pipeline and release artifacts
 
-## Trust boundaries and principal threats
+## Principal threats and controls
 
-| Threat | Example | Current mitigation | Residual risk / next control |
+| STRIDE | Example | Implemented mitigation | Residual risk |
 |---|---|---|---|
-| Spoofing | Unauthorized party submits assessment requests | API-key auth with constant-time comparison; production minimum length | Single shared key; add OIDC, MFA, RBAC and key rotation |
-| Tampering | Hostname attempts suffix confusion or URL injection | IDNA normalization, strict DNS label validation, exact/proper-subdomain allowlist | Add signed authorization approvals and policy-versioned scope |
-| Tampering | DNS answer changes between validation and connect | Probe connects to literal validated IP; SNI and Host remain hostname-bound | Egress firewall/proxy must independently enforce destination |
-| Repudiation | Operator denies running an assessment | Assessment and audit event persistence; request ID | Audit database is mutable by DB owner; add append-only external export and hash checkpoints |
-| Information disclosure | Secret scanner leaks matched credential text | Redacted hash fingerprint only | Expand format coverage and add automated rotation workflow |
-| Information disclosure | Browser exposes API key | Key held in component memory; no local storage | Replace shared API key with short-lived scoped sessions |
-| Denial of service | Slow TLS handshake or oversized response headers | Shared timeout budget, max header size, bounded DNS answer count | Add gateway rate limits, worker quotas and queue back-pressure |
-| Elevation of privilege | One user accesses another user's data | Not applicable to current single-operator deployment | Multi-tenant isolation and row-level authorization are mandatory before shared hosting |
+| Spoofing | Unauthorized API caller | API-key authentication and constant-time comparison | Shared key; no user identity, MFA, SSO or RBAC |
+| Tampering | Hostname suffix confusion | Canonicalization and proper-subdomain boundary check | Approval is operator-attested, not externally verified |
+| Tampering | DNS rebinding | Connect to validated literal IP and preserve hostname TLS identity | Egress firewall/proxy still mandatory |
+| Repudiation | Operator disputes a change | Hash-linked audit event and chain verification | Database administrator can rewrite entire stored chain |
+| Information disclosure | Secret text appears in result | Redacted match output; source text not persisted | Limited pattern coverage; request transport must be protected |
+| Information disclosure | Browser API key leakage | Component-memory key, no local storage | Shared key still lacks per-user scope and revocation |
+| Denial of service | Large input or slow remote endpoint | 256 KiB secret input cap, HTTPS deadline, 64 KiB header cap | No distributed API rate limit, queue quota or worker isolation |
+| Elevation of privilege | User accesses another tenant | No multi-tenant service in current release | Must not host multiple untrusted tenants before isolation controls exist |
 
-## Attack surface inventory
+## Attack surface
 
-1. Public HTTP API routes (/healthz, /readyz, /api/v1/*)
-2. API-key authentication and configuration parsing
-3. DNS resolver and outbound HTTPS client
-4. PostgreSQL/SQLite persistence and backups
-5. Browser console and API-key memory handling
-6. GitHub Actions, dependency resolution and release process
+1. API key and CORS configuration
+2. Asset authorization and hostname normalization
+3. DNS resolver and outbound HTTPS sockets
+4. API request validation and persistence
+5. Text secret-scanning endpoint
+6. Audit hash-chain write and verification
+7. PostgreSQL, SQLite tests, backup and restore
+8. GitHub Actions, package installation and release process
+9. Browser console and the API-key entry component
 
-## Security controls by layer
+## Security assumptions
 
-- **Input:** Pydantic validation, strict hostname canonicalization, allowlist boundary matching.
-- **Network:** Reject non-global DNS answers, connect to validated literal IPs, verify TLS, no redirects, no body download, bounded deadlines.
-- **Application:** Constant-time API-key comparison, production configuration validation, explicit CORS, defensive response headers.
-- **Data:** SQLAlchemy parameterization, bounded assessment history, redacted evidence.
-- **Operations:** Readiness endpoint, request ID, CI tests, CodeQL and Dependabot configuration.
+- Operators only add assets they own or have explicit authorization to assess.
+- The server-side allowlist is configured by a trusted operator.
+- TLS verification is enabled and the system clock is reliable.
+- Production deployment provides network-level egress enforcement.
+- Database and application secrets are injected out of source control.
 
 ## Known limitations
 
-- Current API-key authentication is single-operator and does not provide user identity or role separation.
-- Audit rows are not immutable against a database administrator.
-- The current application does not provide multi-tenant isolation, queue workers or distributed rate limiting.
-- Docker runtime, production egress segmentation, backup restore and independent penetration testing have not been certified by this code change.
-- The platform does not certify compliance with any regulatory framework.
+- Single shared API key, no user identity or role separation.
+- No multi-tenant data isolation.
+- No distributed rate limiting, durable queue, ephemeral assessment workers or job cancellation.
+- Hash-chain events are stored in the application database; no independent immutable sink.
+- Secret scanner covers selected patterns only.
+- Control catalog is operational mapping, not a certification.
+- No independent penetration test, disaster-recovery exercise or production load certification is claimed.
 
-## Release-blocking security requirements for a hosted multi-user service
+## Release-blocking requirements for hosted multi-user service
 
-1. OIDC/SSO, MFA policy, RBAC and short-lived credentials.
-2. Tenant isolation tested at API, service and database layers.
-3. Alembic migration and downgrade/restore procedures.
-4. Network egress proxy/firewall and DNS pinning enforcement.
-5. Distributed rate limits, quotas, job isolation and abuse monitoring.
-6. Append-only audit export with integrity verification.
-7. External security review and tested incident-response procedures.
+1. OIDC/SSO, MFA, RBAC and short-lived sessions.
+2. Tenant isolation with API and database enforcement tests.
+3. Distributed quotas, rate limits and abuse monitoring.
+4. Dedicated egress policy enforcement and isolated workers.
+5. Managed secrets and automated rotation.
+6. External append-only audit export and signed checkpoints.
+7. Metrics, traces, alerting and incident-response playbooks.
+8. Backup restore proof and independent security assessment.

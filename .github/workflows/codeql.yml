@@ -1,4 +1,5 @@
 name: CodeQL
+
 on:
   push:
     branches: [main]
@@ -7,10 +8,16 @@ on:
   schedule:
     - cron: "23 4 * * 2"
   workflow_dispatch:
+
 permissions:
   contents: read
   security-events: write
   actions: read
+
+concurrency:
+  group: sentinel-codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze
@@ -20,8 +27,8 @@ jobs:
       matrix:
         language: [python, javascript-typescript]
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4

@@ -2,7 +2,7 @@
 
 ## Supported baseline
 
-Security reports are currently accepted for the latest code on the `main` branch and the latest tagged release, if any.
+Security reports are accepted for the latest code on the `main` branch and the latest tagged release, if any.
 
 ## Report a vulnerability privately
 
@@ -23,4 +23,8 @@ This is a community development project without a staffed security response team
 
 ## Scope and safeguards
 
-SENTINEL is a defensive posture project. Its own assessment engine is intended for explicitly allowlisted, authorized DNS names and is not designed for exploitation, stealth, credential attacks or destructive testing.
+SENTINEL is a defensive posture project. Its assessment engine is intended for explicitly allowlisted, authorized DNS names and is not designed for exploitation, stealth, credential attacks or destructive testing.
+
+## Security posture limitations
+
+The current release does not provide SSO, RBAC, multi-tenant isolation, distributed API rate limiting, immutable external audit storage, independent penetration-testing assurance or a certified production deployment. Please do not treat the project as an enterprise security certification or as a substitute for an established security programme.
