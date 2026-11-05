@@ -1,59 +1,65 @@
 # SENTINEL Engineering Roadmap
 
-This roadmap is a staged implementation plan, not a claim that every listed capability exists today.
+This roadmap is an implementation plan, not a claim that every target feature exists.
 
-## 0.2 — Defensive engine hardening (current branch)
+## 0.3.0 — Defensive operations foundation (current baseline)
 
-- [x] DNS-pinned HTTPS connection to validated public IPs
-- [x] Original hostname retained for TLS SNI and HTTP Host
-- [x] Headers-only response handling, no redirects, shared timeout and 64 KiB header cap
-- [x] Explainable risk v2 with deduplication, confidence and bounded criticality
-- [x] Production configuration guards
-- [x] Liveness/readiness endpoints and request correlation ID
-- [x] Bounded assessment-history retention
-- [x] Threat model, architecture and algorithm blueprints
-- [ ] GitHub Actions run and remote CI verification after merge
+- [x] Time-bounded authorized asset inventory
+- [x] Registered-asset assessments with asset criticality context
+- [x] DNS-pinned HTTPS, TLS, HTTP-header and DNS email posture checks
+- [x] Explainable risk v2 and evidence-linked findings
+- [x] Remediation task lifecycle
+- [x] Framework-neutral operational control mapping
+- [x] Bounded secret-pattern review with redacted output and no source persistence
+- [x] SHA-256 hash-linked audit event chain and verifier
+- [x] Alembic migration path, including upgrade of legacy schema
+- [x] React 19 / Vite 8 / TypeScript 7 operator console
+- [x] Apache-2.0 license, source notices, CI and CodeQL workflow
 
-## 0.3 — Identity, data integrity and operations
+## 0.4 — Identity, authorization and service security
 
-- Alembic migrations; remove production dependence on create_all.
-- OIDC/SSO, MFA integration, user identity, RBAC and API-key rotation.
-- Rate limiting, request quotas and audit event export.
-- Append-only external audit storage with integrity checkpoints.
-- Structured logs, metrics, traces, alert rules and service-level objectives.
-- Database backup/restore automation and tested disaster-recovery runbook.
+- [x] Overlapping API-key rotation with constant-time comparisons and bounded key configuration
+- [x] Audited, formula-safe CSV exports across five operational datasets
+- [x] Extended DNS posture: SPF/DMARC policy quality, CAA, MTA-STS discovery and TLS-RPT
+- [x] HSTS/CSP policy-quality checks beyond header presence
+- [x] Authenticated, audit-logged CSV exports with formula-injection neutralization
 
-**Exit gate:** authorization and identity tests, migration upgrade/downgrade tests, audit integrity verification, and a successful restore drill.
+- OIDC/SAML federation, MFA, RBAC and short-lived user sessions
+- Per-user and per-service credentials, revocation and rotation
+- Formal asset authorization approval integration and expiry notifications
+- Distributed API rate limiting, quotas and abuse monitoring
+- Tenant boundary design and access-control test suite
 
-## 0.4 — Scalable execution plane
+**Exit gate:** identity threat model, authorization policy review, cross-tenant denial tests and credential lifecycle tests.
 
-- Durable queue, scheduler and idempotent assessment jobs.
-- Ephemeral workers with least privilege and strict resource budgets.
-- Network egress gateway with destination IP enforcement and DNS-rebinding controls.
-- Per-tenant quotas, job cancellation, bounded retry/backoff and dead-letter handling.
-- Evidence object storage with encryption, retention and redaction.
+## 0.5 — Scalable data plane
 
-**Exit gate:** load testing, queue recovery tests, isolation tests, egress policy tests and failure-injection exercises.
+- Durable queue, scheduler, idempotent jobs and cancellation
+- Isolated ephemeral workers and strict execution/resource budgets
+- Network egress gateway and connection-time destination enforcement
+- Bounded retry policy and dead-letter workflow
+- External encrypted evidence storage with retention and access control
 
-## 0.5 — Enterprise asset and policy management
+**Exit gate:** load tests, queue recovery, worker isolation and egress policy validation.
 
-- Asset inventory with owners, environments, criticality and authorization expiry.
-- Versioned policy-as-code and approver-controlled exceptions.
-- Remediation workflow with ticketing integrations and owner assignment.
-- Control mapping and executive risk reporting with traceable evidence.
-- Multi-tenant security boundaries and tenant-specific encryption keys.
+## 0.6 — Audit and operational assurance
 
-**Exit gate:** cross-tenant access tests, policy approval audit, evidence access tests and external threat-model review.
+- Independent append-only audit export with signed checkpoints
+- Metrics, tracing, structured logs, dashboards and alert rules
+- Backup/restore automation, RPO/RTO targets and recovery drills
+- Security event integrations and incident-response workflow
+- Service-level objectives and dependency supply-chain controls
+
+**Exit gate:** restore proof, alert exercises, audit checkpoint verification and operational readiness review.
 
 ## 1.0 — Production readiness
 
-- Independent penetration test and remediation of critical/high findings.
-- Secure SDLC, signed releases, SBOM and dependency provenance.
-- Recovery objectives (RPO/RTO), backup restore proof and incident-response exercises.
-- Performance, availability and retention objectives.
-- Privacy review and documented data lifecycle.
-- Operational runbooks, support ownership and change management.
+- Independent penetration test and remediation of critical/high issues
+- Multi-tenant isolation review and external threat-model assessment
+- Signed release artifacts, SBOM and provenance
+- Privacy/data-retention review and support ownership
+- Performance, reliability and recovery objectives validated in deployment
 
 ## Explicit non-goals
 
-SENTINEL will not become a stealth tool, exploit launcher, credential attack platform, unrestricted port scanner or arbitrary network discovery service. Its assessment capabilities remain explicitly authorized and defensive.
+SENTINEL is not intended to become a stealth tool, exploit launcher, credential attack tool, arbitrary internet scanner or destructive testing framework. Its target-assessment capabilities remain scoped to explicitly authorized defensive work.

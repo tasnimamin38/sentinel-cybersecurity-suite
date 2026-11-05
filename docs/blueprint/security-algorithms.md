@@ -1,47 +1,66 @@
 # SENTINEL — Security Algorithms and Decision Models
 
-**Algorithm set:** 0.2  
-**Primary objective:** Safe, repeatable, explainable defensive assessment inside an explicit authorization boundary.
+**Algorithm set:** 0.3
+**Objective:** Deterministic, bounded, explainable defensive assessment inside a time-bounded authorization scope.
 
-## 1. Domain authorization
+## 1. Hostname authorization
 
-Input is a DNS hostname, not an arbitrary URL.
+1. Trim whitespace and one trailing dot.
+2. Reject URL schemes, paths, fragments, queries, user information and IP literals.
+3. Convert Unicode labels to IDNA ASCII and lowercase.
+4. Validate DNS label syntax and total hostname length.
+5. Normalize configured allowlist entries identically.
+6. Authorize only exact hostname match or a proper subdomain boundary.
 
-1. Trim whitespace and a single trailing dot.
-2. Reject schemes, paths, fragments, query strings, userinfo and IP literals.
-3. Convert Unicode labels to IDNA ASCII and lowercase the result.
-4. Validate total hostname length, label length and DNS-label syntax.
-5. Normalize each configured allowlist entry using the same function.
-6. Authorize only an exact match or a proper subdomain boundary (host equals allowed, or host ends in dot + allowed).
+A raw suffix match is invalid. <code>example.com.attacker.invalid</code> must never match the allowlisted <code>example.com</code>.
 
-A string suffix match without the dot boundary is forbidden. For example, example.com.attacker.invalid must not match example.com.
+## 2. Registered-asset authorization
 
-## 2. DNS safety and pinned HTTPS transport
+Each registered asset records owner, environment, criticality, tags, authorization reference and timezone-aware expiry.
 
-The assessment uses this fail-closed algorithm:
+The assessment gate is:
 
-1. Canonicalize the submitted hostname and authorize it against the allowlist.
-2. Resolve its A and AAAA records.
-3. Reject an empty answer set, malformed IP, any non-global address, or more than 16 answers.
-4. Start one shared monotonic deadline. The configured timeout is bounded to 0.5–20 seconds.
-5. Connect TCP to a literal address from the validated answer set, never by resolving the hostname a second time.
-6. Start TLS with the original canonical hostname as server_hostname. Certificate hostname validation and SNI therefore remain hostname-bound.
-7. Send exactly one GET / HTTP/1.1 request with Host set to the canonical hostname and Connection: close.
-8. Read only up to the response-header terminator, with a 64 KiB cap.
-9. Do not follow Location redirects and do not download the response body.
-10. Close the connection. If no validated address succeeds before the shared deadline, return an incomplete HTTPS result.
+~~~text
+asset = load_asset(asset_id)
+if asset does not exist: NOT_FOUND
+if asset.status != "active": DENY
+if authorization_expires_at <= utc_now(): DENY
+if hostname not inside configured server allowlist: DENY
+context = { asset_criticality, asset_id, environment }
+run bounded posture assessment
+~~~
 
-**Why pin the IP?** Resolving a hostname, validating its IP, and then connecting to the hostname again creates a time-of-check/time-of-use window. The 0.2 probe connects to a literal address from the already validated answer set, while preserving the original hostname for TLS SNI, certificate verification and the HTTP Host header.
+The authorization reference is an operator-supplied approval/change identifier; SENTINEL does not independently verify that the referenced approval exists in an external ticketing system.
 
-**Residual boundary:** Application-layer pinning is not a replacement for network egress controls. Production workers still need an outbound firewall/proxy that enforces destination policy at connection time. DNS posture queries (MX/TXT) are separate read-only DNS lookups.
+## 3. DNS validation and pinned HTTPS transport
 
-## 3. Explainable risk aggregation — sentinel-exponential-v2
+~~~text
+canonical_host = authorize_and_normalize(input, allowlist)
+answers = resolve_A_and_AAAA(canonical_host)
+if answers is empty: DENY
+if any answer is malformed or not globally routable: DENY
+if answer_count > configured_limit: DENY
 
-### Inputs
+deadline = monotonic_now + timeout
+for ip in unique(answers):
+    connect TCP to literal ip:443
+    start TLS with server_hostname=canonical_host
+    verify certificate chain and hostname
+    send one GET / HTTP/1.1
+      Host: canonical_host
+      Connection: close
+    read only through CRLF-CRLF
+    cap response headers at 64 KiB
+    do not follow redirects
+    do not consume the response body
+    close socket
+~~~
 
-Each normalized finding has a stable code, category, severity and optional confidence (default 1.0). Asset criticality is supplied through assessment context (default multiplier 1.0).
+The literal-IP connection removes the application-level resolve/validate/re-resolve window. It does not replace an egress firewall/proxy that checks destinations at connection time.
 
-Severity points:
+## 4. Explainable risk v2
+
+Severity weights:
 
 | Severity | Base points |
 |---|---:|
@@ -49,17 +68,15 @@ Severity points:
 | High | 70 |
 | Medium | 35 |
 | Low | 10 |
-| Informational | 1 |
+| Info | 1 |
 
-Confidence is clamped to 0.25–1.0. Asset criticality is clamped to 0.5–1.5. Duplicate category + finding-code pairs count once; the highest weighted instance wins.
-
-### Formula
+Confidence is clamped to 0.25–1.0. Asset criticality is clamped to 0.5–1.5. Duplicate <code>(category, code)</code> findings count once; the highest weighted instance is retained.
 
 P = sum(severity_points × confidence × asset_criticality)
 
 RiskScore = round(100 × (1 − exp(−P / 50)))
 
-Any critical finding forces RiskScore = 100 and risk_level = critical.
+Any critical finding forces a score of 100 and <code>critical</code> level.
 
 | Score | Level |
 |---:|---|
@@ -69,33 +86,27 @@ Any critical finding forces RiskScore = 100 and risk_level = critical.
 | 70–89 | High |
 | 90–100 | Critical |
 
-The API stores the model identifier, formula, raw weighted points, criticality multiplier, unique finding count and top five score drivers. This makes a score reviewable rather than a black-box number.
+The API stores the model ID, formula, total weighted points, multiplier, unique finding count and top drivers. The score is a SENTINEL prioritization model, not a CVSS calculation.
 
-## 4. Finding normalization
+## 5. Secret scan data handling
 
-A finding should be stable across runs and contain:
+- Accept only bounded plain-text request payloads.
+- Run selected credential-like regex patterns.
+- Never return raw matches; return a redaction marker/fingerprint.
+- Never store submitted source text or matched credential values.
+- Record only source byte count, finding count and that source was not persisted.
+- The pattern set is limited; no-match does not prove source is secret-free.
 
-- code: immutable machine identifier (for example MISSING_CSP)
-- category: web security, transport security, DNS, secrets or dependency posture
-- severity: critical / high / medium / low / info
-- confidence: numeric confidence where applicable
-- description: observed condition, without speculative claims
-- evidence: minimum required evidence; redact secrets and tokens
-- recommendation: specific safe remediation guidance
+## 6. Audit hash chain
 
-A failed or unavailable test is an assessment failure/incomplete state, never an automatic pass.
+For every event, serialize a stable payload containing event ID, type, subject, result, details, timestamp and previous hash.
 
-## 5. Policy evaluation pipeline (target)
+<code>event_hash = SHA256(canonical_event_payload)</code>
 
-Identity → Tenant → Asset authorization → Scope policy → Execution policy → Evidence policy → Risk policy → Exception review → Audit export
+The next event references the last recorded event hash. PostgreSQL writes are serialized with a transaction-scoped advisory lock. Verification recalculates each digest and validates previous-hash continuity.
 
-The future policy engine should reject expired authorizations, prohibit out-of-scope assets, enforce maximum assessment budgets and require approval for high-impact checks. Policy exceptions must have an owner, reason, approver and expiry date.
+This detects many accidental or partial modifications, but a privileged database operator can rewrite the entire chain. Use externally controlled, signed checkpoints for stronger assurance.
 
-## 6. Safety invariants
+## 7. Control mapping semantics
 
-- No arbitrary IP-range discovery.
-- No port scanning, exploitation, brute force, credential validation or stealth.
-- No redirect following or response-body execution.
-- No secret value in findings, logs or user-visible evidence.
-- No production startup with weak API key, missing authorization scope, wildcard CORS or SQLite.
-- No clean posture result when required evidence is missing.
+A control is marked <code>attention</code> when a mapped finding exists in retained assessments. Otherwise it is <code>not_observed</code>. A <code>not_observed</code> status is not a pass, audit opinion or proof of control effectiveness.

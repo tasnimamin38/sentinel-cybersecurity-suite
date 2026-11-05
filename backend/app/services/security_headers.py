@@ -1,3 +1,6 @@
+import re
+
+
 def _finding(code: str, title: str, severity: str, description: str, recommendation: str) -> dict:
     return {
         "code": code,
@@ -13,7 +16,8 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
     normalized = {str(key).lower(): str(value) for key, value in headers.items()}
     findings: list[dict] = []
 
-    if "strict-transport-security" not in normalized:
+    hsts = normalized.get("strict-transport-security")
+    if not hsts:
         findings.append(
             _finding(
                 "MISSING_HSTS",
@@ -23,7 +27,31 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "After confirming all subdomains support HTTPS, deploy a suitable Strict-Transport-Security policy.",
             )
         )
-    if "content-security-policy" not in normalized:
+    else:
+        max_age = re.search(r"(?:^|;)\s*max-age\s*=\s*(\d+)", hsts, re.IGNORECASE)
+        if not max_age or int(max_age.group(1)) < 31_536_000:
+            findings.append(
+                _finding(
+                    "HSTS_MAX_AGE_SHORT",
+                    "HSTS max-age is missing or shorter than one year",
+                    "low",
+                    "The HSTS max-age directive is absent or below 31,536,000 seconds.",
+                    "After testing HTTPS readiness, consider an HSTS max-age of at least one year.",
+                )
+            )
+        if "includesubdomains" not in hsts.lower():
+            findings.append(
+                _finding(
+                    "HSTS_SUBDOMAINS_NOT_COVERED",
+                    "HSTS does not cover subdomains",
+                    "info",
+                    "The HSTS policy does not include the includeSubDomains directive.",
+                    "If every subdomain is HTTPS-capable, consider includeSubDomains to extend browser enforcement.",
+                )
+            )
+
+    csp = normalized.get("content-security-policy", "").lower()
+    if not csp:
         findings.append(
             _finding(
                 "MISSING_CSP",
@@ -33,6 +61,44 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "Define a restrictive CSP based on the application's actual script, style, image and connection requirements.",
             )
         )
+    else:
+        directives = {}
+        for item in csp.split(";"):
+            parts = item.strip().split()
+            if parts:
+                directives[parts[0]] = parts[1:]
+        script_sources = directives.get("script-src", directives.get("default-src", []))
+        if "'unsafe-eval'" in script_sources:
+            findings.append(
+                _finding(
+                    "CSP_UNSAFE_EVAL",
+                    "CSP permits unsafe JavaScript evaluation",
+                    "high",
+                    "The effective script policy includes 'unsafe-eval'.",
+                    "Remove unsafe-eval and replace dynamic evaluation with safer application patterns.",
+                )
+            )
+        if "'unsafe-inline'" in script_sources:
+            findings.append(
+                _finding(
+                    "CSP_UNSAFE_INLINE_SCRIPT",
+                    "CSP permits inline scripts",
+                    "medium",
+                    "The effective script policy includes 'unsafe-inline'.",
+                    "Prefer nonces or hashes for required inline scripts and remove broad inline-script permission.",
+                )
+            )
+        if "*" in script_sources:
+            findings.append(
+                _finding(
+                    "CSP_WILDCARD_SCRIPT_SOURCE",
+                    "CSP allows scripts from any source",
+                    "high",
+                    "The effective script policy contains a wildcard source.",
+                    "Replace wildcard script sources with explicit trusted origins.",
+                )
+            )
+
     if normalized.get("x-content-type-options", "").lower() != "nosniff":
         findings.append(
             _finding(
@@ -43,7 +109,6 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "Set X-Content-Type-Options: nosniff.",
             )
         )
-    csp = normalized.get("content-security-policy", "").lower()
     if "x-frame-options" not in normalized and "frame-ancestors" not in csp:
         findings.append(
             _finding(
@@ -54,7 +119,8 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "Set frame-ancestors in Content-Security-Policy; use X-Frame-Options for legacy clients where needed.",
             )
         )
-    if "referrer-policy" not in normalized:
+    referrer = normalized.get("referrer-policy", "").lower()
+    if not referrer:
         findings.append(
             _finding(
                 "MISSING_REFERRER_POLICY",
@@ -64,7 +130,18 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "Set Referrer-Policy to a policy appropriate for the application, such as strict-origin-when-cross-origin.",
             )
         )
-    if "permissions-policy" not in normalized:
+    elif referrer in {"unsafe-url", "no-referrer-when-downgrade"}:
+        findings.append(
+            _finding(
+                "REFERRER_POLICY_WEAK",
+                "Referrer Policy may disclose excessive URL information",
+                "low",
+                f"The response uses the {referrer} policy.",
+                "Consider strict-origin-when-cross-origin or no-referrer based on application requirements.",
+            )
+        )
+    permissions = normalized.get("permissions-policy", "").lower()
+    if not permissions:
         findings.append(
             _finding(
                 "MISSING_PERMISSIONS_POLICY",
@@ -72,6 +149,16 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "low",
                 "The response does not define a Permissions-Policy.",
                 "Explicitly disable browser features the application does not need.",
+            )
+        )
+    elif re.search(r"(?:^|[,;])\s*[a-z-]+\s*=\s*\*", permissions):
+        findings.append(
+            _finding(
+                "PERMISSIONS_POLICY_WILDCARD",
+                "Permissions Policy contains a wildcard allowlist",
+                "medium",
+                "At least one browser feature is allowed for all origins.",
+                "Replace wildcard feature allowlists with explicit trusted origins or disable unused features.",
             )
         )
     if "x-powered-by" in normalized:

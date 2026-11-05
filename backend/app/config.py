@@ -13,12 +13,22 @@ class Settings(BaseSettings):
     )
 
     api_key: str = ""
+    api_keys: str = ""
     allowed_domains: str = ""
     database_url: str = "sqlite:///./sentinel.db"
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
     environment: str = "development"
+
+    @property
+    def configured_api_keys(self) -> list[str]:
+        # Keep API_KEY for backward compatibility. API_KEYS supports overlap
+        # during rotation: deploy [old,new], switch clients, then remove old.
+        values = [item.strip() for item in self.api_keys.split(",") if item.strip()]
+        if not values and self.api_key.strip():
+            values = [self.api_key.strip()]
+        return list(dict.fromkeys(values))
 
     @property
     def allowed_domain_list(self) -> list[str]:
@@ -40,8 +50,23 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
         if self.environment == "production":
             errors = []
-            if len(self.api_key) < 32:
-                errors.append("SENTINEL_API_KEY must contain at least 32 characters")
+            keys = self.configured_api_keys
+            if not keys or any(len(key) < 32 for key in keys):
+                errors.append("Every configured API key must contain at least 32 characters")
+            for key in keys:
+                normalized_key = key.lower()
+                if any(
+                    marker in normalized_key
+                    for marker in (
+                        "replace-with",
+                        "change-me",
+                        "your-api-key",
+                        "placeholder",
+                        "example",
+                    )
+                ):
+                    errors.append("API keys must not contain sample or placeholder values")
+                    break
             if not self.allowed_domain_list:
                 errors.append(
                     "SENTINEL_ALLOWED_DOMAINS must contain at least one authorized domain"

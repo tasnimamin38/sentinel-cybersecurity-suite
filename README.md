@@ -1,93 +1,302 @@
-# SENTINEL — Defensive Security Operations Platform
+<div align="center">
+  <img src="docs/assets/sentinel-banner.svg" alt="SENTINEL — Defensive Security Operations" width="100%" />
 
-[![CI](https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg)](https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml)
+  <p>
+    <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+    <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
+    <img src="https://img.shields.io/badge/Release-0.3.3-3977a7.svg" alt="Version 0.3.3" />
+    <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
+  </p>
 
-SENTINEL is a modular defensive-security foundation for organizations assessing systems they own or are explicitly authorized to test. It combines a FastAPI service, a React/TypeScript operator console, SQL persistence, audit events, and container deployment.
+  <h3>Authorized asset governance · Evidence-driven posture · Accountable remediation</h3>
+  <p><em>A defensive security operations foundation for teams that need to know what they own, what was observed, what needs attention, and who is responsible.</em></p>
+</div>
 
-**Current release: 0.2.0 engineering baseline.** This is not a certified enterprise security product or a replacement for a specialist security program.
+---
 
-## Capabilities in this baseline
+## What SENTINEL is
 
-- Explicit DNS domain allowlist with exact and proper subdomain matching.
-- DNS-pinned HTTPS probe: connects to a literal validated public IP while retaining hostname-bound TLS SNI and HTTP Host.
-- Bounded behavior: one HTTP/1.1 GET, headers-only parsing, no redirect following, no response-body download, shared timeout and 64 KiB header cap.
-- Explainable risk v2: severity weights, confidence, bounded asset criticality, duplicate suppression and top risk drivers.
-- Production configuration guard: rejects weak API keys, missing authorized scope, wildcard CORS and SQLite in production.
-- Liveness/readiness endpoints, request correlation IDs and assessment-history retention cap.
-- TLS certificate metadata and expiry check.
-- DNS MX, SPF and DMARC posture checks.
-- Normalized findings and a transparent severity-based risk score.
-- SQL-backed assessment history and audit events.
-- API-key-protected routes that fail closed when no key is configured.
-- Responsive console, Docker Compose, CI, CodeQL workflow and Dependabot configuration.
-- Secret-pattern scanning library that returns redacted evidence only.
+SENTINEL is an open-source, defensive-security engineering platform for systems that you own or are explicitly authorized to assess. It combines a <strong>FastAPI control API</strong>, a <strong>React security operations console</strong>, SQL persistence, expiry-dated asset authorization, a bounded HTTPS assessment engine, remediation tracking and a tamper-evident audit chain.
 
-## Safety model
+The current release is an <strong>engineering baseline</strong>, not a certified enterprise product, compliance platform, WAF, EDR or SIEM. The repository intentionally separates working controls from capabilities that still require infrastructure and independent verification.
 
-The assessment API rejects unlisted domains, URL paths and IP literals. It rejects any non-public DNS answer, then connects to a literal validated IP while retaining the hostname for TLS SNI, certificate validation and the HTTP Host header. It performs one bounded HTTPS GET, reads response headers only, does not follow redirects, does not download response bodies and does not execute exploit payloads.
+<div align="center">
 
-Only assess assets covered by your own authorization. The domain allowlist is an application guardrail, not legal authorization. Do not add a domain until you have written permission.
+| 0.3.3 capability | Implementation |
+|:---|:---:|
+| Time-bounded authorized asset inventory | Implemented |
+| DNS-pinned HTTPS/TLS and extended email/certificate DNS posture | Implemented |
+| HSTS/CSP policy-quality analysis | Implemented |
+| Explainable risk scoring and findings | Implemented |
+| Remediation ownership and task status | Implemented |
+| Framework-neutral control mapping | Implemented |
+| Redacting inline secret-pattern review | Implemented |
+| Hash-linked audit event verification | Implemented |
+| Alembic schema migrations | Implemented |
+| Overlapping API-key rotation | Implemented |
+| Audited CSV exports with formula-injection defense | Implemented |
+| SSO, RBAC and multi-tenant isolation | Roadmap |
+| Durable workers, queue and egress gateway | Roadmap |
 
-## Quick start — Docker
+</div>
 
-1. Copy `.env.example` to `.env`.
-2. Replace both passwords/keys with unique, long random values.
-3. Set `SENTINEL_ALLOWED_DOMAINS` to the exact domain(s) you are authorized to assess.
-4. Run `docker compose up --build`.
-5. Open the console at http://localhost:8080. API liveness is at http://localhost:8000/healthz and database readiness is at http://localhost:8000/readyz.
-6. Enter the API key in the console. It remains in page memory and is not persisted in browser storage.
+## Operations console
 
-The database is not exposed to the host network. API and console ports bind to localhost by default.
+The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
 
-## Backend development
+| Command center | Asset governance |
+|:---:|:---:|
+| Live assessments, risk snapshot, asset and remediation summary | Owner, environment, criticality, approval reference and expiry-dated scope |
 
-From `backend`:
+| Findings and remediation | Assurance and audit |
+|:---:|:---:|
+| Evidence, remediation recommendation and task tracking | Control mapping, event hashes and chain verification |
 
-```powershell
+## Capability map
+
+### 01 — Asset governance
+
+- Register DNS hostnames only inside the configured server-side allowlist.
+- Store an asset name, accountable owner, environment, criticality, tags and approval/change reference.
+- Require a future, timezone-aware authorization expiry.
+- Block managed-asset assessments when the asset is paused, inactive or its authorization has expired.
+- Apply asset criticality to the risk model for registered-asset assessments.
+- Retention removes only unreferenced assessment records; evidence linked to remediation tasks is preserved even when the configured history cap is reached.
+
+### 02 — Bounded web and DNS posture
+
+- Resolve the complete DNS answer set and reject non-global addresses.
+- Connect to a literal, previously validated public IP while preserving the original hostname for TLS SNI, certificate verification and the HTTP <code>Host</code> header.
+- Send one bounded HTTPS <code>GET /</code>; do not follow redirects or download the response body.
+- Enforce a shared timeout budget, bounded DNS answer count and 64 KiB response-header limit.
+- Inspect HTTP security-header policy quality, including HSTS lifetime/subdomain scope, CSP unsafe directives, referrer policy and permissive Permissions Policy.
+- Inspect MX, SPF duplication and permissive mechanisms, DMARC policy strength, CAA, MTA-STS discovery and SMTP TLS reporting records. DNS checks are passive and do not modify target records.
+
+### 03 — Explainable risk and remediation
+
+- Normalize findings with stable codes, category, severity, confidence, evidence and recommendation.
+- Deduplicate <code>(category, code)</code> findings.
+- Apply a bounded asset-criticality multiplier and expose the scoring model, weighted points and top risk drivers.
+- Create a remediation task only from a finding that exists in a stored assessment.
+- Track owner, due date, notes and task state: <code>open</code>, <code>in_progress</code>, <code>resolved</code> or <code>accepted</code>.
+
+> SENTINEL's risk score is its own deterministic prioritization model. It is not a CVSS score and must not be represented as one.
+
+### 04 — Secret hygiene and audit assurance
+
+- Review a submitted text snippet of up to 256 KiB for selected GitHub, AWS, Slack and private-key patterns.
+- Return a redacted marker and a short SHA-256 fingerprint; never echo the matched value.
+- Do not persist the submitted source text. The audit event records only input byte count and finding count.
+- Hash-link audit events with SHA-256 and verify previous-hash continuity and event contents.
+- Export bounded assets, assessments, findings, remediations and audit events to authenticated CSV; every export is recorded in the audit journal.
+- Neutralize spreadsheet formula-like values in exported cells.
+- Report pre-existing unsealed audit records separately.
+
+> Hash chaining is <strong>tamper-evident, not immutable</strong>. A privileged database operator who can rewrite the entire chain can defeat this control. Export signed checkpoints to independently controlled storage for stronger assurance.
+
+### 05 — Operational control mapping
+
+SENTINEL includes a small framework-neutral control catalog that links observations to asset governance, web security, email-domain protection, TLS lifecycle and credential hygiene themes.
+
+<code>not_observed</code> means no matching finding was present in the retained assessments. It does <strong>not</strong> mean a control passed, was tested completely or satisfies a regulatory requirement. This catalog is not a compliance certification or audit opinion.
+
+---
+
+## System architecture
+
+~~~mermaid
+flowchart LR
+    OP[Security operator] --> UI[React operations console]
+    UI -->|API key in memory| API[FastAPI control API]
+    API --> AUTH[API authentication]
+    AUTH --> INV[Asset registry and authorization expiry]
+    AUTH --> SCOPE[Hostname allowlist and scope policy]
+    INV --> SCOPE
+    SCOPE --> DNS[DNS answer validation]
+    DNS --> PIN[DNS-pinned HTTPS probe]
+    PIN --> WEB[Authorized HTTPS asset]
+    PIN --> EVIDENCE[Header and TLS evidence]
+    DNS --> POSTURE[MX / SPF / DMARC posture]
+    EVIDENCE --> FIND[Finding normalization]
+    POSTURE --> FIND
+    FIND --> RISK[Explainable risk engine]
+    RISK --> DB[(PostgreSQL / SQLite)]
+    API --> REM[Remediation workflow]
+    API --> AUDIT[Hash-linked audit journal]
+    API --> SECRET[Redacting secret-pattern scan]
+    REM --> DB
+    AUDIT --> DB
+    SECRET --> DB
+~~~
+
+### Trust boundaries
+
+| Boundary | Primary controls |
+|:---|:---|
+| Browser → API | API-key header, explicit CORS allowlist, key held in component memory |
+| API → DNS | Hostname normalization, exact/proper-subdomain scope matching, reject non-global answers |
+| API → target | Validated-IP connection, hostname-bound TLS, no redirects, bounded header read |
+| API → database | SQLAlchemy parameterization, transaction boundaries, assessment retention cap |
+| Audit → operator | Hash-chain verification, explicit legacy-unsealed count, assurance limitation |
+
+<strong>Defence in depth still required:</strong> application-level DNS pinning does not replace a production egress firewall/proxy. Production workers should have network-level destination enforcement.
+
+## API surface
+
+All <code>/api/v1/*</code> routes require <code>X-API-Key</code>.
+
+| Method | Endpoint | Purpose |
+|:---:|:---|:---|
+| <code>GET</code> | <code>/healthz</code> | Liveness |
+| <code>GET</code> | <code>/readyz</code> | Database and migration readiness |
+| <code>GET</code> | <code>/api/v1/config</code> | Configured scope and feature policy |
+| <code>GET</code> | <code>/api/v1/overview</code> | Operational summary |
+| <code>GET</code>, <code>POST</code> | <code>/api/v1/assets</code> | List and register authorized assets |
+| <code>PATCH</code> | <code>/api/v1/assets/{asset_id}</code> | Update asset metadata/authorization |
+| <code>POST</code> | <code>/api/v1/assets/{asset_id}/assessments</code> | Assess a registered, currently authorized asset |
+| <code>GET</code>, <code>POST</code> | <code>/api/v1/assessments</code> | List or run an ad-hoc in-scope assessment |
+| <code>GET</code> | <code>/api/v1/assessments/{assessment_id}</code> | Assessment detail |
+| <code>GET</code>, <code>POST</code> | <code>/api/v1/remediations</code> | List or create remediation tasks |
+| <code>PATCH</code> | <code>/api/v1/remediations/{task_id}</code> | Update assignee, status, due date or notes |
+| <code>GET</code> | <code>/api/v1/controls</code> | Operational finding-to-control mapping |
+| <code>POST</code> | <code>/api/v1/secrets/scan</code> | Bounded, non-persisted text secret-pattern review |
+| <code>GET</code> | <code>/api/v1/audit</code> | Recent audit events and hashes |
+| <code>GET</code> | <code>/api/v1/audit/integrity</code> | Verify hash-chain continuity |
+| <code>GET</code> | <code>/api/v1/exports/{dataset}.csv</code> | Authenticated, bounded and audited CSV export (`assets`, `assessments`, `findings`, `remediations`, `audit`) |
+
+Interactive API documentation is enabled only outside production at <code>/docs</code>.
+
+---
+
+## Quick start
+
+### Requirements
+
+- Docker Engine + Docker Compose plugin, or Python 3.12+ and Node.js 22+
+- Docker Engine + Docker Compose plugin, or Python 3.12+ and Node.js 22.12+
+- npm 11.12.1 for the checked-in frontend lockfile
+- An explicit list of domains that you are authorized to assess
+- A strong API key and PostgreSQL password
+
+### Docker Compose
+
+1. Clone the repository and create a local environment file:
+
+   ~~~powershell
+   Copy-Item .env.example .env
+   ~~~
+
+2. Generate separate random hex secrets (hex avoids URL-reserved characters in the Compose database URL):
+
+   ~~~powershell
+   python -c "import secrets; print(secrets.token_hex(32))"
+   ~~~
+
+3. Set <code>POSTGRES_PASSWORD</code>, <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Use only assets covered by your authorization. For zero-downtime key rotation, temporarily set <code>SENTINEL_API_KEYS=old-key,new-key</code> (each key must be at least 32 characters), deploy, move clients to the new key, then remove the old key. Never commit real keys; use a secret manager in production.
+
+4. Start the stack:
+
+   ~~~powershell
+   docker compose up --build
+   ~~~
+
+5. Open the console at <code>http://localhost:8080</code>. API liveness is <code>http://localhost:8000/healthz</code>; readiness is <code>http://localhost:8000/readyz</code>.
+
+The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network; the API joins a separate outbound network for authorized DNS/HTTPS checks; the static console is isolated on its own internal web network. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
+
+### Local development
+
+<strong>Backend</strong>
+
+~~~powershell
+cd backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-$env:SENTINEL_API_KEY = "use-a-long-local-development-secret-at-least-32-chars"
+$env:SENTINEL_ENVIRONMENT = "development"
+$env:SENTINEL_API_KEY = "replace-with-a-unique-random-secret-at-least-32-characters"
 $env:SENTINEL_ALLOWED_DOMAINS = "example.com"
+alembic upgrade head
 uvicorn app.main:app --reload
-```
+~~~
 
-In a second terminal:
+<strong>Frontend</strong> — in a second terminal:
 
-```powershell
+~~~powershell
 cd frontend
 npm ci
+$env:VITE_API_BASE_URL = "http://localhost:8000"
 npm run dev
-```
+~~~
 
-Configure `VITE_API_BASE_URL=http://localhost:8000` when required. API docs are available at `/docs` in development.
+The API key is entered into the console and held in component memory; it is not written to local storage.
+
+---
+
+## Engineering validation
+
+The current local validation suite covers API authentication and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
+
+| Validation | Current local result |
+|:---|:---:|
+| Backend test suite | 61 passed |
+| Ruff 0.17.4 lint | Passed |
+| Ruff format check | Passed |
+| Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
+| <code>npm audit --audit-level=moderate</code> | 0 reported vulnerabilities |
+| <code>pip-audit -r requirements.txt</code> | No known vulnerabilities found |
+
+The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build and CodeQL for Python and JavaScript/TypeScript. The local Windows environment did not have Docker CLI available, so Docker runtime validation remains outstanding. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
+
+---
+
+## What is still required before multi-user industrial deployment?
+
+| Capability | Status | Why it matters |
+|:---|:---:|:---|
+| OIDC/SSO, MFA, RBAC and service identities | Roadmap | Current API key is a single shared operator credential |
+| Multi-tenant isolation and row-level policy | Roadmap | Current data model is single-workspace |
+| Distributed rate limits and quotas | Roadmap | No cluster-wide abuse control yet |
+| Durable assessment queue and isolated workers | Roadmap | Assessments execute in the API process |
+| Network egress gateway / firewall enforcement | Deployment requirement | App-level IP pinning is not a network boundary |
+| External append-only audit export/checkpoints | Roadmap | Database administrators can rewrite the stored chain |
+| Secret manager and managed key lifecycle | Roadmap | Rotation overlap is implemented; production secret custody still needs a secret manager |
+| Metrics, traces, alerting and SLOs | Roadmap | Operational observability is incomplete |
+| Backup/restore and disaster-recovery exercises | Roadmap | No tested RPO/RTO claim |
+| Independent penetration test | Not performed | External security assurance is still required |
+
+See [system architecture](docs/blueprint/system-architecture.md), [security algorithms](docs/blueprint/security-algorithms.md), [threat model](docs/blueprint/threat-model.md) and [roadmap](docs/blueprint/roadmap.md) for the target architecture and delivery gates.
 
 ## Repository layout
 
-- `backend/app` — API, data models, authorization and security services.
-- `backend/tests` — regression tests for core safety and scoring behavior.
-- `frontend` — responsive security operations console.
-- `docs` — architecture, threat model, algorithms, roadmap and operator runbook.
-- `.github/workflows` — CI and CodeQL automation.
+~~~text
+backend/
+  app/
+    services/        # scope, DNS, pinned HTTPS, risk, audit, controls, secrets
+  alembic/            # versioned database migrations
+  tests/              # API, authorization, risk, transport and migration tests
+frontend/
+  src/                # React operations console and SOC design system
+docs/
+  assets/             # project banner and visual assets
+  blueprint/          # architecture, algorithms, threat model and roadmap
+.github/
+  workflows/          # CI and CodeQL
+~~~
 
-## Architecture and blueprints
+## Security and responsible use
 
-- System architecture: docs/blueprint/system-architecture.md
-- Security algorithms and risk model: docs/blueprint/security-algorithms.md
-- Threat model: docs/blueprint/threat-model.md
-- Engineering roadmap: docs/blueprint/roadmap.md
+SENTINEL is defensive software. Do not add a hostname or assess a system without written authorization. It does not perform exploitation, brute force, credential attacks, stealth operations or arbitrary IP-range discovery.
 
-The target enterprise design separates control plane, data plane, evidence storage and observability. The target is not fully implemented in 0.2.0.
-
-## Contributing
-
-Bug reports, focused improvements, tests and documentation are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
-
-## Security
-
-Please do not report exploitable vulnerabilities in public issues. Follow [SECURITY.md](SECURITY.md) for responsible disclosure.
+See [SECURITY.md](SECURITY.md) for responsible vulnerability reporting. Never put real credentials into public issues, test fixtures or screenshots. Secret scanning only covers a limited set of patterns and is not a substitute for dedicated secret-management controls.
 
 ## License
 
-This repository is public for transparency and collaboration, but **no open-source license has been applied yet**. Until a license is added, do not assume that public visibility grants permission to redistribute or reuse the code.
+SENTINEL is licensed under the <strong>Apache License, Version 2.0</strong>. See [LICENSE](LICENSE) and [notice](notice). Third-party packages retain their respective upstream licenses.
+
+---
+
+<div align="center">
+  <sub>SENTINEL · Defensive Security Operations · Authorization First</sub>
+</div>

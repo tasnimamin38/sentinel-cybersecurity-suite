@@ -34,6 +34,28 @@ class ProductionConfigTests(unittest.TestCase):
         )
         self.assertEqual(settings.allowed_domain_list, ["example.com"])
 
+    def test_production_rejects_placeholder_key_even_when_long(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="replace-with-a-long-but-not-a-real-secret-value",
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+            )
+
+    def test_api_key_overlap_configuration_accepts_two_strong_keys(self):
+        settings = Settings(api_keys="A" * 40 + "," + "B" * 40)
+        self.assertEqual(settings.configured_api_keys, ["A" * 40, "B" * 40])
+
+    def test_api_key_overlap_rejects_any_weak_key_in_production(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_keys="A" * 40 + ",short",
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+            )
+
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)
