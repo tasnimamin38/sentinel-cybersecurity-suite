@@ -19,6 +19,9 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 ## 0.4 — Identity, authorization and service security
 
 - [x] Overlapping API-key rotation with constant-time comparisons and bounded key configuration
+- [x] Audited, formula-safe CSV exports across five operational datasets
+- [x] Extended DNS posture: SPF/DMARC policy quality, CAA, MTA-STS discovery and TLS-RPT
+- [x] HSTS/CSP policy-quality checks beyond header presence
 - [x] Authenticated, audit-logged CSV exports with formula-injection neutralization
 
 - OIDC/SAML federation, MFA, RBAC and short-lived user sessions

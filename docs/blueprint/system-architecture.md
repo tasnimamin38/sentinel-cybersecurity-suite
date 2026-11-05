@@ -1,6 +1,6 @@
 # SENTINEL — System Architecture Blueprint
 
-**Current implementation:** 0.3.1 engineering baseline  
+**Current implementation:** 0.3.2 engineering baseline  
 **Design scope:** Authorized, defensive security posture operations.
 
 This blueprint separates working implementation from target-state architecture. A diagram or roadmap item is not evidence that a capability is implemented, scalable or independently verified.

@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.3.1-3977a7.svg" alt="Version 0.3.1" />
+    <img src="https://img.shields.io/badge/Release-0.3.2-3977a7.svg" alt="Version 0.3.2" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -23,10 +23,11 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 
 <div align="center">
 
-| 0.3.1 capability | Implementation |
+| 0.3.2 capability | Implementation |
 |:---|:---:|
 | Time-bounded authorized asset inventory | Implemented |
-| DNS-pinned HTTPS/TLS and DNS posture | Implemented |
+| DNS-pinned HTTPS/TLS and extended email/certificate DNS posture | Implemented |
+| HSTS/CSP policy-quality analysis | Implemented |
 | Explainable risk scoring and findings | Implemented |
 | Remediation ownership and task status | Implemented |
 | Framework-neutral control mapping | Implemented |
@@ -68,7 +69,8 @@ The console uses live API-backed information. Asset, finding, remediation and au
 - Connect to a literal, previously validated public IP while preserving the original hostname for TLS SNI, certificate verification and the HTTP <code>Host</code> header.
 - Send one bounded HTTPS <code>GET /</code>; do not follow redirects or download the response body.
 - Enforce a shared timeout budget, bounded DNS answer count and 64 KiB response-header limit.
-- Inspect selected HTTP security headers, TLS certificate metadata/expiry and DNS MX, SPF and DMARC posture.
+- Inspect HTTP security-header policy quality, including HSTS lifetime/subdomain scope, CSP unsafe directives, referrer policy and permissive Permissions Policy.
+- Inspect MX, SPF duplication and permissive mechanisms, DMARC policy strength, CAA, MTA-STS discovery and SMTP TLS reporting records. DNS checks are passive and do not modify target records.
 
 ### 03 — Explainable risk and remediation
 
@@ -237,7 +239,7 @@ The current local validation suite covers API authentication and overlapping key
 
 | Validation | Current local result |
 |:---|:---:|
-| Backend test suite | 56 passed |
+| Backend test suite | 59 passed |
 | Ruff 0.17.4 lint | Passed |
 | Ruff format check | Passed |
 | Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |

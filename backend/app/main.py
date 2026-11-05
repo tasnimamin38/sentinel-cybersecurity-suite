@@ -45,7 +45,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.3.1",
+    version="0.3.2",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -136,7 +136,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.3.1",
+        "version": "0.3.2",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -169,7 +169,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.3.1",
+        "version": "0.3.2",
         "authorized_domains": settings.allowed_domain_list,
         "features": [
             "dns-pinned-https-headers",
@@ -184,6 +184,8 @@ def read_config():
             "alembic-migrations",
             "overlapping-api-key-rotation",
             "audited-csv-exports",
+            "extended-dns-posture",
+            "security-header-policy-analysis",
         ],
         "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
     }

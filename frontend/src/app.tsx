@@ -319,7 +319,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-emblem"><ShieldCheck size={22} strokeWidth={1.8} /></div>
-          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.3.1</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
+          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.3.2</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
         </div>
         <div className="workspace-chip"><span className="live-dot" /> PRIVATE SECURITY WORKSPACE <ChevronDown size={13} /></div>
         <div className="sidebar-scroll">
@@ -504,7 +504,7 @@ export default function App() {
               )}
             </>
           )}
-          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.3.1</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.3.2</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>
