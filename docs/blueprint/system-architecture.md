@@ -1,6 +1,6 @@
 # SENTINEL — System Architecture Blueprint
 
-**Current implementation:** 0.3.3 engineering baseline
+**Current implementation:** 0.3.4 engineering baseline
 **Design scope:** Authorized, defensive security posture operations.
 
 This blueprint separates working implementation from target-state architecture. A diagram or roadmap item is not evidence that a capability is implemented, scalable or independently verified.
@@ -22,7 +22,9 @@ This blueprint separates working implementation from target-state architecture. 
 flowchart TB
   OP[Security operator] --> WEB[React 19 / Vite 8 console]
   WEB -->|X-API-Key, memory only| API[FastAPI 0.3 control API]
-  API --> AUTH[API-key authentication]
+  API --> RL[Redis atomic sliding-window limiter]
+  RL --> REDIS[(Authenticated Redis · 128 MiB cap)]
+  RL --> AUTH[API-key authentication]
   AUTH --> INV[Asset registry]
   INV -->|owner, criticality, expiry, approval reference| SCOPE[Hostname allowlist and authorization gate]
   AUTH --> SCOPE
@@ -72,16 +74,19 @@ flowchart TB
 | Control catalog | Links known findings to operational control themes | Not a certification or assurance opinion |
 | Secret scanner | Selected regex patterns and redacted fingerprint | Limited pattern catalog; source not persisted |
 | Audit service | SHA-256 hash-linked event sequence | Tamper-evident, not immutable against DB administrator |
-| Alembic | Versioned schema upgrade | One baseline migration currently |
+| Request guard | 512 KiB default API body ceiling; counts chunked streams | Configurable global API cap; HTTP 413 when exceeded |
+| Rate limiter | Redis Lua sliding-window log, server time, per-IP/API key and operation buckets | Shared across API replicas; fail-closed on Redis loss; no tenant quotas |
+| Alembic | Versioned schema upgrade | Baseline and audit sequence revisions |
 
 ## 4. Trust boundaries
 
 | Boundary | Controls |
 |---|---|
-| Browser → API | API key in header, explicit CORS, no local-storage persistence |
+| Browser → API | API key in header, explicit CORS, no local-storage persistence; Redis rate limits run before endpoint authentication |
 | API → asset scope | IDNA normalization, allowlist boundary matching, expiring authorization |
 | API → DNS | Complete answer set inspection, reject private/reserved/non-global IPs |
 | API → HTTPS asset | Literal validated IP connection, hostname-bound TLS, no redirects, bounded header read |
+| API → Redis | Redis authentication, private data network, atomic Lua, memory ceiling and fail-closed requests |
 | API → database | SQLAlchemy parameterization, transactions, migration-based schema |
 | Secret text → API | Payload cap, no source persistence, redacted output |
 | Audit → operator | Previous-hash continuity and content digest verification |
@@ -96,7 +101,7 @@ flowchart TB
 - Asset inventory with business service and ownership relationships
 
 ### Data plane
-- API gateway, WAF and distributed rate limits
+- API gateway/WAF, per-tenant budgets and quotas (shared Redis IP/API-key/operation rate limits are implemented in 0.3.4)
 - Durable job queue and assessment orchestrator
 - Ephemeral workers with CPU, memory, time and egress budgets
 - Network egress proxy/firewall with connection-time destination enforcement

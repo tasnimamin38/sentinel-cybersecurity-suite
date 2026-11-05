@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from app.database import SessionLocal
 from app.main import _persist_assessment, app
 from app.models import Assessment, RemediationTask
+from app.services.rate_limit import RateLimitDecision, RateLimiterUnavailable
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -42,7 +43,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.3.3"
+    assert response.json()["version"] == "0.3.4"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -64,6 +65,8 @@ def test_protected_config_returns_security_features(client):
     assert response.json()["authorized_domains"] == ["example.com"]
     assert "dns-pinned-https-headers" in response.json()["features"]
     assert "asset-inventory" in response.json()["features"]
+    assert "redis-sliding-window-rate-limits" in response.json()["features"]
+    assert response.json()["rate_limits"]["assessment_requests_per_window"] == 10
 
 
 def test_assessment_rejects_target_outside_scope_before_network_access(client):
@@ -313,3 +316,85 @@ def test_assessment_retention_preserves_evidence_referenced_by_remediation(monke
         )
     finally:
         db.close()
+
+
+class StubRateLimiter:
+    def __init__(self, denied=False, unavailable=False):
+        self.denied = denied
+        self.unavailable = unavailable
+        self.calls = []
+
+    async def check(self, key, limit, window):
+        self.calls.append((key, limit, window))
+        if self.unavailable:
+            raise RateLimiterUnavailable("redis offline")
+        if self.denied:
+            return RateLimitDecision(False, 0, 7)
+        return RateLimitDecision(True, limit - 1, 0)
+
+
+def test_api_rate_limit_buckets_hash_client_identity_and_return_headers(client, monkeypatch):
+    limiter = StubRateLimiter()
+    monkeypatch.setattr(app.state, "rate_limiter", limiter, raising=False)
+
+    response = client.get("/api/v1/config", headers=API_HEADERS)
+
+    assert response.status_code == 200
+    assert response.headers["x-ratelimit-limit"] == "120"
+    assert response.headers["x-ratelimit-remaining"] == "119"
+    assert response.headers["ratelimit-policy"] == "120;w=60"
+    assert len(limiter.calls) == 2
+    assert any(":ip:" in item[0] for item in limiter.calls)
+    client_key = next(item[0] for item in limiter.calls if ":client:" in item[0])
+    assert API_HEADERS["X-API-Key"] not in client_key
+    assert len(client_key.rsplit(":", 1)[-1]) == 64
+
+
+def test_assessment_endpoint_receives_stricter_rate_limit(client, monkeypatch):
+    limiter = StubRateLimiter()
+    monkeypatch.setattr(app.state, "rate_limiter", limiter, raising=False)
+
+    response = client.post(
+        "/api/v1/assessments",
+        headers=API_HEADERS,
+        json={"domain": "outside.invalid"},
+    )
+
+    assert response.status_code == 403
+    assert [item[1] for item in limiter.calls] == [300, 120, 10]
+    assert limiter.calls[-1][0].startswith("sentinel:rate:assessment:")
+
+
+def test_rate_limit_denial_returns_429_and_retry_after(client, monkeypatch):
+    limiter = StubRateLimiter(denied=True)
+    monkeypatch.setattr(app.state, "rate_limiter", limiter, raising=False)
+
+    response = client.get("/api/v1/config", headers=API_HEADERS)
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "7"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-request-id"]
+
+
+def test_rate_limiter_outage_fails_closed_instead_of_bypassing(client, monkeypatch):
+    limiter = StubRateLimiter(unavailable=True)
+    monkeypatch.setattr(app.state, "rate_limiter", limiter, raising=False)
+
+    response = client.get("/api/v1/config", headers=API_HEADERS)
+
+    assert response.status_code == 503
+    assert "temporarily unavailable" in response.json()["detail"]
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_oversized_api_body_is_rejected_before_secret_scan(client):
+    response = client.post(
+        "/api/v1/secrets/scan",
+        headers=API_HEADERS,
+        content=b"x" * (512 * 1024 + 1),
+    )
+    assert response.status_code == 413
+    assert "configured API size limit" in response.json()["detail"]
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "no-store"

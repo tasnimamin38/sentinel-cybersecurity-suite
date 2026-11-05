@@ -1,10 +1,13 @@
+import hashlib
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from redis.asyncio import Redis
 from sqlalchemy import delete, desc, exists, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -28,24 +31,53 @@ from app.schemas import (
 from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
+from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
+from app.services.request_limits import RequestBodySizeLimitMiddleware
 from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     # Development/test bootstrap only. Production containers run Alembic before
     # Uvicorn; schema changes must never be hidden behind create_all.
     if settings.environment != "production":
         Base.metadata.create_all(bind=engine)
-    yield
+
+    redis_client: Redis | None = None
+    application.state.redis = None
+    application.state.rate_limiter = None
+    if settings.redis_url:
+        redis_client = Redis.from_url(
+            settings.redis_url,
+            decode_responses=False,
+            socket_connect_timeout=1.5,
+            socket_timeout=1.5,
+            health_check_interval=30,
+            max_connections=64,
+        )
+        try:
+            await redis_client.ping()
+        except Exception as exc:
+            await redis_client.aclose()
+            raise RuntimeError(
+                "Shared rate-limit storage is unavailable; API startup refused."
+            ) from exc
+        application.state.redis = redis_client
+        application.state.rate_limiter = RedisSlidingWindowLimiter(redis_client)
+
+    try:
+        yield
+    finally:
+        if redis_client is not None:
+            await redis_client.aclose()
 
 
 settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.3.3",
+    version="0.3.4",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -59,12 +91,79 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "X-API-Key"],
 )
+app.add_middleware(RequestBodySizeLimitMiddleware, max_bytes=settings.max_request_body_bytes)
 
 
 @app.middleware("http")
-async def security_response_headers(request, call_next):
+async def security_response_headers(request: Request, call_next):
     request_id = uuid4().hex
-    response = await call_next(request)
+    rate_headers: dict[str, str] = {}
+
+    if request.url.path.startswith("/api/v1/"):
+        limiter = getattr(request.app.state, "rate_limiter", None)
+        if limiter is None and settings.environment == "production":
+            response = JSONResponse(
+                status_code=503,
+                content={"detail": "Request protection is temporarily unavailable."},
+            )
+        elif limiter is None:
+            response = await call_next(request)
+        else:
+            peer = request.client.host if request.client else "unknown"
+            supplied_key = request.headers.get("X-API-Key", "")
+            api_identity = hashlib.sha256(
+                (supplied_key if supplied_key else "anonymous:" + peer).encode("utf-8")
+            ).hexdigest()
+            ip_identity = hashlib.sha256(peer.encode("utf-8")).hexdigest()
+            window = settings.rate_limit_window_seconds
+            policies = [
+                ("ip", ip_identity, settings.ip_rate_limit_per_minute),
+                ("client", api_identity, settings.api_rate_limit_per_minute),
+            ]
+            if request.method == "POST" and request.url.path.endswith("/assessments"):
+                policies.append(
+                    ("assessment", api_identity, settings.assessment_rate_limit_per_minute)
+                )
+            if request.method == "POST" and request.url.path.endswith("/secrets/scan"):
+                policies.append(
+                    ("secret-scan", api_identity, settings.secret_scan_rate_limit_per_minute)
+                )
+
+            try:
+                for bucket, identity, limit in policies:
+                    decision = await limiter.check(
+                        f"sentinel:rate:{bucket}:{identity}", limit, window
+                    )
+                    if not decision.allowed:
+                        response = JSONResponse(
+                            status_code=429,
+                            content={
+                                "detail": "Request rate limit exceeded. Retry after the indicated delay."
+                            },
+                            headers={
+                                "Retry-After": str(decision.retry_after_seconds),
+                                "X-RateLimit-Limit": str(limit),
+                                "X-RateLimit-Remaining": "0",
+                                "RateLimit-Policy": f"{limit};w={window}",
+                            },
+                        )
+                        break
+                    if bucket in ("client", "assessment", "secret-scan"):
+                        rate_headers = {
+                            "X-RateLimit-Limit": str(limit),
+                            "X-RateLimit-Remaining": str(decision.remaining),
+                            "RateLimit-Policy": f"{limit};w={window}",
+                        }
+                else:
+                    response = await call_next(request)
+            except RateLimiterUnavailable:
+                response = JSONResponse(
+                    status_code=503,
+                    content={"detail": "Request protection is temporarily unavailable."},
+                )
+    else:
+        response = await call_next(request)
+
     response.headers.setdefault("X-Request-ID", request_id)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
@@ -73,6 +172,8 @@ async def security_response_headers(request, call_next):
     response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     response.headers.setdefault("Cache-Control", "no-store")
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    for header, value in rate_headers.items():
+        response.headers.setdefault(header, value)
     return response
 
 
@@ -139,13 +240,13 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.3.3",
+        "version": "0.3.4",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
 @app.get("/readyz")
-def readyz(db: Session = Depends(get_db)):
+async def readyz(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
         if settings.environment == "production":
@@ -166,13 +267,26 @@ def readyz(db: Session = Depends(get_db)):
         raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database readiness check failed.") from exc
-    return {"status": "ready", "database": "reachable"}
+    readiness = {"status": "ready", "database": "reachable"}
+    if settings.redis_url:
+        redis_client = getattr(app.state, "redis", None)
+        try:
+            if redis_client is None:
+                raise RuntimeError("Redis client is not initialized")
+            await redis_client.ping()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Shared rate-limit storage readiness check failed.",
+            ) from exc
+        readiness["rate_limiter"] = "reachable"
+    return readiness
 
 
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.3.3",
+        "version": "0.3.4",
         "authorized_domains": settings.allowed_domain_list,
         "features": [
             "dns-pinned-https-headers",
@@ -189,7 +303,22 @@ def read_config():
             "audited-csv-exports",
             "extended-dns-posture",
             "security-header-policy-analysis",
+            "redis-sliding-window-rate-limits",
+            "ip-and-api-key-rate-limit-buckets",
+            "strict-assessment-and-secret-scan-rate-limits",
+            "bounded-api-request-body-size",
         ],
+        "request_limits": {
+            "max_body_bytes": settings.max_request_body_bytes,
+        },
+        "rate_limits": {
+            "window_seconds": settings.rate_limit_window_seconds,
+            "api_requests_per_window": settings.api_rate_limit_per_minute,
+            "ip_requests_per_window": settings.ip_rate_limit_per_minute,
+            "assessment_requests_per_window": settings.assessment_rate_limit_per_minute,
+            "secret_scans_per_window": settings.secret_scan_rate_limit_per_minute,
+            "algorithm": "redis-atomic-sliding-window-log",
+        },
         "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
     }
 

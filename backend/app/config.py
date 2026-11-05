@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,7 +19,14 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./sentinel.db"
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
+    max_request_body_bytes: int = 524_288
     max_assessment_records: int = 250
+    redis_url: str = ""
+    rate_limit_window_seconds: int = 60
+    api_rate_limit_per_minute: int = 120
+    ip_rate_limit_per_minute: int = 300
+    assessment_rate_limit_per_minute: int = 10
+    secret_scan_rate_limit_per_minute: int = 20
     environment: str = "development"
 
     @property
@@ -46,8 +54,20 @@ class Settings(BaseSettings):
             )
         if not 0.5 <= self.request_timeout_seconds <= 20:
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
+        if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
+            raise ValueError("SENTINEL_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760.")
         if not 1 <= self.max_assessment_records <= 100_000:
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
+        if not 1 <= self.rate_limit_window_seconds <= 86_400:
+            raise ValueError("SENTINEL_RATE_LIMIT_WINDOW_SECONDS must be between 1 and 86400.")
+        for name, value in (
+            ("SENTINEL_API_RATE_LIMIT_PER_MINUTE", self.api_rate_limit_per_minute),
+            ("SENTINEL_IP_RATE_LIMIT_PER_MINUTE", self.ip_rate_limit_per_minute),
+            ("SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE", self.assessment_rate_limit_per_minute),
+            ("SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE", self.secret_scan_rate_limit_per_minute),
+        ):
+            if not 1 <= value <= 100_000:
+                raise ValueError(f"{name} must be between 1 and 100000.")
         if self.environment == "production":
             errors = []
             keys = self.configured_api_keys
@@ -75,6 +95,16 @@ class Settings(BaseSettings):
                 errors.append("SENTINEL_CORS_ORIGINS must not contain a wildcard")
             if self.database_url.startswith("sqlite"):
                 errors.append("SENTINEL_DATABASE_URL must use PostgreSQL outside development")
+            redis_parts = urlsplit(self.redis_url)
+            if (
+                redis_parts.scheme not in {"redis", "rediss"}
+                or not redis_parts.hostname
+                or not redis_parts.password
+                or len(redis_parts.password) < 32
+            ):
+                errors.append(
+                    "SENTINEL_REDIS_URL must configure authenticated shared Redis rate-limit storage"
+                )
             if errors:
                 raise ValueError("Production configuration rejected: " + "; ".join(errors))
         return self

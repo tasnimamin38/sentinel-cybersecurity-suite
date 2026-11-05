@@ -15,7 +15,7 @@ It is not yet a multi-user enterprise service.
 - Credential vault and rotation
 
 ### Assessment data plane
-- API gateway with distributed rate limits
+- API gateway with per-tenant quotas and usage budgets (shared per-IP/API-key/operation Redis rate limits are implemented)
 - Durable queue and scheduler
 - Isolated, ephemeral workers with no ambient cloud credentials
 - Egress gateway with destination allowlist and DNS-pinning enforcement
@@ -31,6 +31,8 @@ It is not yet a multi-user enterprise service.
 
 - Each phase must have acceptance tests.
 - Each security claim must have observable evidence.
+- Redis is required for production request throttling; loss of the rate-limit store must fail closed.
+- Per-tenant budgets are a separate requirement from per-API-key and per-IP request limits.
 - Failed or unavailable checks must never be represented as a pass.
 - Multi-tenant hosting is blocked until isolation has been independently reviewed.
 - Production readiness requires external security testing and recovery proof.

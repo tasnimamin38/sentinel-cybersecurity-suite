@@ -1,6 +1,6 @@
 # SENTINEL — Security Algorithms and Decision Models
 
-**Algorithm set:** 0.3
+**Algorithm set:** 0.3.4
 **Objective:** Deterministic, bounded, explainable defensive assessment inside a time-bounded authorization scope.
 
 ## 1. Hostname authorization
@@ -107,6 +107,25 @@ The next event references the last recorded event hash. PostgreSQL writes are se
 
 This detects many accidental or partial modifications, but a privileged database operator can rewrite the entire chain. Use externally controlled, signed checkpoints for stronger assurance.
 
-## 7. Control mapping semantics
+## 7. Request resource-consumption controls
+
+- Reject API request bodies above the configured ceiling (512 KiB default, 10 MiB hard maximum) before JSON parsing when Content-Length is available.
+- Count streamed/chunked body frames as they arrive; do not rely only on a client-supplied Content-Length.
+- Use Redis server time for the rate-limit window to avoid per-instance clock drift.
+- A Lua script prunes expired sorted-set members, counts the remaining request timestamps, and atomically inserts the new request only when the bucket is under limit.
+- Keep independent buckets for direct peer IP, SHA-256 API-key fingerprint and expensive assessment/secret-scan operations.
+- Treat Redis failure as unavailable request protection; API requests fail closed with 503 instead of bypassing the limiter.
+
+~~~text
+now = redis.TIME()
+remove entries where score <= now - window
+count = ZCARD(bucket)
+if count >= limit: DENY + Retry-After
+else: ZADD(bucket, now, random_request_id); PEXPIRE(bucket, window + safety_margin); ALLOW
+~~~
+
+This is a sliding-window log, not a fixed-window counter. It avoids the boundary-burst behavior of fixed windows but uses one sorted-set member per accepted request within the active window. The configured rate ceilings and Redis memory cap must be sized against peak traffic; use per-tenant budgets and a gateway quota layer for hosted multi-tenant service.
+
+## 8. Control mapping semantics
 
 A control is marked <code>attention</code> when a mapped finding exists in retained assessments. Otherwise it is <code>not_observed</code>. A <code>not_observed</code> status is not a pass, audit opinion or proof of control effectiveness.

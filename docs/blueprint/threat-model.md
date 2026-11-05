@@ -1,6 +1,6 @@
 # SENTINEL Threat Model
 
-**Version:** 0.3 engineering baseline
+**Version:** 0.3.4 engineering baseline
 **Method:** STRIDE-style review for the current single-workspace architecture.
 
 ## Protected assets
@@ -21,7 +21,7 @@
 | Repudiation | Operator disputes a change | Hash-linked audit event and chain verification | Database administrator can rewrite entire stored chain |
 | Information disclosure | Secret text appears in result | Redacted match output; source text not persisted | Limited pattern coverage; request transport must be protected |
 | Information disclosure | Browser API key leakage | Component-memory key, no local storage | Shared key still lacks per-user scope and revocation |
-| Denial of service | Large input or slow remote endpoint | 256 KiB secret input cap, HTTPS deadline, 64 KiB header cap | No distributed API rate limit, queue quota or worker isolation |
+| Denial of service | Large input, request floods or slow remote endpoint | 512 KiB API body cap including chunked streams; 256 KiB secret-input schema cap; Redis shared sliding-window limits per direct peer IP/API-key/operation; HTTPS deadline; 64 KiB header cap | No tenant quotas, durable queue or worker isolation; Redis is a required runtime dependency in production |
 | Elevation of privilege | User accesses another tenant | No multi-tenant service in current release | Must not host multiple untrusted tenants before isolation controls exist |
 
 ## Attack surface
@@ -48,7 +48,7 @@
 
 - Single shared API key, no user identity or role separation.
 - No multi-tenant data isolation.
-- No distributed rate limiting, durable queue, ephemeral assessment workers or job cancellation.
+- No per-tenant usage budgets, durable queue, ephemeral assessment workers or job cancellation; rate limits are shared per IP/API key but not tenant-aware.
 - Hash-chain events are stored in the application database; no independent immutable sink.
 - Secret scanner covers selected patterns only.
 - Control catalog is operational mapping, not a certification.
@@ -58,7 +58,7 @@
 
 1. OIDC/SSO, MFA, RBAC and short-lived sessions.
 2. Tenant isolation with API and database enforcement tests.
-3. Distributed quotas, rate limits and abuse monitoring.
+3. Per-tenant quotas, distributed usage budgets and centralized abuse monitoring; Redis API/IP/operation rate limiting is implemented.
 4. Dedicated egress policy enforcement and isolated workers.
 5. Managed secrets and automated rotation.
 6. External append-only audit export and signed checkpoints.

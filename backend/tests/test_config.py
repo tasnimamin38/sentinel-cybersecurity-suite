@@ -30,6 +30,7 @@ class ProductionConfigTests(unittest.TestCase):
             api_key="S" * 40,
             allowed_domains="example.com",
             database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:R" + "R" * 63 + "@redis:6379/0",
             cors_origins="https://console.example.com",
         )
         self.assertEqual(settings.allowed_domain_list, ["example.com"])
@@ -59,6 +60,41 @@ class ProductionConfigTests(unittest.TestCase):
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)
+
+    def test_production_requires_authenticated_shared_redis(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="P" * 64,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+            )
+
+    def test_production_rejects_redis_without_a_strong_password(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="P" * 64,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                redis_url="redis://redis:6379/0",
+            )
+
+    def test_rate_limit_policy_is_bounded(self):
+        with self.assertRaises(ValidationError):
+            Settings(api_rate_limit_per_minute=0)
+        with self.assertRaises(ValidationError):
+            Settings(rate_limit_window_seconds=90_000)
+
+    def test_production_rejects_weak_redis_password(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="P" * 64,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                redis_url="redis://:short@redis:6379/0",
+            )
 
 
 if __name__ == "__main__":

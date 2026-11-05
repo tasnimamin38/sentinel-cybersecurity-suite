@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.3.3-3977a7.svg" alt="Version 0.3.3" />
+    <img src="https://img.shields.io/badge/Release-0.3.4-3977a7.svg" alt="Version 0.3.4" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -23,7 +23,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 
 <div align="center">
 
-| 0.3.3 capability | Implementation |
+| 0.3.4 capability | Implementation |
 |:---|:---:|
 | Time-bounded authorized asset inventory | Implemented |
 | DNS-pinned HTTPS/TLS and extended email/certificate DNS posture | Implemented |
@@ -36,6 +36,9 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Alembic schema migrations | Implemented |
 | Overlapping API-key rotation | Implemented |
 | Audited CSV exports with formula-injection defense | Implemented |
+| Authenticated Redis sliding-window rate limits | Implemented |
+| Per-IP, API-key, assessment and secret-scan buckets | Implemented |
+| API request-body cap for JSON and chunked streams | Implemented |
 | SSO, RBAC and multi-tenant isolation | Roadmap |
 | Durable workers, queue and egress gateway | Roadmap |
 
@@ -109,7 +112,9 @@ SENTINEL includes a small framework-neutral control catalog that links observati
 flowchart LR
     OP[Security operator] --> UI[React operations console]
     UI -->|API key in memory| API[FastAPI control API]
-    API --> AUTH[API authentication]
+    API --> RL[Redis sliding-window rate limiter]
+    RL --> REDIS[(Authenticated Redis)]
+    RL --> AUTH[API authentication]
     AUTH --> INV[Asset registry and authorization expiry]
     AUTH --> SCOPE[Hostname allowlist and scope policy]
     INV --> SCOPE
@@ -134,9 +139,10 @@ flowchart LR
 
 | Boundary | Primary controls |
 |:---|:---|
-| Browser → API | API-key header, explicit CORS allowlist, key held in component memory |
+| Browser → API | API-key header, explicit CORS allowlist, key held in component memory, shared Redis rate limits |
 | API → DNS | Hostname normalization, exact/proper-subdomain scope matching, reject non-global answers |
 | API → target | Validated-IP connection, hostname-bound TLS, no redirects, bounded header read |
+| API → Redis | Authenticated private network, atomic server-time sliding-window Lua script, bounded memory and fail-closed behavior |
 | API → database | SQLAlchemy parameterization, transaction boundaries, assessment retention cap |
 | Audit → operator | Hash-chain verification, explicit legacy-unsealed count, assurance limitation |
 
@@ -149,8 +155,8 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code>.
 | Method | Endpoint | Purpose |
 |:---:|:---|:---|
 | <code>GET</code> | <code>/healthz</code> | Liveness |
-| <code>GET</code> | <code>/readyz</code> | Database and migration readiness |
-| <code>GET</code> | <code>/api/v1/config</code> | Configured scope and feature policy |
+| <code>GET</code> | <code>/readyz</code> | Database migration and shared Redis readiness |
+| <code>GET</code> | <code>/api/v1/config</code> | Configured scope, rate-limit and feature policy |
 | <code>GET</code> | <code>/api/v1/overview</code> | Operational summary |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/assets</code> | List and register authorized assets |
 | <code>PATCH</code> | <code>/api/v1/assets/{asset_id}</code> | Update asset metadata/authorization |
@@ -167,17 +173,20 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code>.
 
 Interactive API documentation is enabled only outside production at <code>/docs</code>.
 
+### Request throttling
+
+Every API request is checked against a shared Redis sliding-window log using both the direct network peer address and a SHA-256 fingerprint of the presented API key (the key itself is never used as a Redis key). Assessment and inline secret-scan endpoints receive additional, stricter buckets. Redis server time and a single Lua script make each bucket decision atomic across API instances. The service returns <code>429</code> with <code>Retry-After</code> when a limit is reached, <code>413</code> for oversized bodies (including chunked streams), and returns <code>503</code> instead of bypassing controls if Redis becomes unavailable. Default policies are 300 requests/IP/minute, 120 requests/API-key/minute, 10 assessments/API-key/minute and 20 secret scans/API-key/minute; tune these to operational capacity. API request bodies are capped at 512 KiB by default, including chunked requests without a Content-Length header. These are per-credential and per-IP limits, not tenant quotas.
+
 ---
 
 ## Quick start
 
 ### Requirements
 
-- Docker Engine + Docker Compose plugin, or Python 3.12+ and Node.js 22+
 - Docker Engine + Docker Compose plugin, or Python 3.12+ and Node.js 22.12+
 - npm 11.12.1 for the checked-in frontend lockfile
 - An explicit list of domains that you are authorized to assess
-- A strong API key and PostgreSQL password
+- A strong API key, PostgreSQL password and Redis password
 
 ### Docker Compose
 
@@ -187,13 +196,13 @@ Interactive API documentation is enabled only outside production at <code>/docs<
    Copy-Item .env.example .env
    ~~~
 
-2. Generate separate random hex secrets (hex avoids URL-reserved characters in the Compose database URL):
+2. Generate separate random hex secrets (hex avoids URL-reserved characters in PostgreSQL and Redis URLs):
 
    ~~~powershell
    python -c "import secrets; print(secrets.token_hex(32))"
    ~~~
 
-3. Set <code>POSTGRES_PASSWORD</code>, <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Use only assets covered by your authorization. For zero-downtime key rotation, temporarily set <code>SENTINEL_API_KEYS=old-key,new-key</code> (each key must be at least 32 characters), deploy, move clients to the new key, then remove the old key. Never commit real keys; use a secret manager in production.
+3. Set <code>POSTGRES_PASSWORD</code>, <code>REDIS_PASSWORD</code>, <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Use independently generated 64-character hex passwords for PostgreSQL and Redis. Use only assets covered by your authorization. For zero-downtime key rotation, temporarily set <code>SENTINEL_API_KEYS=old-key,new-key</code> (each key must be at least 32 characters), deploy, move clients to the new key, then remove the old key. Never commit real keys; use a secret manager in production.
 
 4. Start the stack:
 
@@ -203,7 +212,7 @@ Interactive API documentation is enabled only outside production at <code>/docs<
 
 5. Open the console at <code>http://localhost:8080</code>. API liveness is <code>http://localhost:8000/healthz</code>; readiness is <code>http://localhost:8000/readyz</code>.
 
-The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network; the API joins a separate outbound network for authorized DNS/HTTPS checks; the static console is isolated on its own internal web network. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
+The Compose configuration binds API and console ports to localhost. PostgreSQL and authenticated Redis are isolated on an internal data network; Redis is non-persistent, memory-capped and configured to reject writes rather than evict rate-limit state. The API joins a separate outbound network for authorized DNS/HTTPS checks; the static console is isolated on its own internal web network. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL and Redis health are checked before API startup; Alembic migrations run before Uvicorn; readiness verifies both the database migration head and Redis. Loss of Redis fails closed with HTTP 503 for API routes; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
 
 ### Local development
 
@@ -236,18 +245,18 @@ The API key is entered into the console and held in component memory; it is not 
 
 ## Engineering validation
 
-The current local validation suite covers API authentication and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
+The current local validation suite covers API authentication and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, Redis rate-limit policy and fail-closed behavior, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
 
 | Validation | Current local result |
 |:---|:---:|
-| Backend test suite | 61 passed |
+| Backend test suite | 78 passed, 1 skipped |
 | Ruff 0.17.4 lint | Passed |
 | Ruff format check | Passed |
 | Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
 | <code>npm audit --audit-level=moderate</code> | 0 reported vulnerabilities |
 | <code>pip-audit -r requirements.txt</code> | No known vulnerabilities found |
 
-The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build and CodeQL for Python and JavaScript/TypeScript. The local Windows environment did not have Docker CLI available, so Docker runtime validation remains outstanding. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
+The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build and CodeQL for Python and JavaScript/TypeScript. The local Windows run skips the live Redis integration test because Docker/Redis is not running; the GitHub Actions backend job starts a dedicated Redis 8 service and executes that test. The local Windows environment did not have Docker CLI available, so Docker Compose container runtime validation remains outstanding. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
 
 ---
 
@@ -257,7 +266,7 @@ The CI workflow runs Python dependency auditing with pip-audit, npm dependency a
 |:---|:---:|:---|
 | OIDC/SSO, MFA, RBAC and service identities | Roadmap | Current API key is a single shared operator credential |
 | Multi-tenant isolation and row-level policy | Roadmap | Current data model is single-workspace |
-| Distributed rate limits and quotas | Roadmap | No cluster-wide abuse control yet |
+| Per-tenant quotas and usage budgets | Roadmap | Current limits are per API key and direct peer IP, not per tenant |
 | Durable assessment queue and isolated workers | Roadmap | Assessments execute in the API process |
 | Network egress gateway / firewall enforcement | Deployment requirement | App-level IP pinning is not a network boundary |
 | External append-only audit export/checkpoints | Roadmap | Database administrators can rewrite the stored chain |
@@ -273,7 +282,7 @@ See [system architecture](docs/blueprint/system-architecture.md), [security algo
 ~~~text
 backend/
   app/
-    services/        # scope, DNS, pinned HTTPS, risk, audit, controls, secrets
+    services/        # scope, DNS, pinned HTTPS, risk, audit, controls, secrets, rate limits
   alembic/            # versioned database migrations
   tests/              # API, authorization, risk, transport and migration tests
 frontend/
