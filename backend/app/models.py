@@ -1,7 +1,16 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -88,4 +97,44 @@ class AuditEvent(Base):
     event_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class AssessmentJob(Base):
+    __tablename__ = "assessment_jobs"
+    __table_args__ = (
+        Index("ix_assessment_jobs_status_available", "status", "available_at"),
+        Index("ix_assessment_jobs_lease_expires_at", "lease_expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    target: Mapped[str] = mapped_column(String(253))
+    status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    manual_retries: Mapped[int] = mapped_column(Integer, default=0)
+    worker_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    assessment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assessments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    idempotency_key_hash: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
