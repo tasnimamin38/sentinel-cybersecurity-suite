@@ -120,7 +120,10 @@ def _persist_assessment(
     )
     excess_ids = db.scalars(
         select(Assessment.id)
-        .where(Assessment.id != item.id)
+        .where(
+            Assessment.id != item.id,
+            Assessment.id.not_in(select(RemediationTask.assessment_id)),
+        )
         .order_by(desc(Assessment.created_at), desc(Assessment.id))
         .offset(settings.max_assessment_records - 1)
     ).all()
