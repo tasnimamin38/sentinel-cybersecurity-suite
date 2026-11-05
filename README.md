@@ -244,7 +244,7 @@ The current local validation suite covers API authentication and overlapping key
 | Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
 | <code>npm audit --audit-level=moderate</code> | 0 reported vulnerabilities |
 
-The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build and CodeQL for Python and JavaScript/TypeScript. Docker CLI was unavailable locally, so container runtime was not exercised. pip-audit and npm audit both completed successfully; this does not replace image-level or runtime security testing. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
+The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build, Docker Compose interpolation validation, backend/frontend container image builds and CodeQL for Python and JavaScript/TypeScript. Docker CLI was unavailable locally, so container runtime was not exercised. pip-audit and npm audit both completed successfully; this does not replace image-level or runtime security testing. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
 
 ---
 

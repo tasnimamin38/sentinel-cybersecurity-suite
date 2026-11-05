@@ -26,7 +26,7 @@ This matrix records what the current automated checks exercise. A passing test i
 - Frontend TypeScript/Vite production build: passed.
 - pip-audit: no known vulnerabilities found.
 - npm audit: 0 reported vulnerabilities.
-- Docker Compose YAML parse: passed.
+- Docker Compose YAML parse: passed locally; GitHub CI now validates Compose interpolation and builds both container images.
 
 ## Not covered / not certified
 

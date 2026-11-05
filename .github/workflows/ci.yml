@@ -58,3 +58,20 @@ jobs:
         run: npm audit --audit-level=moderate
       - name: Production build
         run: npm run build
+
+  containers:
+    name: Container image and Compose validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate Compose interpolation and structure
+        env:
+          POSTGRES_PASSWORD: "ci-only-not-a-secret"
+          SENTINEL_API_KEY: "ci-only-placeholder-key-not-for-deployment"
+          SENTINEL_ALLOWED_DOMAINS: "example.com"
+          SENTINEL_CORS_ORIGINS: "http://localhost:8080"
+        run: docker compose config --quiet
+      - name: Build backend image
+        run: docker build --pull -f backend/Dockerfile -t sentinel-api:ci .
+      - name: Build frontend image
+        run: docker build --pull -f frontend/Dockerfile -t sentinel-console:ci .

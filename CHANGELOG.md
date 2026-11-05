@@ -9,6 +9,7 @@ All notable changes to SENTINEL are documented here.
 - Bound DNS posture to a shared lookup deadline and suppress false missing-record findings when a resolver times out.
 - Expanded security-header analysis for HSTS max-age/subdomain scope, CSP unsafe-eval/unsafe-inline/wildcard script sources, weak Referrer Policy and wildcard Permissions Policy.
 - Added DNS posture and header-policy regression coverage.
+- Added CI validation for Docker Compose interpolation and backend/frontend container image builds.
 
 ### Validation
 - Backend pytest: 62 passed.
