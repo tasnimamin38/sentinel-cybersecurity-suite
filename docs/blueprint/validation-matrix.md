@@ -9,7 +9,7 @@ This matrix records what the current automated checks exercise. A passing test i
 | Asset governance | Allowlist checks, duplicate assets, time-bounded authorization, pause/inactive denial and criticality context |
 | Network safety | Public DNS answer validation, private/reserved address rejection and bounded DNS behavior |
 | HTTPS transport | Literal-IP connection, hostname SNI/certificate verification, bounded headers and no redirects/body download |
-| DNS posture | MX, SPF presence/duplication/permissive mechanisms, DMARC policy quality, inherited CAA, MTA-STS discovery and TLS-RPT |
+| DNS posture | MX, SPF presence/duplication/permissive mechanisms, DMARC policy quality, inherited CAA, MTA-STS discovery, TLS-RPT, shared deadline and timeout handling |
 | HTTP headers | HSTS max-age/subdomain coverage, CSP unsafe directives, frame protection, MIME sniffing, Referrer Policy and Permissions Policy |
 | Risk engine | Severity weighting, deduplication, confidence and asset criticality |
 | Remediation | Finding-backed task creation, assignment/status updates and audit records |
@@ -20,7 +20,7 @@ This matrix records what the current automated checks exercise. A passing test i
 
 ## Local verification record
 
-- Backend pytest: 60 passed.
+- Backend pytest: 62 passed.
 - Ruff lint: passed.
 - Ruff format check: passed.
 - Frontend TypeScript/Vite production build: passed.

@@ -5,12 +5,13 @@ All notable changes to SENTINEL are documented here.
 ## 0.3.2 — 2026-11-06
 
 ### Added
-- Extended passive DNS posture: duplicate/permissive SPF detection, DMARC policy quality, CAA, MTA-STS discovery and SMTP TLS reporting.
+- Extended passive DNS posture: duplicate/permissive SPF detection, DMARC policy quality, inherited CAA, MTA-STS discovery and SMTP TLS reporting.
+- Bound DNS posture to a shared lookup deadline and suppress false missing-record findings when a resolver times out.
 - Expanded security-header analysis for HSTS max-age/subdomain scope, CSP unsafe-eval/unsafe-inline/wildcard script sources, weak Referrer Policy and wildcard Permissions Policy.
 - Added DNS posture and header-policy regression coverage.
 
 ### Validation
-- Backend pytest: 60 passed.
+- Backend pytest: 62 passed.
 - Ruff lint and format: passed.
 - Frontend TypeScript/Vite production build: pending final run.
 - npm audit: 0 reported vulnerabilities.

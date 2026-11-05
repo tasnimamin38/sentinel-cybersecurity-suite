@@ -66,7 +66,9 @@ async def assess_domain(
         )
 
     try:
-        evidence["dns"], dns_findings = await asyncio.to_thread(inspect_dns_posture, domain)
+        evidence["dns"], dns_findings = await asyncio.to_thread(
+            inspect_dns_posture, domain, min(timeout, 4.0)
+        )
         findings.extend(dns_findings)
     except Exception as exc:
         findings.append(

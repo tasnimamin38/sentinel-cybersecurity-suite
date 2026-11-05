@@ -49,6 +49,7 @@ CONTROL_CATALOG = [
             "DNS_CAA_MISSING",
             "DNS_MTA_STS_MISSING",
             "DNS_TLS_RPT_MISSING",
+            "DNS_POSTURE_INCOMPLETE",
         ],
         "operational": "DNS posture assessment",
     },

@@ -21,8 +21,10 @@ class FakeResolver:
         self.timeout = None
         self.lifetime = None
 
-    def resolve(self, name, record_type):
+    def resolve(self, name, record_type, lifetime=None):
         values = self.records.get((name, record_type))
+        if isinstance(values, Exception):
+            raise values
         if values is None:
             raise dns.resolver.NoAnswer()
         return [FakeRecord(value) for value in values]
@@ -48,6 +50,20 @@ class DnsPostureTests(unittest.TestCase):
         self.assertTrue(result["mta_sts"])
         self.assertTrue(result["tls_rpt"])
         self.assertEqual(findings, [])
+
+    def test_dns_timeout_is_marked_incomplete_not_as_missing_policy(self):
+        FakeResolver.records = {
+            ("example.com", "MX"): ["10 mail.example.com."],
+            ("example.com", "TXT"): dns.exception.Timeout(),
+            ("_dmarc.example.com", "TXT"): ["v=DMARC1; p=reject"],
+        }
+        with patch("app.services.dns_posture.dns.resolver.Resolver", FakeResolver):
+            result, findings = inspect_dns_posture("example.com")
+        codes = {item["code"] for item in findings}
+        self.assertFalse(result["complete"])
+        self.assertIn("SPF", result["incomplete_checks"])
+        self.assertIn("DNS_POSTURE_INCOMPLETE", codes)
+        self.assertNotIn("DNS_SPF_MISSING", codes)
 
     def test_caa_policy_is_inherited_from_parent_domain(self):
         FakeResolver.records = {

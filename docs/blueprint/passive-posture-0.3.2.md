@@ -29,7 +29,8 @@ These are static posture indicators, not browser execution tests. CSP compatibil
 
 ## Validation
 
-- 60 backend tests pass locally.
+- 62 backend tests pass locally.
+- DNS lookups share a bounded deadline; timeouts are reported as incomplete rather than absent records.
 - Ruff lint and format checks pass.
 - Frontend TypeScript/Vite production build passes.
 - pip-audit reports no known vulnerabilities.

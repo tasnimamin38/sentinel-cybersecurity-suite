@@ -70,7 +70,7 @@ The console uses live API-backed information. Asset, finding, remediation and au
 - Send one bounded HTTPS <code>GET /</code>; do not follow redirects or download the response body.
 - Enforce a shared timeout budget, bounded DNS answer count and 64 KiB response-header limit.
 - Inspect HTTP security-header policy quality, including HSTS lifetime/subdomain scope, CSP unsafe directives, referrer policy and permissive Permissions Policy.
-- Inspect MX, SPF duplication and permissive mechanisms, DMARC policy strength, CAA, MTA-STS discovery and SMTP TLS reporting records. DNS checks are passive and do not modify target records.
+- Inspect MX, SPF duplication and permissive mechanisms, DMARC policy strength, inherited CAA, MTA-STS discovery and SMTP TLS reporting records. DNS checks are passive and do not modify target records; they share a bounded lookup budget and flag incomplete resolver results rather than treating timeouts as missing records.
 
 ### 03 — Explainable risk and remediation
 
@@ -238,7 +238,7 @@ The current local validation suite covers API authentication and overlapping key
 
 | Validation | Current local result |
 |:---|:---:|
-| Backend test suite | 60 passed |
+| Backend test suite | 62 passed |
 | Ruff 0.17.4 lint | Passed |
 | Ruff format check | Passed |
 | Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
