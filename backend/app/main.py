@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import desc, func, select
+from sqlalchemy import delete, desc, func, select, text
 from sqlalchemy.orm import Session
 
 from app.auth import require_api_key
@@ -24,8 +25,8 @@ async def lifespan(_: FastAPI):
 settings = get_settings()
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.1.0",
-    description="Authorized asset posture assessment and auditable security hygiene.",
+    version="0.2.0",
+    description="Authorized asset posture assessment with DNS-pinned transport and explainable risk.",
     lifespan=lifespan,
 )
 app.add_middleware(
@@ -39,10 +40,14 @@ app.add_middleware(
 
 @app.middleware("http")
 async def security_response_headers(request, call_next):
+    request_id = uuid4().hex
     response = await call_next(request)
+    response.headers.setdefault("X-Request-ID", request_id)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     response.headers.setdefault("Cache-Control", "no-store")
     return response
 
@@ -52,18 +57,28 @@ def healthz():
     return {"status": "ok", "service": "sentinel-api", "timestamp": datetime.now(UTC).isoformat()}
 
 
+@app.get("/readyz")
+def readyz(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database readiness check failed.") from exc
+    return {"status": "ready", "database": "reachable"}
+
+
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
         "authorized_domains": settings.allowed_domain_list,
         "features": [
-            "web-security-headers",
+            "dns-pinned-https-headers",
             "tls-certificate",
             "dns-email-posture",
-            "risk-scoring",
+            "explainable-risk-v2",
             "audit-log",
+            "production-config-guard",
         ],
-        "network_policy": "HTTPS-only, allowlisted DNS hostnames, public DNS resolution, no redirects",
+        "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
     }
 
 
@@ -142,7 +157,7 @@ async def create_assessment(payload: AssessmentRequest, db: Session = Depends(ge
         score=result["score"],
         risk_level=result["risk_level"],
         findings=result["findings"],
-        evidence=result["evidence"],
+        evidence={**result["evidence"], "risk_explanation": result["risk_explanation"]},
     )
     db.add(item)
     db.add(
@@ -153,6 +168,18 @@ async def create_assessment(payload: AssessmentRequest, db: Session = Depends(ge
             details=f"score={result['score']}; findings={len(result['findings'])}",
         )
     )
+    db.flush()
+
+    # Enforce the configured history retention cap so the local database does
+    # not grow without bound. Audit events are intentionally not pruned here.
+    excess_ids = db.scalars(
+        select(Assessment.id)
+        .where(Assessment.id != item.id)
+        .order_by(desc(Assessment.created_at), desc(Assessment.id))
+        .offset(settings.max_assessment_records - 1)
+    ).all()
+    if excess_ids:
+        db.execute(delete(Assessment).where(Assessment.id.in_(excess_ids)))
     db.commit()
     db.refresh(item)
     return item

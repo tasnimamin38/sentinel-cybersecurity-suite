@@ -1,28 +1,32 @@
 # SENTINEL Architecture
 
-## Current delivery
+SENTINEL 0.2 is a defensive asset-posture platform built from a FastAPI API, React/TypeScript console, SQL persistence and container deployment scaffolding.
 
-SENTINEL 0.1 is a modular defensive posture platform, not yet a certified enterprise product. It contains a FastAPI service, a React/TypeScript operator console, SQL persistence, and container deployment scaffolding.
+## Current request flow
 
-## Request flow
+1. Authenticate the operator using the configured API key.
+2. Normalize the target hostname and validate it against the explicit allowlist.
+3. Resolve DNS and reject the entire answer set if any result is non-public.
+4. Connect to a literal IP from the validated DNS answer set. Preserve the hostname for TLS SNI, certificate validation and HTTP Host.
+5. Send one bounded HTTPS GET, read headers only, do not follow redirects and do not consume the response body.
+6. Evaluate HTTPS headers, TLS certificate expiry and DNS MX/SPF/DMARC posture.
+7. Deduplicate and score findings with explainable risk model v2.
+8. Store the assessment and audit event; enforce the configured assessment-history cap.
 
-1. An operator authenticates with an API key.
-2. The API validates the requested DNS hostname against the explicit SENTINEL_ALLOWED_DOMAINS allowlist.
-3. DNS resolution is inspected and private, reserved, loopback and link-local destinations are rejected.
-4. A single HTTPS GET is made with certificate verification enabled, redirects disabled and a bounded timeout.
-5. TLS certificate metadata and DNS mail-authentication posture are inspected.
-6. Findings are normalized, risk-scored, stored and written to an audit event.
-
-## Boundaries
+## Runtime boundaries
 
 - No port scanning, exploit checks, brute force, credential validation or arbitrary IP-range discovery.
-- No redirects are followed.
-- No remote response body is intentionally consumed.
+- No redirects are followed and no response body is downloaded.
 - Target must be a DNS hostname in the configured scope.
-- Public DNS resolution is checked before outbound assessment.
-- Production deployments should add egress firewall policy and DNS/IP pinning at the network layer to close DNS-rebinding windows.
-- The UI stores API keys only in component memory. It does not persist them in local storage.
+- Production configuration rejects weak API keys, missing authorized domains, wildcard CORS and SQLite.
+- Production network isolation still requires an egress firewall/proxy and network-level destination enforcement.
 
-## Growth path
+## Target architecture
 
-Separate service modules are designed for later workers and queues. Before enterprise rollout, add Alembic migrations, tenant-aware RBAC/SSO, managed secrets, rate limiting at the gateway, durable job queue, immutable audit export, metrics/tracing, policy-as-code, disaster recovery, and external penetration testing.
+The advanced target design separates the control plane (identity, scope, authorization, inventory and versioned policy) from the data plane (API gateway, orchestrator, durable queue, isolated workers and egress gateway). Evidence storage, tenant-scoped relational data, append-only audit export and telemetry become independent services.
+
+See the system architecture, security algorithms, threat model and roadmap in the docs/blueprint directory.
+
+## Current limitations
+
+This release is not a certified enterprise product. It does not yet include OIDC/SSO, RBAC, multi-tenant isolation, Alembic migrations, durable workers/queues, distributed rate limits, immutable audit export, production egress proxy, disaster recovery or independent penetration testing.
