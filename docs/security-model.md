@@ -2,28 +2,31 @@
 
 ## Intended use
 
-SENTINEL assesses only assets owned by the operator or covered by written authorization. The configured allowlist is a technical guardrail, not proof of legal authorization.
+SENTINEL assesses only systems owned by the operator or explicitly authorized in writing. A configured hostname allowlist is a technical safety guard, not proof of legal authorization.
 
-## Implemented safeguards in 0.2
+## Implemented safeguards in 0.3
 
-- IDNA hostname normalization and exact/proper-subdomain allowlist matching.
-- Rejects URLs, IP literals and malformed hostnames.
-- Resolves DNS and rejects any non-global address in the answer set.
-- Connects to a literal validated IP while retaining the canonical hostname for TLS SNI, certificate validation and HTTP Host.
-- HTTPS only; TLS certificate validation enabled; no redirects; shared timeout budget; maximum header size; response body not downloaded.
-- API-key comparison uses constant-time comparison.
-- Production startup rejects weak API keys, missing authorization scope, wildcard CORS and SQLite.
-- CORS origins are explicitly configured.
-- Security response headers, request correlation ID, liveness and database readiness endpoints.
-- Assessment history retention cap.
-- Secret scanner returns redacted fingerprints, not raw matched values.
+- Canonical hostname normalization and exact/proper-subdomain scope checks.
+- Registered asset owner, environment, criticality, approval reference and expiry.
+- Assessment denial for inactive assets or expired authorization.
+- DNS answer validation and literal-IP-pinned HTTPS connection.
+- Hostname-bound TLS SNI, certificate verification, no redirects and bounded header-only response.
+- Confidence-aware and criticality-aware explainable risk scoring.
+- Finding-linked remediation tasks.
+- Bounded inline secret-pattern scan; source content not persisted; matched values are not returned.
+- SHA-256 hash-linked audit events and chain verifier.
+- Alembic migrations; production startup runs migrations before API server startup.
+- Production API docs are disabled and CORS origins are explicitly configured.
 
 ## Known limitations
 
-API-key authentication is still single-operator. Audit events are stored in the application database and are not immutable against a database administrator. Multi-tenant isolation, durable queue workers, distributed rate limiting, managed secrets, Alembic migrations and immutable audit export are not implemented. Production egress firewall/proxy enforcement remains mandatory defence in depth.
-
-SENTINEL is not a WAF, EDR, SIEM, exploit engine or compliance certification. Docker runtime, external penetration testing, production egress controls and backup restore have not been certified by this release.
+- API-key authentication is a single shared operator credential.
+- Audit hash chaining is tamper-evident, not immutable against a privileged database operator.
+- Secret pattern coverage is intentionally limited.
+- Control mapping is not regulatory certification or audit evidence.
+- Multi-tenant isolation, OIDC/SSO, RBAC, distributed rate limits, durable worker queues, external audit checkpoints, managed secrets and observability stack are not implemented.
+- Production egress firewall/proxy, restore drills and independent penetration testing are deployment requirements, not certified by local tests.
 
 ## Responsible operation
 
-Never assess third-party systems without written authorization. Do not add domains to the allowlist without approval. Review all findings before changing production infrastructure.
+Never add a third-party domain without written authorization. Keep production credentials outside source control. Review findings with the accountable asset owner before changing production configuration.
