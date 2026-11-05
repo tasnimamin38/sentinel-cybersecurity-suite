@@ -172,7 +172,6 @@ Interactive API documentation is enabled only outside production at <code>/docs<
 
 ### Requirements
 
-- Docker Engine + Docker Compose plugin, or Python 3.12+ and Node.js 22+
 - Docker Engine + Docker Compose plugin, or Python 3.12+ and Node.js 22.12+
 - npm 11.12.1 for the checked-in frontend lockfile
 - An explicit list of domains that you are authorized to assess
@@ -239,13 +238,13 @@ The current local validation suite covers API authentication and overlapping key
 
 | Validation | Current local result |
 |:---|:---:|
-| Backend test suite | 59 passed |
+| Backend test suite | 60 passed |
 | Ruff 0.17.4 lint | Passed |
 | Ruff format check | Passed |
 | Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
 | <code>npm audit --audit-level=moderate</code> | 0 reported vulnerabilities |
 
-The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build and CodeQL for Python and JavaScript/TypeScript. The local Windows environment did not have Docker CLI available, and local pip-audit lookup timed out; do not interpret either as a pass. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
+The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build and CodeQL for Python and JavaScript/TypeScript. Docker CLI was unavailable locally, so container runtime was not exercised. pip-audit and npm audit both completed successfully; this does not replace image-level or runtime security testing. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
 
 ---
 

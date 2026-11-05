@@ -49,6 +49,16 @@ class DnsPostureTests(unittest.TestCase):
         self.assertTrue(result["tls_rpt"])
         self.assertEqual(findings, [])
 
+    def test_caa_policy_is_inherited_from_parent_domain(self):
+        FakeResolver.records = {
+            ("example.com", "CAA"): ['0 issue "letsencrypt.org"'],
+        }
+        with patch("app.services.dns_posture.dns.resolver.Resolver", FakeResolver):
+            result, findings = inspect_dns_posture("portal.example.com")
+        self.assertTrue(result["caa"])
+        self.assertEqual(result["caa_source"], "example.com")
+        self.assertNotIn("DNS_CAA_MISSING", {item["code"] for item in findings})
+
     def test_multiple_spf_and_monitor_only_dmarc_are_flagged(self):
         FakeResolver.records = {
             ("example.com", "MX"): ["10 mail.example.com."],

@@ -9,7 +9,7 @@ The DNS posture service now records:
 - MX presence (informational when absent)
 - SPF presence, duplicate SPF policies, and permissive/neutral/softfail terminal mechanisms
 - DMARC presence, duplicate records, monitor-only policy and malformed policy tags
-- CAA presence
+- CAA presence, including lookup through parent DNS labels so inherited CAA policy is not incorrectly reported as missing
 - MTA-STS TXT discovery record presence
 - SMTP TLS-RPT TXT reporting record presence
 
@@ -29,7 +29,7 @@ These are static posture indicators, not browser execution tests. CSP compatibil
 
 ## Validation
 
-- 59 backend tests pass locally.
+- 60 backend tests pass locally.
 - Ruff lint and format checks pass.
 - Frontend TypeScript/Vite production build passes.
 - pip-audit reports no known vulnerabilities.

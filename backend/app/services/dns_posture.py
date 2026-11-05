@@ -46,7 +46,17 @@ def inspect_dns_posture(hostname: str) -> tuple[dict, list[dict]]:
         for record in _records(resolver, f"_dmarc.{hostname}", "TXT")
         if re.match(r"^v=dmarc1(?:\s|;|$)", record.strip(), re.IGNORECASE)
     ]
-    caa_records = _records(resolver, hostname, "CAA")
+    caa_records = []
+    caa_source = None
+    labels = hostname.split(".")
+    # CAA processing walks up the DNS label tree. A subdomain without its own
+    # CAA RRset may still inherit the policy published by a parent domain.
+    for index in range(len(labels)):
+        candidate = ".".join(labels[index:])
+        caa_records = _records(resolver, candidate, "CAA")
+        if caa_records:
+            caa_source = candidate
+            break
     mta_sts_records = [
         record.strip()
         for record in _records(resolver, f"_mta-sts.{hostname}", "TXT")
@@ -65,6 +75,7 @@ def inspect_dns_posture(hostname: str) -> tuple[dict, list[dict]]:
         "dmarc": bool(dmarc_records),
         "dmarc_policy": None,
         "caa": bool(caa_records),
+        "caa_source": caa_source,
         "mta_sts": bool(mta_sts_records),
         "tls_rpt": bool(tls_rpt_records),
     }

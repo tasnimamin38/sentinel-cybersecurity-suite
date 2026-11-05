@@ -10,7 +10,7 @@ All notable changes to SENTINEL are documented here.
 - Added DNS posture and header-policy regression coverage.
 
 ### Validation
-- Backend pytest: 59 passed.
+- Backend pytest: 60 passed.
 - Ruff lint and format: passed.
 - Frontend TypeScript/Vite production build: pending final run.
 - npm audit: 0 reported vulnerabilities.
