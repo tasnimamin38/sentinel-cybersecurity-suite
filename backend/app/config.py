@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
     metrics_enabled: bool = False
+    metrics_token: str = ""
     process_role: str = "api"
     environment: str = "development"
 
@@ -148,6 +149,17 @@ class Settings(BaseSettings):
                         break
             elif keys or role_credentials:
                 errors.append("Worker processes must not be configured with API credentials")
+            if self.metrics_enabled:
+                if len(self.metrics_token) < 32:
+                    errors.append(
+                        "SENTINEL_METRICS_TOKEN must contain at least 32 characters when metrics are enabled"
+                    )
+                normalized_metrics_token = self.metrics_token.lower()
+                if any(
+                    marker in normalized_metrics_token
+                    for marker in ("replace-with", "change-me", "placeholder", "example")
+                ):
+                    errors.append("SENTINEL_METRICS_TOKEN must not contain a sample or placeholder value")
             if not self.allowed_domain_list:
                 errors.append(
                     "SENTINEL_ALLOWED_DOMAINS must contain at least one authorized domain"
