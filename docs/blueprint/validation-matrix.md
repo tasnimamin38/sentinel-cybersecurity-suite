@@ -1,4 +1,4 @@
-# SENTINEL Validation Matrix — 0.3.2
+# SENTINEL Validation Matrix — 0.18.0-pre (rolling)
 
 This matrix records what the current automated checks exercise. A passing test is evidence for the tested behavior only; it is not a certification.
 
@@ -19,15 +19,19 @@ This matrix records what the current automated checks exercise. A passing test i
 | Database migration | Upgrade path from legacy schema while preserving existing records |
 | Encrypted backup | AES-256-GCM multi-chunk/stdin round trip, fresh nonce, authenticated header, key-ID binding, wrong-key/tamper/malformed rejection and no-overwrite behavior |
 
-## Local verification record
+## Historical baseline verification (0.3.2)
+
+The following results are retained as historical evidence for the original 0.3.2 baseline only. They are not a pass claim for the 0.18.0-pre branch:
 
 - Backend pytest: 62 passed.
-- Ruff lint: passed.
-- Ruff format check: passed.
+- Ruff lint and format: passed.
 - Frontend TypeScript/Vite production build: passed.
 - pip-audit: no known vulnerabilities found.
 - npm audit: 0 reported vulnerabilities.
-- Docker Compose YAML parse: passed locally; GitHub CI now validates Compose interpolation and builds both container images.
+
+## 0.18.0-pre validation status
+
+The branch now includes eight focused encrypted-backup unit tests and exact-head GitHub Actions integration checks for multi-chunk/stdin encryption, wrong-key rejection, tamper rejection, authenticated disposable restore, container cleanup, dependency audits, container scans, CodeQL and supply-chain policy. These results remain **pending** until the corresponding workflows complete successfully on the exact pull-request head SHA.
 
 ## Not covered / not certified
 
