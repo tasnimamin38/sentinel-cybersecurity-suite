@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -201,11 +202,15 @@ class CredentialCreate(BaseModel):
     @field_validator("asset_scope_ids")
     @classmethod
     def validate_asset_scope_ids(cls, values: list[str]) -> list[str]:
-        if any(not isinstance(value, str) or len(value) != 36 for value in values):
-            raise ValueError("Asset scope IDs must be UUID strings.")
-        if len(values) != len(set(values)):
+        normalized: list[str] = []
+        for value in values:
+            try:
+                normalized.append(str(UUID(value)))
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise ValueError("Asset scope IDs must be valid UUID strings.") from exc
+        if len(normalized) != len(set(normalized)):
             raise ValueError("Asset scope IDs must be unique.")
-        return values
+        return normalized
 
     @model_validator(mode="after")
     def validate_asset_scope(self):
