@@ -4,18 +4,19 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import Base, get_db
-from app.models import Assessment
+from app.models import Assessment, AuditEvent
 from app.routes.assessment_evidence import router
 from app.services.assessment_integrity import (
     assessment_evidence_digest,
     verify_assessment_evidence,
 )
+from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event
 
 
@@ -106,6 +107,40 @@ def test_assessment_evidence_digest_is_stable_across_json_key_order():
     )
 
     assert assessment_evidence_digest(first) == assessment_evidence_digest(second)
+
+
+def test_assessment_persistence_anchors_digest_in_same_audit_transaction(db_session):
+    result = {
+        "target": "persisted.example.com",
+        "status": "completed",
+        "score": 21,
+        "risk_level": "low",
+        "findings": [{"code": "MISSING_CSP", "severity": "low"}],
+        "evidence": {"web": {"status_code": 200}},
+        "risk_explanation": {"model": "sentinel-exponential-v2", "drivers": []},
+    }
+
+    assessment = add_assessment_result(
+        db_session,
+        result,
+        asset=None,
+        max_records=100,
+    )
+    db_session.commit()
+
+    event = db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.event_type == "assessment.completed",
+            AuditEvent.subject == assessment.target,
+        )
+    )
+    assert event is not None
+    assert f"assessment_id={assessment.id}" in event.details
+    assert f"evidence_sha256={assessment_evidence_digest(assessment)}" in event.details
+
+    verification = verify_assessment_evidence(db_session, assessment)
+    assert verification["integrity_valid"] is True
+    assert verification["verification_status"] == "verified"
 
 
 def test_valid_assessment_snapshot_and_audit_anchor_verify(db_session):
