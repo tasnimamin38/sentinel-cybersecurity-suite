@@ -32,7 +32,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Remediation ownership and task status | Implemented |
 | Finding-linked security incident triage with audited status transitions | Implemented in 0.13 API branch |
 | Live incident register with ownership, deadlines, overdue flags and audited response history | Implemented in 0.14 branch |
-| Dependency review, secret detection, Trivy scanning and SPDX SBOM workflow | Implemented in 0.15 branch |
+| Full-manifest dependency audits, secret detection, Trivy scanning and SPDX SBOM workflow | Implemented in 0.15 branch; native PR-diff Dependency Review requires Dependency Graph |
 | Framework-neutral control mapping | Implemented |
 | Redacting inline secret-pattern review | Implemented |
 | Hash-linked audit event verification | Implemented |
