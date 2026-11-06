@@ -1,8 +1,8 @@
-# Security incident response and triage — API baseline
+# Security incident response and triage — operator console and API
 
 ## Purpose and scope
 
-SENTINEL 0.13 adds a small, auditable incident register for findings already stored by a completed assessment. It is a triage workflow, not a SIEM, EDR, notification service or 24/7 incident-response operation.
+SENTINEL 0.14 adds a live, role-aware React incident register on top of the 0.13 triage API. It is a bounded operator workflow, not a SIEM, EDR, notification service or 24/7 incident-response operation.
 
 An incident cannot be created by submitting an arbitrary hostname or URL. The caller must reference an existing completed assessment and one of its finding codes. SENTINEL copies the finding title and normalized severity into the incident record.
 
@@ -59,6 +59,14 @@ Allowed transitions are deliberately constrained:
 
 The first transition beyond `open` sets `acknowledged_at`; moving to `resolved` or `accepted` sets `closed_at`. Invalid transitions return HTTP 409. Create a new incident from a later assessment instead of reopening a terminal record.
 
+## Operator console
+
+After authenticating with an API key that has `incident.read`, operators can review the live incident register, search by finding/title/owner, filter by status and severity, and inspect response-state counts. Principals with `incident.write` can change status using the same server-enforced transition rules as the API.
+
+The response editor writes an accountable operator, a timezone-aware deadline and bounded operator notes through `PATCH /api/v1/incidents/{incident_id}`. The browser converts a local date-time input to an ISO-8601 timestamp with an explicit UTC offset before submission. An incident is flagged overdue when its deadline has passed and it is not resolved or accepted.
+
+Principals with `audit.read` also see the latest available incident-specific audit events. The UI displays event type, changed field names and timestamp; it does not put free-form notes into the audit trace. The register is refreshed from the API and does not populate synthetic incident records.
+
 ## Roles and audit
 
 | Role | Incident access |
@@ -73,4 +81,4 @@ Creation and updates append hash-linked audit events. Audit details include inci
 
 ## Current limitations
 
-This release exposes the API only; the React console does not yet include incident pages. There is no email/chat notification, on-call paging, SIEM integration, alert correlation, automatic incident creation, per-human assignee directory or service-level response guarantee. Teams must monitor the incident list and follow their own response procedures.
+The console does not deliver email/chat notifications or on-call pages, ingest SIEM events, correlate alerts automatically, provision human assignees or provide a service-level response guarantee. Teams must monitor the live register and follow their own response procedures.
