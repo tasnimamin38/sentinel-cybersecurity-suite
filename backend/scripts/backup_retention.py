@@ -56,7 +56,7 @@ def _open_regular_at(directory_fd: int, name: str) -> tuple[int, os.stat_result]
     if metadata.st_nlink != 1:
         os.close(fd)
         raise RetentionError(f"{name}: hard-linked files are not eligible for retention.")
-    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077:
+    if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) & ~0o600:
         os.close(fd)
         raise RetentionError(f"{name}: must be a private regular file (0600 or stricter).")
     path_metadata = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
