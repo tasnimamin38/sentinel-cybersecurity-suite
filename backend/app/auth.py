@@ -118,13 +118,21 @@ ROUTE_PERMISSIONS: dict[tuple[str, str], str] = {
 }
 
 
-def _configured_static_principals() -> list[tuple[str, str, str]]:
+def _configured_static_principals() -> list[tuple[str, str, str, int, int]]:
     settings = get_settings()
     principals: list[tuple[str, str, str, int, int]] = []
     for index, key in enumerate(settings.configured_api_keys):
         principals.append((f"legacy-admin-{index + 1}", key, "admin", 120, 10000))
     for item in getattr(settings, "configured_role_credentials", []):
-        principals.append((item["id"], item["key"], item["role"], item.get("rate_limit_per_minute", 120), item.get("daily_request_limit", 10000)))
+        principals.append(
+            (
+                item["id"],
+                item["key"],
+                item["role"],
+                item.get("rate_limit_per_minute", 120),
+                item.get("daily_request_limit", 10000),
+            )
+        )
     return principals
 
 
