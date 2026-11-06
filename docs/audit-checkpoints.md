@@ -20,7 +20,7 @@ python backend/scripts/audit_checkpoint.py generate-key \
   --public-key audit-checkpoint-public.pem
 ```
 
-Choose a strong passphrase of at least 12 characters. The private key is written as encrypted PKCS#8 PEM with restrictive file permissions where supported. Never commit, upload, email, or place the private key on the application host. Keep a protected backup. Distribute the public key to verifiers.
+Choose a strong passphrase of at least 12 characters. The private key is written as encrypted PKCS#8 PEM with restrictive file permissions where supported. The loader rejects symlinks, non-regular or empty files, files larger than 64 KiB, and POSIX permissions accessible to group or other users; it reads from one checked file descriptor and verifies the file identity before parsing. Never commit, upload, email, or place the private key on the application host. Keep a protected backup. Distribute the public key to verifiers.
 
 ## 2. Export a verified checkpoint
 
