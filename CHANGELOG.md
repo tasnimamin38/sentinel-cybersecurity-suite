@@ -16,7 +16,8 @@ All notable changes to SENTINEL are documented here.
 - Counters and histograms are in-memory per process and reset on restart; this is not centralized telemetry, durable accounting or a multi-replica SLO system.
 
 ### Validation
-- CI and CodeQL results are pending for this branch until GitHub completes the new revision's workflows.
+- GitHub Actions CI run #42146827384 — success: 120 backend tests passed; pip-audit found no known vulnerabilities; Ruff format and lint passed; frontend npm audit and production build passed; Compose validation and backend/frontend image builds passed.
+- CodeQL run #42146827178 — success: Python and JavaScript/TypeScript analyses passed.
 
 ## 0.9.0-pre — 2026-11-06
 
