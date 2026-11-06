@@ -119,7 +119,10 @@ def verify_assessment_evidence(db: Session, assessment: Assessment) -> dict:
             "audit_event_id": event.id,
             "audit_sequence_no": event.sequence_no,
             "audit_event_hash": event.event_hash,
-            "errors": ["This assessment predates evidence-digest anchoring.", *chain["errors"]][:50],
+            "errors": [
+                "This assessment predates evidence-digest anchoring.",
+                *chain["errors"],
+            ][:50],
             "assurance_note": (
                 "Legacy assessment evidence is not retroactively marked as verified. Preserve "
                 "offline signed audit checkpoints in independently controlled storage."
