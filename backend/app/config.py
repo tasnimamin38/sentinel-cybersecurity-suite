@@ -66,8 +66,15 @@ class Settings(BaseSettings):
         seen_ids: set[str] = set()
         seen_keys: set[str] = set()
         for item in role_credentials:
-            if not isinstance(item, dict) or not {"id", "key", "role"}.issubset(item) or set(item) - {"id", "key", "role", "rate_limit_per_minute", "daily_request_limit"}:
-                raise ValueError("Each role credential must contain id, key, role and optional request quota limits only.")
+            if (
+                not isinstance(item, dict)
+                or not {"id", "key", "role"}.issubset(item)
+                or set(item)
+                - {"id", "key", "role", "rate_limit_per_minute", "daily_request_limit"}
+            ):
+                raise ValueError(
+                    "Each role credential must contain id, key, role and optional request quota limits only."
+                )
             credential_id, key, role = item["id"], item["key"], item["role"]
             if not isinstance(credential_id, str) or not re.fullmatch(
                 r"[a-zA-Z0-9_-]{1,64}", credential_id
@@ -90,9 +97,13 @@ class Settings(BaseSettings):
             rpm_limit = item.get("rate_limit_per_minute", 120)
             daily_limit = item.get("daily_request_limit", 10000)
             if type(rpm_limit) is not int or not 1 <= rpm_limit <= 600:
-                raise ValueError("Static credential rate_limit_per_minute must be between 1 and 600.")
+                raise ValueError(
+                    "Static credential rate_limit_per_minute must be between 1 and 600."
+                )
             if type(daily_limit) is not int or not 1 <= daily_limit <= 1_000_000:
-                raise ValueError("Static credential daily_request_limit must be between 1 and 1000000.")
+                raise ValueError(
+                    "Static credential daily_request_limit must be between 1 and 1000000."
+                )
             if credential_id in seen_ids or key in seen_keys:
                 raise ValueError("Static credential IDs and key material must be unique.")
             seen_ids.add(credential_id)
