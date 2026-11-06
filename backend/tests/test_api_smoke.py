@@ -1073,7 +1073,7 @@ def test_incident_csv_export_is_formula_safe_and_audited(client):
         json={
             "assessment_id": assessment_id,
             "finding_code": "TLS_CERT_EXPIRY_WINDOW",
-            "assignee": "=HYPERLINK(\"https://example.invalid\")",
+            "assignee": '=HYPERLINK("https://example.invalid")',
             "notes": "  +SUM(1,2)",
         },
     )
@@ -1082,7 +1082,10 @@ def test_incident_csv_export_is_formula_safe_and_audited(client):
     response = client.get("/api/v1/exports/incidents.csv", headers=API_HEADERS)
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
-    assert 'attachment; filename="sentinel-incidents.csv"' in response.headers["content-disposition"]
+    assert (
+        'attachment; filename="sentinel-incidents.csv"'
+        in response.headers["content-disposition"]
+    )
     assert "finding_code" in response.text
     assert "TLS_CERT_EXPIRY_WINDOW" in response.text
     assert "'=HYPERLINK" in response.text
@@ -1092,7 +1095,8 @@ def test_incident_csv_export_is_formula_safe_and_audited(client):
     assert any(
         item["event_type"] == "data.exported"
         and item["subject"] == "incidents"
-        and "dataset=incidents; rows=" in item["details"] and "format=csv" in item["details"]
+        and "dataset=incidents; rows=" in item["details"]
+        and "format=csv" in item["details"]
         for item in events
     )
 
