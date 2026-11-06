@@ -66,6 +66,24 @@ class ProductionConfigTests(unittest.TestCase):
         enabled = Settings(metrics_enabled=True)
         self.assertTrue(enabled.metrics_enabled)
 
+    def test_production_metrics_require_a_dedicated_strong_token(self):
+        baseline = {
+            "_env_file": None,
+            "environment": "production",
+            "api_key": "A" * 40,
+            "allowed_domains": "example.com",
+            "database_url": "postgresql+psycopg://user:pass@db/sentinel",
+            "cors_origins": "https://console.example.com",
+            "metrics_enabled": True,
+        }
+        with self.assertRaises(ValidationError):
+            Settings(**baseline)
+        with self.assertRaises(ValidationError):
+            Settings(**baseline, metrics_token="short")
+        configured = Settings(**baseline, metrics_token="M" * 40)
+        self.assertTrue(configured.metrics_enabled)
+        self.assertEqual(configured.metrics_token, "M" * 40)
+
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)
