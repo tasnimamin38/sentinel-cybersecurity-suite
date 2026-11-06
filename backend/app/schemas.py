@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AssessmentRequest(BaseModel):
@@ -194,6 +195,25 @@ class CredentialCreate(BaseModel):
     expires_at: datetime | None = None
     rate_limit_per_minute: int = Field(default=120, ge=1, le=600)
     daily_request_limit: int = Field(default=10000, ge=1, le=1_000_000)
+    asset_scope_mode: Literal["all", "selected"] = "selected"
+    asset_scope_ids: list[str] = Field(default_factory=list, max_length=500)
+
+    @field_validator("asset_scope_ids")
+    @classmethod
+    def validate_asset_scope_ids(cls, values: list[str]) -> list[str]:
+        if any(not isinstance(value, str) or len(value) != 36 for value in values):
+            raise ValueError("Asset scope IDs must be UUID strings.")
+        if len(values) != len(set(values)):
+            raise ValueError("Asset scope IDs must be unique.")
+        return values
+
+    @model_validator(mode="after")
+    def validate_asset_scope(self):
+        if self.asset_scope_mode == "selected" and not self.asset_scope_ids:
+            raise ValueError("Select at least one asset for a selected-asset credential.")
+        if self.asset_scope_mode == "all" and self.asset_scope_ids:
+            raise ValueError("All-assets credentials must not include selected asset IDs.")
+        return self
 
     @field_validator("label")
     @classmethod
@@ -232,6 +252,8 @@ class CredentialResponse(BaseModel):
     last_used_at: datetime | None
     rate_limit_per_minute: int
     daily_request_limit: int
+    asset_scope_mode: str
+    asset_scope_ids: list[str]
     rotated_to_id: str | None
     rotation_grace_expires_at: datetime | None
 
