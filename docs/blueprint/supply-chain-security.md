@@ -9,7 +9,7 @@ This policy protects the path from source change to reviewed release. It adds co
 | Control | Trigger | Gate | Evidence |
 |:---|:---|:---|:---|
 | Full-SHA action pinning | Every workflow change | Regression test rejects non-immutable external action references | Test output on the exact CI SHA |
-| Dependency Review | Pull requests | Fail for newly introduced high/critical runtime or development vulnerabilities; review license metadata | **Currently blocked:** GitHub Dependency Graph is disabled for this repository; enable it in repository Security settings before merge |
+| Dependency vulnerability audits | Pull requests | Run `pip-audit` against backend requirements and `npm audit --audit-level=high` against the exact frontend lockfile | Exact-head audit job; complete dependency-set checks, not a PR-diff delta or license-policy comparison |
 | Gitleaks | Push, pull request and weekly schedule | Secret detections fail the job; PR comments stay disabled | Job summary and optional SARIF artifact |
 | Trivy filesystem scan | Push, pull request and weekly schedule | SARIF is uploaded for review; a separate table-output gate fails on HIGH/CRITICAL findings with fixes | GitHub code scanning plus a 14-day raw SARIF workflow artifact |
 | Trivy image scan | After each CI image build | Fixable HIGH/CRITICAL OS/library findings fail CI; unfixed findings remain visible | Container build job logs |
@@ -49,6 +49,6 @@ The backend is built in a multi-stage pipeline: the builder uses the official Py
 
 ## Current repository prerequisites and findings
 
-- The Dependency Review action correctly reports that this repository's GitHub Dependency Graph is disabled. It remains a **blocking prerequisite**, not a passed check. Enable Dependency Graph in the repository's Security settings, then rerun the workflow. The existing pip-audit, npm audit and Trivy scans remain independent checks.
+- GitHub's native Dependency Review action is unavailable because this repository's Dependency Graph is disabled. The current PR workflow instead runs `pip-audit -r backend/requirements.txt` and `npm audit --audit-level=high` against the checked-in dependency set. These checks identify known vulnerabilities in the complete manifests/lockfile, but they do **not** provide a PR-diff-only comparison or license-policy review. Enable Dependency Graph in repository Security settings to restore the native Dependency Review action; do not describe the current fallback as that action.
 - The initial backend image scan detected `setuptools 70.3.0` with `CVE-2025-47273` (HIGH; fixed version `78.1.1`). The 0.15 patch removes the Debian `python3-setuptools` package when present and enforces a patched pip setuptools floor in the backend runtime image. The next exact-head image scan must confirm the finding is gone.
 - The filesystem Trivy scan retains SARIF as a 14-day artifact and runs a readable table-output security gate. This preserves the detailed evidence while keeping the severity threshold enforceable.
