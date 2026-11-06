@@ -188,7 +188,9 @@ def test_valid_assessment_snapshot_and_audit_anchor_verify(db_session):
     assert result["evidence_sha256"] == assessment_evidence_digest(assessment)
 
 
-@pytest.mark.parametrize("field", ["findings", "evidence", "target", "score", "risk_level", "status"])
+@pytest.mark.parametrize(
+    "field", ["findings", "evidence", "target", "score", "risk_level", "status"]
+)
 def test_assessment_payload_tampering_is_detected_without_breaking_audit_chain(
     db_session,
     field,
