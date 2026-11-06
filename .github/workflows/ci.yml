@@ -175,6 +175,14 @@ jobs:
             sleep 2
           done
           if [[ "$console_ready" -ne 1 ]]; then
+            docker compose ps --all || true
+            docker compose port console 8080 || true
+            console_container="$(docker compose ps --all -q console)"
+            if [[ -n "$console_container" ]]; then
+              docker inspect "$console_container" --format 'state={{.State.Status}} exit={{.State.ExitCode}} ports={{json .NetworkSettings.Ports}} networks={{json .NetworkSettings.Networks}}' || true
+              docker compose exec -T console sh -c 'busybox wget -qO- http://127.0.0.1:8080/' || true
+            fi
+            ss -ltnp | grep ':8080' || true
             docker compose logs --no-color console
             exit 1
           fi
