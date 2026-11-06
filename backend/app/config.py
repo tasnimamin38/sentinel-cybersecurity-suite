@@ -1,3 +1,5 @@
+import json
+import re
 from functools import lru_cache
 
 from pydantic import model_validator
@@ -14,6 +16,7 @@ class Settings(BaseSettings):
 
     api_key: str = ""
     api_keys: str = ""
+    api_credentials_json: str = ""
     allowed_domains: str = ""
     database_url: str = "sqlite:///./sentinel.db"
     cors_origins: str = "http://localhost:5173"
@@ -30,6 +33,12 @@ class Settings(BaseSettings):
         if not values and self.api_key.strip():
             values = [self.api_key.strip()]
         return list(dict.fromkeys(values))
+
+    @property
+    def configured_role_credentials(self) -> list[dict[str, str]]:
+        if not self.api_credentials_json.strip():
+            return []
+        return json.loads(self.api_credentials_json)
 
     @property
     def allowed_domain_list(self) -> list[str]:
@@ -51,13 +60,44 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
         if not 1 <= self.max_assessment_records <= 100_000:
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
+        role_credentials = self.configured_role_credentials
+        if not isinstance(role_credentials, list):
+            raise ValueError("SENTINEL_API_CREDENTIALS_JSON must be a JSON array.")
+        seen_ids: set[str] = set()
+        seen_keys: set[str] = set()
+        for item in role_credentials:
+            if not isinstance(item, dict) or set(item) != {"id", "key", "role"}:
+                raise ValueError("Each role credential must contain exactly id, key and role.")
+            credential_id, key, role = item["id"], item["key"], item["role"]
+            if not isinstance(credential_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", credential_id):
+                raise ValueError("Static credential IDs must be 1–64 alphanumeric, underscore or hyphen characters.")
+            if not isinstance(key, str) or len(key) < 32:
+                raise ValueError("Every static role credential must contain at least 32 characters.")
+            if not isinstance(role, str) or role not in {"admin", "analyst", "asset_manager", "auditor", "read_only"}:
+                raise ValueError("Static credential role is not supported.")
+            if credential_id in seen_ids or key in seen_keys:
+                raise ValueError("Static credential IDs and key material must be unique.")
+            seen_ids.add(credential_id)
+            seen_keys.add(key)
+
+        legacy_keys = self.configured_api_keys
+        if len(legacy_keys) != len(set(legacy_keys)):
+            raise ValueError("Legacy API key material must be unique.")
+        if seen_keys.intersection(legacy_keys):
+            raise ValueError("Static role credentials must not reuse legacy API key material.")
+        legacy_ids = {f"legacy-admin-{index + 1}" for index in range(len(legacy_keys))}
+        if seen_ids.intersection(legacy_ids):
+            raise ValueError("Static role credential IDs must not collide with legacy credential IDs.")
+
         if self.environment == "production":
             errors = []
             keys = self.configured_api_keys
             if self.process_role == "api":
-                if not keys or any(len(key) < 32 for key in keys):
-                    errors.append("Every configured API key must contain at least 32 characters")
-                for key in keys:
+                if (not keys and not any(item["role"] == "admin" for item in role_credentials)) or any(len(key) < 32 for key in keys):
+                    errors.append("Configure a strong bootstrap admin API key")
+                if any(len(key) < 32 for key in keys):
+                    errors.append("Every configured legacy API key must contain at least 32 characters")
+                for key in keys + [item["key"] for item in role_credentials]:
                     normalized_key = key.lower()
                     if any(
                         marker in normalized_key
@@ -71,7 +111,7 @@ class Settings(BaseSettings):
                     ):
                         errors.append("API keys must not contain sample or placeholder values")
                         break
-            elif keys:
+            elif keys or role_credentials:
                 errors.append("Worker processes must not be configured with API credentials")
             if not self.allowed_domain_list:
                 errors.append(
