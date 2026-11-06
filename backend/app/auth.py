@@ -81,7 +81,7 @@ def _configured_static_principals() -> list[tuple[str, str, str]]:
     principals: list[tuple[str, str, str]] = []
     for index, key in enumerate(settings.configured_api_keys):
         principals.append((f"legacy-admin-{index + 1}", key, "admin"))
-    for item in settings.configured_role_credentials:
+    for item in getattr(settings, "configured_role_credentials", []):
         principals.append((item["id"], item["key"], item["role"]))
     return principals
 
@@ -115,6 +115,11 @@ def require_api_key(
 ) -> ApiPrincipal:
     supplied = x_api_key or ""
     static_credentials = _configured_static_principals()
+    if any(len(candidate) < 32 for _, candidate, _ in static_credentials):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API authentication is not securely configured. Static API keys must contain at least 32 characters.",
+        )
     matches: list[tuple[str, str, str]] = []
     for credential_id, candidate, role in static_credentials:
         if hmac.compare_digest(supplied, candidate):
