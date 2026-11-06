@@ -58,7 +58,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.11.0-pre",
+    version="0.12.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -379,7 +379,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.11.0-pre",
+        "version": "0.12.0-pre",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -412,7 +412,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.11.0-pre",
+        "version": "0.12.0-pre",
         "metrics_enabled": settings.metrics_enabled,
         "authorized_domains": settings.allowed_domain_list,
         "features": [

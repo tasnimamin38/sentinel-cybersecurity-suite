@@ -88,6 +88,16 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [ ] External secret-manager API integration and expiry/rotation notifications
 
 **Exit gate:** minute/day counter boundary tests, PostgreSQL concurrency test, rotation grace/expiry tests, dependency audit, Ruff, frontend build and CodeQL.
+## 0.12 — Backup and restore assurance
+
+- [x] Operator-run PostgreSQL custom-format backup from the Compose database service
+- [x] Timestamped no-overwrite archive, restrictive backup directory permissions and SHA-256 sidecar
+- [x] Disposable PostgreSQL restore verification with networking disabled, resource limits, Alembic revision check and core-table check
+- [ ] Automated backup scheduling, encryption/key management and off-site retention
+- [ ] Retention policy, RPO/RTO targets and recurring recovery drills
+
+**Exit gate:** encrypted off-host copies, documented retention, successful scheduled restore drills and independently reviewed recovery objectives.
+
 ## 1.0 — Production readiness
 
 - Independent penetration test and remediation of critical/high issues
