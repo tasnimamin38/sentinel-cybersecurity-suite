@@ -70,12 +70,21 @@ class Settings(BaseSettings):
                 raise ValueError("Static credential IDs must be 1–64 alphanumeric, underscore or hyphen characters.")
             if not isinstance(key, str) or len(key) < 32:
                 raise ValueError("Every static role credential must contain at least 32 characters.")
-            if role not in {"admin", "analyst", "asset_manager", "auditor", "read_only"}:
+            if not isinstance(role, str) or role not in {"admin", "analyst", "asset_manager", "auditor", "read_only"}:
                 raise ValueError("Static credential role is not supported.")
             if credential_id in seen_ids or key in seen_keys:
                 raise ValueError("Static credential IDs and key material must be unique.")
             seen_ids.add(credential_id)
             seen_keys.add(key)
+
+        legacy_keys = self.configured_api_keys
+        if len(legacy_keys) != len(set(legacy_keys)):
+            raise ValueError("Legacy API key material must be unique.")
+        if seen_keys.intersection(legacy_keys):
+            raise ValueError("Static role credentials must not reuse legacy API key material.")
+        legacy_ids = {f"legacy-admin-{index + 1}" for index in range(len(legacy_keys))}
+        if seen_ids.intersection(legacy_ids):
+            raise ValueError("Static role credential IDs must not collide with legacy credential IDs.")
 
         if self.environment == "production":
             errors = []
