@@ -58,14 +58,18 @@ def consume_credential_quota(
             usage.day_window_start = day_bucket
             usage.day_requests = 0
 
+    retry_after_values: list[int] = []
     if usage.minute_requests >= rate_limit_per_minute:
         remaining = (minute_bucket + timedelta(minutes=1) - current).total_seconds()
-        return max(1, int(remaining + 0.999))
+        retry_after_values.append(max(1, int(remaining + 0.999)))
 
     if usage.day_requests >= daily_request_limit:
         next_day = day_bucket + timedelta(days=1)
         remaining = (next_day - current).total_seconds()
-        return max(1, int(remaining + 0.999))
+        retry_after_values.append(max(1, int(remaining + 0.999)))
+
+    if retry_after_values:
+        return max(retry_after_values)
 
     usage.minute_requests += 1
     usage.day_requests += 1
