@@ -20,8 +20,6 @@ All notable changes to SENTINEL are documented here.
 - GitHub Actions CI: 114 backend tests passed; pip-audit reported no known vulnerabilities; Ruff format and lint passed; frontend npm audit and production build passed; Docker Compose validation and backend/frontend image builds passed.
 - CodeQL: Python and JavaScript/TypeScript analyses passed.
 
-All notable changes to SENTINEL are documented here.
-
 ## 0.8.0-pre — 2026-11-06
 
 ### Added
