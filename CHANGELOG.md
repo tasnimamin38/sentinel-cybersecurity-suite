@@ -2,6 +2,20 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.14.0-pre — 2026-11-06
+
+### Added
+- Live React incident register backed by the authenticated `/api/v1/incidents` API.
+- Status/severity filtering, keyword search, response-state summary and finding-linked incident creation.
+- Editable accountable operator, timezone-aware local response deadline and bounded operator notes, persisted through the authenticated PATCH API.
+- Overdue response indicators for unresolved incidents with expired deadlines.
+- Per-incident audit trace for principals with audit-read permission; audit events expose changed field names without copying free-form note content.
+- Manual register refresh and role-aware visibility, mutation controls and release metadata aligned to `0.14.0-pre`.
+
+### Boundaries
+- The console renders API-returned records only; no demo incidents or simulated telemetry are presented.
+- Notifications, on-call paging, SIEM integration, automatic incident correlation and human assignee directory remain out of scope.
+
 ## 0.13.0-pre — 2026-11-06
 
 ### Added

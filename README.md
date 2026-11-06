@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.13.0--pre-3977a7.svg" alt="Version 0.13.0-pre" />
+    <img src="https://img.shields.io/badge/Release-0.14.0--pre-3977a7.svg" alt="Version 0.14.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -31,6 +31,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Explainable risk scoring and findings | Implemented |
 | Remediation ownership and task status | Implemented |
 | Finding-linked security incident triage with audited status transitions | Implemented in 0.13 API branch |
+| Live incident register with ownership, deadlines, overdue flags and audited response history | Implemented in 0.14 branch |
 | Framework-neutral control mapping | Implemented |
 | Redacting inline secret-pattern review | Implemented |
 | Hash-linked audit event verification | Implemented |
@@ -48,7 +49,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 
 ## Operations console
 
-The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
+The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. The incident register supports finding-linked triage, role-aware status transitions, accountable ownership, response deadlines, overdue signals and a metadata-only audit trace. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
 
 | Command center | Asset governance |
 |:---:|:---:|
@@ -177,6 +178,9 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code> and are protect
 | <code>GET</code> | <code>/api/v1/assessments/{assessment_id}</code> | Assessment detail |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/remediations</code> | List or create remediation tasks |
 | <code>PATCH</code> | <code>/api/v1/remediations/{task_id}</code> | Update assignee, status, due date or notes |
+| <code>GET</code> | <code>/api/v1/incidents</code> | Filter the incident register by status and severity |
+| <code>POST</code> | <code>/api/v1/incidents</code> | Create an incident from a stored completed-assessment finding |
+| <code>PATCH</code> | <code>/api/v1/incidents/{incident_id}</code> | Update an incident through allowed response-state transitions |
 | <code>GET</code> | <code>/api/v1/incidents</code> | Filter security incidents by status and severity |
 | <code>POST</code> | <code>/api/v1/incidents</code> | Create a triage record from a finding in a completed assessment |
 | <code>PATCH</code> | <code>/api/v1/incidents/{incident_id}</code> | Assign, schedule, note and transition an incident |

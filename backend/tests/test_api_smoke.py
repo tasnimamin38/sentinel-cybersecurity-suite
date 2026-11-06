@@ -45,7 +45,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.13.0-pre"
+    assert response.json()["version"] == "0.14.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -967,6 +967,53 @@ def test_incidents_are_created_only_from_assessment_findings_and_audited(client)
         json={**payload, "finding_code": "NOT_IN_THE_ASSESSMENT"},
     )
     assert unknown_finding.status_code == 404
+
+
+def test_incident_response_fields_require_timezone_and_audit_only_field_names(client):
+    assessment_id = _create_incident_source_assessment()
+    created = client.post(
+        "/api/v1/incidents",
+        headers=API_HEADERS,
+        json={
+            "assessment_id": assessment_id,
+            "finding_code": "TLS_CERT_EXPIRY_WINDOW",
+        },
+    )
+    assert created.status_code == 201
+    incident_id = created.json()["id"]
+
+    response = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=API_HEADERS,
+        json={
+            "assignee": "  Blue Team Lead  ",
+            "due_at": "2030-11-07T11:30:00+00:00",
+            "notes": "Private operator note: validate the certificate renewal handoff.",
+        },
+    )
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["assignee"] == "Blue Team Lead"
+    assert updated["due_at"] is not None
+    assert updated["due_at"].startswith("2030-11-07T11:30:00")
+    assert updated["notes"] == "Private operator note: validate the certificate renewal handoff."
+
+    missing_timezone = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=API_HEADERS,
+        json={"due_at": "2030-11-08T17:30:00"},
+    )
+    assert missing_timezone.status_code == 422
+
+    events = client.get("/api/v1/audit?limit=100", headers=API_HEADERS)
+    assert events.status_code == 200
+    update_event = next(
+        event
+        for event in events.json()
+        if event["event_type"] == "security.incident.updated" and event["subject"] == incident_id
+    )
+    assert "changed_fields=assignee,due_at,notes" in update_event["details"]
+    assert "Private operator note" not in update_event["details"]
 
 
 def test_incident_triage_enforces_state_transitions_and_records_closure(client):

@@ -8,7 +8,7 @@ import {
   Workflow, FileSearch,
 } from "lucide-react";
 
-type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "secrets" | "credentials";
+type View = "overview" | "assets" | "findings" | "remediations" | "incidents" | "controls" | "audit" | "secrets" | "credentials";
 type Finding = {
   code: string; title: string; severity: string; description: string;
   recommendation: string; category?: string; confidence?: number;
@@ -65,12 +65,29 @@ type ApiCredential = {
   rotated_to_id?: string | null; rotation_grace_expires_at?: string | null;
 };
 type CreatedCredential = { credential: ApiCredential; secret: string };
+
+type IncidentStatus = "open" | "acknowledged" | "investigating" | "contained" | "resolved" | "accepted";
+type SecurityIncident = {
+  id: string; assessment_id: string; asset_id?: string | null; finding_code: string;
+  title: string; severity: string; status: IncidentStatus; assignee: string;
+  due_at?: string | null; notes: string; acknowledged_at?: string | null;
+  closed_at?: string | null; created_at: string; updated_at: string;
+};
+const incidentTransitions: Record<IncidentStatus, IncidentStatus[]> = {
+  open: ["acknowledged", "investigating", "accepted"],
+  acknowledged: ["investigating", "contained", "resolved", "accepted"],
+  investigating: ["contained", "resolved", "accepted"],
+  contained: ["investigating", "resolved", "accepted"],
+  resolved: [],
+  accepted: [],
+};
+
 type CredentialRotation = { previous_credential_id: string; grace_expires_at: string; credential: ApiCredential; secret: string };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
-  remediations: "Remediation queue", controls: "Control coverage",
+  remediations: "Remediation queue", incidents: "Incident register", controls: "Control coverage",
   audit: "Audit integrity", secrets: "Secret hygiene", credentials: "API access control",
 };
 const navGroups = [
@@ -79,6 +96,7 @@ const navGroups = [
     { id: "assets" as View, label: "Asset inventory", icon: Server },
     { id: "findings" as View, label: "Findings", icon: ShieldAlert },
     { id: "remediations" as View, label: "Remediation", icon: ListChecks },
+    { id: "incidents" as View, label: "Incidents", icon: ShieldAlert },
     { id: "secrets" as View, label: "Secret hygiene", icon: Fingerprint },
   ]},
   { label: "GOVERNANCE", items: [
@@ -91,7 +109,7 @@ const navGroups = [
 ];
 const viewPermissions: Record<View, string> = {
   overview: "dashboard.read", assets: "asset.read", findings: "assessment.read",
-  remediations: "remediation.read", controls: "controls.read", audit: "audit.read",
+  remediations: "remediation.read", incidents: "incident.read", controls: "controls.read", audit: "audit.read",
   secrets: "secrets.scan", credentials: "credential.manage",
 };
 
@@ -104,6 +122,13 @@ function dateLabel(value?: string | null) {
   if (!value) return "Not scheduled";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function localDateTimeValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
 }
 function dateTimeLabel(value?: string | null) {
   if (!value) return "—";
@@ -136,6 +161,11 @@ export default function App() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [remediations, setRemediations] = useState<Remediation[]>([]);
+  const [incidents, setIncidents] = useState<SecurityIncident[]>([]);
+  const [incidentSearch, setIncidentSearch] = useState("");
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState("all");
+  const [incidentSeverityFilter, setIncidentSeverityFilter] = useState("all");
+  const [incidentEditId, setIncidentEditId] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditIntegrity, setAuditIntegrity] = useState<AuditIntegrity | null>(null);
   const [controls, setControls] = useState<Control[]>([]);
@@ -173,15 +203,20 @@ export default function App() {
   async function refreshData(identityOverride?: ApiIdentity) {
     const principal = identityOverride ?? identity;
     if (!principal) throw new Error("API identity was not loaded.");
-    const results = await Promise.all([
-      api<Overview>("/api/v1/overview"),
-      api<Asset[]>("/api/v1/assets"),
-      api<Assessment[]>("/api/v1/assessments?limit=100"),
-      api<Remediation[]>("/api/v1/remediations"),
-      api<{ controls: Control[] }>("/api/v1/controls"),
+    const [results, incidentData] = await Promise.all([
+      Promise.all([
+        api<Overview>("/api/v1/overview"),
+        api<Asset[]>("/api/v1/assets"),
+        api<Assessment[]>("/api/v1/assessments?limit=100"),
+        api<Remediation[]>("/api/v1/remediations"),
+        api<{ controls: Control[] }>("/api/v1/controls"),
+      ]),
+      principal.role === "admin" || principal.permissions.includes("incident.read")
+        ? api<SecurityIncident[]>("/api/v1/incidents")
+        : Promise.resolve([] as SecurityIncident[]),
     ]);
     setOverview(results[0]); setAssets(results[1]); setAssessments(results[2]);
-    setRemediations(results[3]); setControls(results[4].controls);
+    setRemediations(results[3]); setControls(results[4].controls); setIncidents(incidentData);
     if (principal.role === "admin" || principal.permissions.includes("audit.read")) {
       const [events, integrity] = await Promise.all([
         api<AuditEvent[]>("/api/v1/audit?limit=100"), api<AuditIntegrity>("/api/v1/audit/integrity"),
@@ -308,6 +343,54 @@ export default function App() {
     });
   }
 
+  async function createIncident(assessmentId: string, findingCode: string) {
+    await runAction(async () => {
+      await api<SecurityIncident>("/api/v1/incidents", {
+        method: "POST",
+        body: JSON.stringify({ assessment_id: assessmentId, finding_code: findingCode }),
+      });
+      await refreshData();
+      setView("incidents");
+      notify("Security incident created from the recorded assessment finding.", "success");
+    });
+  }
+
+  async function updateIncident(incident: SecurityIncident, nextStatus: IncidentStatus) {
+    await runAction(async () => {
+      await api<SecurityIncident>("/api/v1/incidents/" + incident.id, {
+        method: "PATCH", body: JSON.stringify({ status: nextStatus }),
+      });
+      await refreshData();
+      notify("Incident " + incident.finding_code + " moved to " + nextStatus.replace("_", " ") + ".", "success");
+    });
+  }
+
+  async function updateIncidentDetails(incident: SecurityIncident, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const assignee = String(form.get("assignee") ?? "").trim();
+    const dueAtInput = String(form.get("due_at") ?? "").trim();
+    const notes = String(form.get("notes") ?? "");
+    const dueAt = dueAtInput ? new Date(dueAtInput) : null;
+    if (dueAt && Number.isNaN(dueAt.getTime())) {
+      notify("Enter a valid incident due date and time.", "error");
+      return;
+    }
+    await runAction(async () => {
+      await api<SecurityIncident>("/api/v1/incidents/" + incident.id, {
+        method: "PATCH",
+        body: JSON.stringify({
+          assignee,
+          due_at: dueAt ? dueAt.toISOString() : null,
+          notes,
+        }),
+      });
+      await refreshData();
+      setIncidentEditId(null);
+      notify("Incident ownership, due date and response notes saved to the incident record.", "success");
+    });
+  }
+
   async function scanSecrets(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!secretText.trim()) return;
@@ -389,6 +472,16 @@ export default function App() {
       .toLowerCase().includes(search.toLowerCase()),
   );
   const resolvedCount = remediations.filter((task) => task.status === "resolved").length;
+  const visibleIncidents = incidents.filter((incident) =>
+    (incidentStatusFilter === "all" || incident.status === incidentStatusFilter) &&
+    (incidentSeverityFilter === "all" || incident.severity === incidentSeverityFilter) &&
+    (incident.finding_code + " " + incident.title + " " + incident.assignee + " " + incident.id)
+      .toLowerCase().includes(incidentSearch.toLowerCase()),
+  );
+  const openIncidentCount = incidents.filter((incident) => incident.status === "open").length;
+  const activeIncidentCount = incidents.filter((incident) => ["acknowledged", "investigating"].includes(incident.status)).length;
+  const containedIncidentCount = incidents.filter((incident) => incident.status === "contained").length;
+  const closedIncidentCount = incidents.filter((incident) => ["resolved", "accepted"].includes(incident.status)).length;
   const activeCount = assets.filter((asset) => asset.status === "active").length;
   const latest = assessments[0];
   const environmentLabel = assets.some((asset) => asset.environment === "production") ? "PRODUCTION SCOPE" : "LOCAL WORKSPACE";
@@ -400,7 +493,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-emblem"><ShieldCheck size={22} strokeWidth={1.8} /></div>
-          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.10.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
+          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.14.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
         </div>
         <div className="workspace-chip"><span className="live-dot" /> PRIVATE SECURITY WORKSPACE <ChevronDown size={13} /></div>
         <div className="sidebar-scroll">
@@ -538,7 +631,8 @@ export default function App() {
                   <div className="page-toolbar"><div className="search-box"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search code, target or finding" /></div><select className="toolbar-select" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Informational</option></select></div>
                   {visibleFindings.length ? <div className="finding-list">{visibleFindings.map((finding, index) => {
                     const exists = remediations.some((task) => task.assessment_id === finding.assessmentId && task.finding_code === finding.code);
-                    return <div className="finding-card" key={finding.assessmentId + finding.code + index}><div className={"finding-severity " + severityClass(finding.severity)}><AlertTriangle size={15} /></div><div className="finding-body"><div className="finding-meta"><code>{finding.code}</code><span>{finding.category ?? "security"}</span><span>{dateLabel(finding.createdAt)}</span></div><b>{finding.title}</b><p>{finding.description}</p><div className="finding-remediation"><b>RECOMMENDATION</b><span>{finding.recommendation}</span></div><small>{finding.target} · Confidence {Math.round((finding.confidence ?? 1) * 100)}%</small></div><div className="finding-actions"><span className={"severity-chip " + severityClass(finding.severity)}>{finding.severity}</span><button className="button-small" disabled={!can("remediation.write") || busy || exists} onClick={() => createRemediation(finding.assessmentId, finding.code)}><Plus size={13} /> {exists ? "TASK EXISTS" : "CREATE TASK"}</button></div></div>;
+                    const incidentExists = incidents.some((incident) => incident.assessment_id === finding.assessmentId && incident.finding_code === finding.code);
+                    return <div className="finding-card" key={finding.assessmentId + finding.code + index}><div className={"finding-severity " + severityClass(finding.severity)}><AlertTriangle size={15} /></div><div className="finding-body"><div className="finding-meta"><code>{finding.code}</code><span>{finding.category ?? "security"}</span><span>{dateLabel(finding.createdAt)}</span></div><b>{finding.title}</b><p>{finding.description}</p><div className="finding-remediation"><b>RECOMMENDATION</b><span>{finding.recommendation}</span></div><small>{finding.target} · Confidence {Math.round((finding.confidence ?? 1) * 100)}%</small></div><div className="finding-actions"><span className={"severity-chip " + severityClass(finding.severity)}>{finding.severity}</span><button className="button-small" disabled={!can("remediation.write") || busy || exists} onClick={() => createRemediation(finding.assessmentId, finding.code)}><Plus size={13} /> {exists ? "TASK EXISTS" : "CREATE TASK"}</button><button className="button-small incident-create" disabled={!can("incident.write") || busy || incidentExists} onClick={() => createIncident(finding.assessmentId, finding.code)}><ShieldAlert size={13} /> {incidentExists ? "INCIDENT EXISTS" : "OPEN INCIDENT"}</button></div></div>;
                   })}</div> : <EmptyState icon={<ShieldCheck size={23} />} title="No findings match this view" text="Run an authorized assessment or adjust the search and severity filter." />}
                 </section>
               )}
@@ -551,6 +645,118 @@ export default function App() {
                 </section>
               )}
 
+              {view === "incidents" && (
+                <section className="panel page-panel">
+                  <div className="section-title-row">
+                    <PanelHeading eyebrow="SECURITY INCIDENT RESPONSE" title="Finding-linked triage register" icon={<ShieldAlert size={15} />} />
+                    <div className="header-actions">
+                      <span className="data-count">{incidents.length} TRACKED INCIDENTS</span>
+                      <button className="link-button" onClick={() => runAction(refreshData)} disabled={busy}><RefreshCw size={13} /> REFRESH REGISTER</button>
+                    </div>
+                  </div>
+                  <p className="panel-intro">Incidents are created only from findings in completed assessments. Assign an accountable operator, set a response deadline, preserve working notes and move each record through the server-enforced lifecycle. Notification delivery and on-call paging are not configured in this release.</p>
+                  <div className="incident-summary">
+                    <SummaryTile label="OPEN" value={openIncidentCount} />
+                    <SummaryTile label="ACKNOWLEDGED / INVESTIGATING" value={activeIncidentCount} />
+                    <SummaryTile label="CONTAINED" value={containedIncidentCount} />
+                    <SummaryTile label="RESOLVED / ACCEPTED" value={closedIncidentCount} />
+                  </div>
+                  <div className="page-toolbar">
+                    <div className="search-box"><Search size={14} /><input value={incidentSearch} onChange={(event) => setIncidentSearch(event.target.value)} placeholder="Search finding, title or owner" /></div>
+                    <select className="toolbar-select" value={incidentStatusFilter} onChange={(event) => setIncidentStatusFilter(event.target.value)}>
+                      <option value="all">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="contained">Contained</option><option value="resolved">Resolved</option><option value="accepted">Accepted</option>
+                    </select>
+                    <select className="toolbar-select" value={incidentSeverityFilter} onChange={(event) => setIncidentSeverityFilter(event.target.value)}>
+                      <option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="informational">Informational</option>
+                    </select>
+                  </div>
+                  {visibleIncidents.length ? (
+                    <div className="incident-list">
+                      {visibleIncidents.map((incident) => {
+                        const nextStates = incidentTransitions[incident.status] ?? [];
+                        const isOverdue = Boolean(
+                          incident.due_at &&
+                          new Date(incident.due_at).getTime() < Date.now() &&
+                          !["resolved", "accepted"].includes(incident.status),
+                        );
+                        const incidentHistory = auditEvents
+                          .filter((event) =>
+                            event.event_type.startsWith("security.incident.") &&
+                            (event.subject === incident.id || event.details.includes("incident_id=" + incident.id)),
+                          )
+                          .slice(0, 5);
+                        const editing = incidentEditId === incident.id;
+                        return <article className="incident-row" key={incident.id}>
+                          <div className={"finding-severity " + severityClass(incident.severity)}><ShieldAlert size={15} /></div>
+                          <div className="incident-main">
+                            <div className="incident-meta">
+                              <code>{incident.finding_code}</code>
+                              <span className={"severity-chip " + severityClass(incident.severity)}>{incident.severity}</span>
+                              <span className={"incident-state " + incident.status}>{incident.status.replace("_", " ")}</span>
+                              {isOverdue && <span className="incident-overdue"><AlertTriangle size={10} /> RESPONSE OVERDUE</span>}
+                            </div>
+                            <b>{incident.title}</b>
+                            <p>{incident.assignee || "Unassigned"} · Due {dateTimeLabel(incident.due_at)} · Incident {incident.id.slice(0, 8)}</p>
+                            <small>Assessment {incident.assessment_id.slice(0, 12)} · Created {dateTimeLabel(incident.created_at)}{incident.closed_at ? " · Closed " + dateTimeLabel(incident.closed_at) : ""}</small>
+                            {incident.notes && !editing && <div className="incident-notes">{incident.notes}</div>}
+                          </div>
+                          <div className="incident-actions">
+                            <label>RESPONSE STATUS</label>
+                            <select className="task-status" value={incident.status} onChange={(event) => updateIncident(incident, event.target.value as IncidentStatus)} disabled={!can("incident.write") || busy || nextStates.length === 0}>
+                              <option value={incident.status}>{incident.status.replace("_", " ")}</option>
+                              {nextStates.map((next) => <option value={next} key={next}>{next.replace("_", " ")}</option>)}
+                            </select>
+                            <button className="button-small incident-edit-toggle" onClick={() => setIncidentEditId(editing ? null : incident.id)} disabled={!can("incident.write") || busy}>
+                              <Settings2 size={12} /> {editing ? "CLOSE EDITOR" : "EDIT RESPONSE"}
+                            </button>
+                          </div>
+                          {editing && (
+                            <form className="incident-editor" onSubmit={(event) => updateIncidentDetails(incident, event)}>
+                              <div className="incident-editor-heading">
+                                <div><span>INCIDENT RESPONSE DETAILS</span><b>Ownership, deadline and operator notes</b></div>
+                                <span>PATCH · AUDITED</span>
+                              </div>
+                              <div className="incident-editor-grid">
+                                <label className="field-label">ACCOUNTABLE OPERATOR
+                                  <input name="assignee" defaultValue={incident.assignee} maxLength={120} placeholder="Team or operator name" />
+                                </label>
+                                <label className="field-label">RESPONSE DEADLINE · LOCAL TIME
+                                  <input name="due_at" type="datetime-local" defaultValue={localDateTimeValue(incident.due_at)} />
+                                </label>
+                                <label className="field-label incident-notes-field">RESPONSE NOTES · MAX 4,000 CHARACTERS
+                                  <textarea name="notes" defaultValue={incident.notes} maxLength={4000} rows={3} placeholder="Record containment steps, decisions and handoff context. Do not paste secrets or credentials." />
+                                </label>
+                              </div>
+                              <div className="incident-editor-footer">
+                                <span>Notes are not copied into the audit event details; changes record field names only.</span>
+                                <div>
+                                  <button type="button" className="link-button" onClick={() => setIncidentEditId(null)} disabled={busy}>CANCEL</button>
+                                  <button type="submit" className="button-small" disabled={busy}><CheckCircle2 size={12} /> SAVE RESPONSE</button>
+                                </div>
+                              </div>
+                            </form>
+                          )}
+                          {can("audit.read") && (
+                            <div className="incident-history">
+                              <div className="incident-history-heading"><Activity size={12} /> AUDIT TRACE <span>{incidentHistory.length} RECENT EVENTS</span></div>
+                              {incidentHistory.length ? incidentHistory.map((entry) => {
+                                const changed = entry.details.split("changed_fields=")[1]?.split(";")[0] || "metadata";
+                                return <div className="incident-history-row" key={entry.id}>
+                                  <b>{entry.event_type.replace("security.incident.", "").replace(".", " ").toUpperCase()}</b>
+                                  <span>{changed.replace(/,/g, " · ")}</span>
+                                  <small>{dateTimeLabel(entry.created_at)}</small>
+                                </div>;
+                              }) : <p className="incident-history-empty">No matching incident events in the latest audit window.</p>}
+                            </div>
+                          )}
+                        </article>;
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState icon={<ShieldAlert size={23} />} title={incidents.length ? "No incidents match these filters" : "No security incidents yet"} text={incidents.length ? "Adjust the search or status and severity filters." : "Open the Findings view and create an incident from a recorded finding when coordinated triage is needed."} />
+                  )}
+                </section>
+              )}
               {view === "controls" && (
                 <section className="panel page-panel">
                   <div className="section-title-row"><PanelHeading eyebrow="OPERATIONAL CONTROL MAP" title="Security control coverage" icon={<Layers3 size={15} />} /><span className="neutral-chip">SENTINEL BASELINE · NOT A CERTIFICATION</span></div>
@@ -628,7 +834,7 @@ export default function App() {
               )}
             </>
           )}
-          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.10.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.14.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>
