@@ -17,6 +17,30 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SENTINEL_ENVIRONMENT: production
+      SENTINEL_PROCESS_ROLE: worker
+      SENTINEL_ALLOWED_DOMAINS: ${SENTINEL_ALLOWED_DOMAINS:?Set SENTINEL_ALLOWED_DOMAINS in .env}
+      SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:${POSTGRES_PASSWORD}@db:5432/sentinel
+      SENTINEL_REQUEST_TIMEOUT_SECONDS: ${SENTINEL_REQUEST_TIMEOUT_SECONDS:-8}
+      SENTINEL_MAX_ASSESSMENT_RECORDS: ${SENTINEL_MAX_ASSESSMENT_RECORDS:-250}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [sentinel-data]
+
   api:
     build:
       context: .
@@ -44,6 +68,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
