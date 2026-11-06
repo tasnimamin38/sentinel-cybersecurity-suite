@@ -27,7 +27,10 @@ _TRANSITIONS = {
 
 
 def _record_incident_event(
-    db: Session, incident: SecurityIncident, event_type: str, changed_fields: list[str] | None = None
+    db: Session,
+    incident: SecurityIncident,
+    event_type: str,
+    changed_fields: list[str] | None = None,
 ) -> None:
     fields = ",".join(sorted(set(changed_fields or [])))
     record_audit_event(
@@ -106,7 +109,9 @@ def create_security_incident(
     if severity_value == "info":
         severity_value = "informational"
     if severity_value not in _ALLOWED_SEVERITIES:
-        raise HTTPException(status_code=422, detail="The source finding has an unsupported severity.")
+        raise HTTPException(
+            status_code=422, detail="The source finding has an unsupported severity."
+        )
 
     title = str(finding.get("title") or finding.get("name") or payload.finding_code).strip()
     if not title:
