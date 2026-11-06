@@ -82,6 +82,8 @@ def test_backend_image_uses_multistage_patched_python_runtime():
     assert "COPY --from=builder --chown=10001:10001 /srv/backend /srv/backend" in dockerfile
     assert "setuptools>=78.1.1" in dockerfile
     assert "python3.13-venv" not in dockerfile
+    assert "groupadd" not in dockerfile
+    assert "passwd" not in dockerfile
 
 
 def test_backend_ci_covers_python_312_and_313():

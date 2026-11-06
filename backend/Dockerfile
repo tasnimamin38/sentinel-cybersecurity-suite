@@ -34,12 +34,8 @@ RUN set -eux; \
         ca-certificates \
         netbase \
         tzdata \
-        passwd \
     ; \
     rm -rf /var/lib/apt/lists/*
-
-RUN groupadd --system --gid 10001 sentinel \
-    && useradd --system --uid 10001 --gid sentinel --home-dir /nonexistent --shell /usr/sbin/nologin sentinel
 
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder --chown=10001:10001 /srv/backend /srv/backend
