@@ -84,7 +84,7 @@ class Settings(BaseSettings):
                 }
             ):
                 raise ValueError(
-                    "Each role credential must contain id, key, role and optional request quota limits only."
+                    "Each role credential must contain id, key, role and only the supported optional quota and asset-scope fields."
                 )
             credential_id, key, role = item["id"], item["key"], item["role"]
             if not isinstance(credential_id, str) or not re.fullmatch(
@@ -129,6 +129,8 @@ class Settings(BaseSettings):
                 raise ValueError("Static credential asset_scope_ids must contain valid UUIDs.") from exc
             if len(normalized_scope_ids) != len(set(normalized_scope_ids)):
                 raise ValueError("Static credential asset_scope_ids must be unique.")
+            if scope_ids != normalized_scope_ids:
+                raise ValueError("Static credential asset_scope_ids must use canonical lowercase UUID strings.")
             if scope_mode == "selected" and not normalized_scope_ids:
                 raise ValueError("Selected static credentials require at least one asset ID.")
             if scope_mode == "all" and normalized_scope_ids:
