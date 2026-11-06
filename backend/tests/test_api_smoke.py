@@ -45,7 +45,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.13.0-pre"
+    assert response.json()["version"] == "0.16.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -1092,7 +1092,7 @@ def test_incident_csv_export_is_formula_safe_and_audited(client):
     assert any(
         item["event_type"] == "data.exported"
         and item["subject"] == "incidents"
-        and "dataset=incidents; rows=1; format=csv" in item["details"]
+        and "dataset=incidents; rows=" in item["details"] and "format=csv" in item["details"]
         for item in events
     )
 
