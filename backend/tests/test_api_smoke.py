@@ -870,8 +870,7 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
     assert response.headers["content-type"].startswith("text/plain; version=0.0.4")
     payload = response.text
     assert (
-        'sentinel_http_requests_total{method="GET",route="/healthz",status_code="200"}'
-        in payload
+        'sentinel_http_requests_total{method="GET",route="/healthz",status_code="200"}' in payload
     )
     assert 'route="/api/v1/assets/{asset_id}"' in payload
     assert "sentinel_http_request_duration_seconds_bucket" in payload
@@ -879,4 +878,3 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
     assert private_path_id not in payload
     assert metrics_token not in payload
     assert "X-API-Key" not in payload
-
