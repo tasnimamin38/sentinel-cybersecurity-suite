@@ -4,7 +4,7 @@
 
 **Goal:** Add verifiable supply-chain security gates and align architecture, threat model and release documentation with the 0.14 implementation.
 
-**Architecture:** Keep the application runtime unchanged. Extend GitHub Actions with immutable action references, dependency review, secret scanning, Trivy filesystem/image scans and SPDX SBOM generation; use Dependabot for update proposals. Add standard-library policy regression tests so workflow security requirements are themselves tested.
+**Architecture:** Keep the application runtime unchanged. Extend GitHub Actions with immutable action references, full-manifest dependency audits (`pip-audit` and `npm audit`), secret scanning, Trivy filesystem/image scans and SPDX SBOM generation; use Dependabot for update proposals. Add standard-library policy regression tests so workflow security requirements are themselves tested.
 
 **Tech Stack:** GitHub Actions, Gitleaks v3, Trivy v0.36.0, Anchore Syft SBOM Action v0.24.3, Dependabot, Python/pytest, FastAPI, React, TypeScript and Vite.
 
@@ -36,13 +36,13 @@
 - [ ] Run from backend/: python -m pytest tests/test_supply_chain_policy.py -q; confirm the regression test passes.
 - [ ] Run full backend pytest, Ruff format and Ruff lint; review CI and CodeQL on the exact new PR head.
 
-## Task 2 — Dependency review, secret detection, filesystem scan and SBOM
+## Task 2 — Dependency audits, secret detection, filesystem scan and SBOM
 
 **Files:** .github/workflows/supply-chain-security.yml, .github/dependabot.yml, backend/tests/test_supply_chain_policy.py.
 
-**Interfaces:** Dependency Review runs only on pull_request; Gitleaks uses the automatically issued GITHUB_TOKEN with comments disabled; Trivy emits SARIF; Syft writes SPDX JSON which is uploaded for 14 days.
+**Interfaces:** The pull-request workflow audits the backend requirements and exact frontend lockfile using `pip-audit` and `npm audit --audit-level=high`; GitHub Dependency Review is unavailable until the repository Dependency Graph is enabled. Gitleaks uses the automatically issued GITHUB_TOKEN with comments disabled; Trivy emits SARIF; Syft writes SPDX JSON which is uploaded for 14 days.
 
-- [x] Add policy assertions for Dependency Review, Gitleaks, Trivy scanner classes, severity gates, fork upload condition and SBOM behavior.
+- [x] Add policy assertions for manifest-audit fallback, Gitleaks, Trivy scanner classes, severity gates, fork upload condition and SBOM behavior.
 - [x] Add Dependabot for pip at /backend, npm at /frontend and github-actions at /.
 - [x] Add immutable action references and least-privilege workflow/job permissions.
 - [x] Add weekly secret, dependency, filesystem/configuration scans and SPDX JSON generation.
@@ -72,4 +72,4 @@
 
 This phase does not change the database schema or production service runtime. Rollback is a reviewable revert of the 0.15 feature-branch commit; no migration rollback is required. Scanner findings must be triaged before merge. A green workflow on an older SHA is not evidence for a newer head.
 
-The initial exact-head CI observed 130 passing backend tests, but Ruff formatting failed on the new policy test; this patch formats it to Ruff's emitted diff. The initial image scan found CVE-2025-47273 in setuptools 70.3.0; remediation is included and must be revalidated. The Dependency Review action is blocked until the repository Dependency Graph is enabled. Treat the new head's checks as pending until they finish.
+The initial exact-head CI observed 130 passing backend tests, but Ruff formatting failed on the new policy test; this patch formats it to Ruff's emitted diff. The initial image scan found CVE-2025-47273 in setuptools 70.3.0; remediation is included and must be revalidated. The native GitHub Dependency Review action is unavailable until the repository Dependency Graph is enabled. The fallback `pip-audit` and `npm audit` checks cover the full checked-in dependency set, not the PR diff or license-policy deltas. Treat the exact head's checks as pending until they finish.
