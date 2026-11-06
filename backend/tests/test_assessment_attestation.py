@@ -8,6 +8,7 @@ from scripts.assessment_attestation import build_signed_attestation, verify_sign
 
 def response():
     return {
+        "format": "sentinel.assessment.evidence-integrity.v1",
         "assessment_id": "assessment-123",
         "integrity_valid": True,
         "verification_status": "verified",
@@ -15,6 +16,7 @@ def response():
         "audit_chain_valid": True,
         "audit_chain_status": "verified",
         "evidence_sha256": "a" * 64,
+        "computed_sha256": "a" * 64,
         "audit_event_id": "event-456",
         "audit_sequence_no": 17,
         "audit_event_hash": "b" * 64,
@@ -85,6 +87,7 @@ def test_current_anchor_mismatch_is_rejected():
     signed = build_signed_attestation(response(), key)
     changed = response()
     changed["evidence_sha256"] = "c" * 64
+    changed["computed_sha256"] = "c" * 64
     with pytest.raises(ValueError, match="does not match the signed"):
         verify_signed_attestation(signed, key.public_key(), changed)
 
