@@ -77,9 +77,7 @@ def test_credential_quota_returns_longest_retry_after_when_both_windows_exhauste
 
     try:
         with Session() as db:
-            assert consume_credential_quota(
-                db, "quota-both", 1, 1, now=start
-            ) is None
+            assert consume_credential_quota(db, "quota-both", 1, 1, now=start) is None
             db.commit()
 
         with Session() as db:
