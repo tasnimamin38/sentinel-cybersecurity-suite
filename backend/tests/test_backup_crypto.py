@@ -147,9 +147,7 @@ def test_atomic_publication_does_not_clobber_a_concurrent_destination(tmp_path, 
     assert temporary.read_bytes() == b"trusted encrypted backup"
 
 
-def test_stdin_stream_is_encrypted_without_creating_plaintext_staging_file(
-    tmp_path, monkeypatch
-):
+def test_stdin_stream_is_encrypted_without_creating_plaintext_staging_file(tmp_path, monkeypatch):
     import io
 
     original = (b"postgres-stream\x00" * 100_000) + os.urandom(2048)
