@@ -74,8 +74,6 @@ class AuditIntegrityTests(unittest.TestCase):
             self.assertFalse(result["integrity_valid"])
             self.assertEqual(result["verification_status"], "empty")
 
-
-
     def test_historical_prefix_checkpoint_is_returned_and_detects_tampering(self):
         with Session(self.engine) as db:
             first = record_audit_event(db, event_type="test.first")
@@ -100,6 +98,7 @@ class AuditIntegrityTests(unittest.TestCase):
             self.assertFalse(invalid_prefix["integrity_valid"])
             self.assertIsNone(invalid_prefix["checkpoint"])
             self.assertEqual(invalid_prefix["verification_status"], "invalid")
+
 
 if __name__ == "__main__":
     unittest.main()
