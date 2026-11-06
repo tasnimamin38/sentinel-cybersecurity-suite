@@ -111,6 +111,20 @@ def test_hard_linked_archive_is_never_deleted(tmp_path, capsys):
     assert "hard-linked files" in capsys.readouterr().err
 
 
+def test_fifo_archive_is_skipped_without_blocking(tmp_path, capsys):
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO creation is unavailable on this platform.")
+    directory = _private_directory(tmp_path / "backups")
+    archive = directory / "sentinel-20261101T000000Z.dump.enc"
+    os.mkfifo(archive, 0o600)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (0, 0, 0)
+    assert archive.exists()
+    assert "private regular file" in capsys.readouterr().err
+
+
 def test_invalid_checksum_is_never_deleted_or_counted_as_verified(tmp_path, capsys):
     directory = _private_directory(tmp_path / "backups")
     valid = _archive(directory, "20261102T000000Z", b"valid", 200)
