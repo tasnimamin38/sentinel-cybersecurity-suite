@@ -748,3 +748,64 @@ def test_managed_credential_rotation_preserves_grace_and_expires_old_key(client)
         event["event_type"] == "api_credential.rotated" and old_credential["id"] in event["details"]
         for event in events
     )
+
+
+def test_rotation_enforces_global_active_credential_cap_during_grace(client):
+    db = SessionLocal()
+    try:
+        db.query(ApiCredential).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={"label": "Capacity-bound integration", "role": "read_only"},
+    )
+    assert created.status_code == 201
+    prior = created.json()["credential"]
+    prior_secret = created.json()["secret"]
+
+    now = datetime.now(UTC)
+    db = SessionLocal()
+    try:
+        db.add_all(
+            [
+                ApiCredential(
+                    id=f"cap-{index:04d}",
+                    label=f"Capacity fixture {index}",
+                    role="read_only",
+                    key_hash=hashlib.sha256(f"capacity-fixture-{index}".encode()).hexdigest(),
+                    key_prefix=f"capacity{index:04d}",
+                    expires_at=now + timedelta(days=30),
+                    created_by="capacity-test",
+                    created_at=now,
+                    rate_limit_per_minute=120,
+                    daily_request_limit=10000,
+                )
+                for index in range(249)
+            ]
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    blocked_overlap = client.post(
+        f"/api/v1/credentials/{prior['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 3600},
+    )
+    assert blocked_overlap.status_code == 409
+
+    immediate = client.post(
+        f"/api/v1/credentials/{prior['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 0},
+    )
+    assert immediate.status_code == 201
+    replacement_secret = immediate.json()["secret"]
+    assert client.get("/api/v1/me", headers={"X-API-Key": prior_secret}).status_code == 401
+    assert client.get(
+        "/api/v1/me", headers={"X-API-Key": replacement_secret}
+    ).status_code == 200
