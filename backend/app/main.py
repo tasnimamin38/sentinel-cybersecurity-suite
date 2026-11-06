@@ -498,6 +498,7 @@ def read_config(
             "per-service-fixed-window-api-quotas",
             "postgresql-atomic-credential-rate-limits",
             "credential-rotation-with-bounded-grace-period",
+            "per-credential-asset-scopes",
             "offline-ed25519-audit-checkpoints",
         ],
         "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
