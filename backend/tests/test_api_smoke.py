@@ -806,6 +806,4 @@ def test_rotation_enforces_global_active_credential_cap_during_grace(client):
     assert immediate.status_code == 201
     replacement_secret = immediate.json()["secret"]
     assert client.get("/api/v1/me", headers={"X-API-Key": prior_secret}).status_code == 401
-    assert client.get(
-        "/api/v1/me", headers={"X-API-Key": replacement_secret}
-    ).status_code == 200
+    assert client.get("/api/v1/me", headers={"X-API-Key": replacement_secret}).status_code == 200
