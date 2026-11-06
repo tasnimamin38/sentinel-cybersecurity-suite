@@ -4,7 +4,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
-ACTION_LINE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
+ACTION_LINE = re.compile(r"^\\s*uses:\\s*([^\\s#]+)", re.MULTILINE)
 IMMUTABLE_ACTION_REF = re.compile(r"^[^@]+@[0-9a-f]{40}$")
 
 
@@ -21,14 +21,16 @@ def test_every_workflow_action_uses_an_immutable_commit_sha():
             if not IMMUTABLE_ACTION_REF.fullmatch(reference):
                 unpinned.append(f"{workflow.relative_to(REPOSITORY_ROOT)}: {reference}")
 
-    message = "Every third-party action must use a full commit SHA:\n" + "\n".join(unpinned)
+    message = "Every third-party action must use a full commit SHA:\\n" + "\\n".join(unpinned)
     assert not unpinned, message
 
 
 def test_supply_chain_workflow_enforces_security_gates():
     workflow = (WORKFLOW_ROOT / "supply-chain-security.yml").read_text(encoding="utf-8")
     required_controls = (
-        "actions/dependency-review-action@",
+        "Dependency Graph-independent",
+        "pip-audit -r backend/requirements.txt",
+        "npm audit --audit-level=high",
         "gitleaks/gitleaks-action@",
         "aquasecurity/trivy-action@",
         "anchore/sbom-action@",
@@ -44,6 +46,7 @@ def test_supply_chain_workflow_enforces_security_gates():
     )
     for control in required_controls:
         assert control in workflow, f"Required supply-chain control missing: {control}"
+    assert "actions/dependency-review-action@" not in workflow
 
 
 def test_container_images_are_scanned_after_build():
@@ -98,14 +101,15 @@ def test_workflows_avoid_duplicate_feature_branch_push_runs():
         assert "branches: [main]" in push_section
         assert "feat/sentinel-*" not in push_section
         assert (
-            "branches: [main, 'feat/sentinel-*']"
-            in workflow.split("  pull_request:", 1)[1]
+            "branches: [main, 'feat/sentinel-*']" in workflow.split("  pull_request:", 1)[1]
         )
-
 
 
 def test_final_backend_runtime_image_excludes_python_build_tools():
     dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
     assert "python -m pip uninstall --yes pip setuptools wheel" in dockerfile
     assert "rm -rf /usr/local/lib/python3.13/ensurepip" in dockerfile
-    assert 'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")' in dockerfile
+    assert (
+        'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")'
+        in dockerfile
+    )
