@@ -104,6 +104,10 @@ def _authorize_role(role: str, request: Request) -> None:
         )
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
 def require_api_key(
     request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
@@ -128,7 +132,7 @@ def require_api_key(
         )
         if managed is not None and hmac.compare_digest(managed.key_hash, digest):
             now = datetime.now(UTC)
-            expires = managed.expires_at
+            expires = _as_utc(managed.expires_at) if managed.expires_at is not None else None
             if managed.revoked_at is None and (expires is None or expires > now):
                 managed.last_used_at = now
                 db.commit()
