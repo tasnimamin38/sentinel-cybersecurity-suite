@@ -44,6 +44,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
 | RBAC and role-scoped service API credentials | Implemented in 0.7 branch |
 | Per-service request quotas, atomic rate limiting and controlled key rotation | Implemented in 0.8 branch |
+| Per-credential registered-asset scopes across API reads, writes, jobs, incidents, dashboard summaries and exports | Implemented in 0.22 branch |
 | OIDC/SSO, MFA, human user sessions and multi-tenant isolation | Roadmap |
 | Independent network egress gateway and immutable evidence storage | Roadmap |
 
