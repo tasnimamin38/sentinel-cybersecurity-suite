@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import errno
 import getpass
 import hashlib
 import json
@@ -30,6 +31,7 @@ _REQUIRED_CHECKPOINT_FIELDS = {
     "sealed_events",
     "verified_until",
 }
+_PRIVATE_KEY_MAX_BYTES = 64 * 1024
 
 
 def canonical_json(value: Any) -> bytes:
@@ -180,12 +182,77 @@ def generate_key_pair(
     return hashlib.sha256(public_raw).hexdigest()
 
 
+def _private_key_file_signature(file_stat: os.stat_result) -> tuple[int, int, int, int, int, int]:
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        file_stat.st_mode,
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+        file_stat.st_ctime_ns,
+    )
+
+
 def load_private_key(path: Path, passphrase: bytes) -> Ed25519PrivateKey:
-    if os.name == "posix":
-        permissions = stat.S_IMODE(path.stat().st_mode)
-        if permissions & 0o077:
+    """Load an encrypted private key from one stable, non-symlink regular file."""
+    path = Path(path)
+    initial_stat = path.lstat()
+    if not stat.S_ISREG(initial_stat.st_mode):
+        raise ValueError("Private key path must be a regular file; symlinks are not permitted.")
+    if initial_stat.st_size <= 0 or initial_stat.st_size > _PRIVATE_KEY_MAX_BYTES:
+        raise ValueError("Private key file must be non-empty and no larger than 64 KiB.")
+    if os.name == "posix" and stat.S_IMODE(initial_stat.st_mode) & 0o077:
+        raise ValueError("Private key permissions are too broad; use chmod 600.")
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_NONBLOCK", 0)
+
+    descriptor: int | None = None
+    try:
+        try:
+            descriptor = os.open(path, flags)
+        except OSError as exc:
+            if exc.errno in (errno.ELOOP, errno.EMLINK):
+                raise ValueError("Private key symlinks are not permitted.") from exc
+            raise
+
+        opened_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(opened_stat.st_mode):
+            raise ValueError("Private key path must be a regular file; symlinks are not permitted.")
+        if _private_key_file_signature(initial_stat) != _private_key_file_signature(opened_stat):
+            raise ValueError("Private key file changed while opening; refusing to read it.")
+        if os.name == "posix" and stat.S_IMODE(opened_stat.st_mode) & 0o077:
             raise ValueError("Private key permissions are too broad; use chmod 600.")
-    key = serialization.load_pem_private_key(path.read_bytes(), password=passphrase)
+
+        content = bytearray()
+        while True:
+            remaining = _PRIVATE_KEY_MAX_BYTES + 1 - len(content)
+            if remaining <= 0:
+                raise ValueError("Private key file exceeds the 64 KiB size limit.")
+            chunk = os.read(descriptor, min(8192, remaining))
+            if not chunk:
+                break
+            content.extend(chunk)
+
+        final_stat = os.fstat(descriptor)
+        if _private_key_file_signature(opened_stat) != _private_key_file_signature(final_stat):
+            raise ValueError("Private key file changed while it was being read.")
+        if len(content) != final_stat.st_size:
+            raise ValueError("Private key file size changed while it was being read.")
+
+        path_stat = path.lstat()
+        if not stat.S_ISREG(path_stat.st_mode):
+            raise ValueError("Private key path changed to a non-regular file or symlink.")
+        if _private_key_file_signature(final_stat) != _private_key_file_signature(path_stat):
+            raise ValueError("Private key path no longer identifies the opened file.")
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+    key = serialization.load_pem_private_key(bytes(content), password=passphrase)
     if not isinstance(key, Ed25519PrivateKey):
         raise ValueError("The private key must be an Ed25519 PEM key.")
     return key
@@ -198,8 +265,26 @@ def load_public_key(path: Path) -> Ed25519PublicKey:
     return key
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key is not permitted: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_standard_json_constant(value: str) -> Any:
+    raise ValueError(f"non-standard JSON numeric constant is not permitted: {value}")
+
+
 def load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+    """Load strict JSON without duplicate object keys or non-standard constants."""
+    return json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_json_keys,
+        parse_constant=_reject_non_standard_json_constant,
+    )
 
 
 def write_json_new(path: Path, value: Any) -> None:
