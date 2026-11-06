@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.9.0--pre-3977a7.svg" alt="Version 0.9.0-pre" />
+    <img src="https://img.shields.io/badge/Release-0.10.0--pre-3977a7.svg" alt="Version 0.10.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -153,6 +153,7 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code> and are protect
 |:---:|:---|:---|
 | <code>GET</code> | <code>/healthz</code> | Liveness |
 | <code>GET</code> | <code>/readyz</code> | Database and migration readiness |
+| <code>GET</code> | <code>/metrics</code> | Optional process-local Prometheus metrics; disabled by default |
 | <code>GET</code> | <code>/api/v1/config</code> | Configured scope and feature policy |
 | <code>GET</code> | <code>/api/v1/me</code> | Current service credential identity, role and permissions |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/credentials</code> | Admin-only managed API credential metadata and one-time key creation |
