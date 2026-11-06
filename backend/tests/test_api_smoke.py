@@ -1008,7 +1008,8 @@ def test_incident_response_fields_require_timezone_and_audit_only_field_names(cl
     events = client.get("/api/v1/audit?limit=100", headers=API_HEADERS)
     assert events.status_code == 200
     update_event = next(
-        event for event in events.json()
+        event
+        for event in events.json()
         if event["event_type"] == "security.incident.updated" and event["subject"] == incident_id
     )
     assert "changed_fields=assignee,due_at,notes" in update_event["details"]
