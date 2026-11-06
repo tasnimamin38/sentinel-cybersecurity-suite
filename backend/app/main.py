@@ -26,6 +26,8 @@ from app.schemas import (
     CredentialCreatedResponse,
     CredentialResponse,
     CredentialRevokeResponse,
+    CredentialRotateRequest,
+    CredentialRotationResponse,
     OverviewResponse,
     RemediationCreate,
     RemediationResponse,
@@ -132,6 +134,7 @@ def create_api_credential(
             .where(
                 ApiCredential.revoked_at.is_(None),
                 (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+                (ApiCredential.rotated_to_id.is_(None)) | (ApiCredential.rotation_grace_expires_at > now),
             )
         )
         or 0
@@ -150,6 +153,8 @@ def create_api_credential(
         expires_at=payload.expires_at or (now + timedelta(days=90)),
         created_by=principal.credential_id,
         created_at=now,
+        rate_limit_per_minute=payload.rate_limit_per_minute,
+        daily_request_limit=payload.daily_request_limit,
     )
     db.add(item)
     db.flush()
@@ -201,6 +206,92 @@ def revoke_api_credential(
         db.commit()
         db.refresh(item)
     return {"id": item.id, "status": "revoked", "revoked_at": item.revoked_at}
+
+
+@app.post(
+    "/api/v1/credentials/{credential_id}/rotate",
+    response_model=CredentialRotationResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_api_key)],
+)
+def rotate_api_credential(
+    credential_id: str,
+    payload: CredentialRotateRequest,
+    response: Response,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(UTC)
+    item = db.scalar(
+        select(ApiCredential).where(ApiCredential.id == credential_id).with_for_update()
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="API credential not found.")
+    if item.revoked_at is not None or item.rotated_to_id is not None:
+        raise HTTPException(status_code=409, detail="Only an active, unrotated credential can be rotated.")
+    current_expiry = _aware_utc(item.expires_at) if item.expires_at is not None else now + timedelta(days=90)
+    if current_expiry <= now:
+        raise HTTPException(status_code=409, detail="An expired credential cannot be rotated.")
+
+    active_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ApiCredential)
+            .where(
+                ApiCredential.id != item.id,
+                ApiCredential.revoked_at.is_(None),
+                (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+                (ApiCredential.rotated_to_id.is_(None)) | (ApiCredential.rotation_grace_expires_at > now),
+            )
+        )
+        or 0
+    )
+    if active_count >= 250:
+        raise HTTPException(
+            status_code=409,
+            detail="The active API credential limit would be exceeded by this rotation.",
+        )
+
+    secret = secrets.token_urlsafe(48)
+    replacement = ApiCredential(
+        label=item.label,
+        role=item.role,
+        key_hash=hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+        key_prefix=secret[:12],
+        expires_at=current_expiry,
+        created_by=principal.credential_id,
+        created_at=now,
+        rate_limit_per_minute=item.rate_limit_per_minute,
+        daily_request_limit=item.daily_request_limit,
+    )
+    db.add(replacement)
+    db.flush()
+
+    grace_expires_at = now + timedelta(seconds=payload.grace_period_seconds)
+    item.rotated_to_id = replacement.id
+    item.rotation_grace_expires_at = grace_expires_at
+    db.add(
+        record_audit_event(
+            db,
+            event_type="api_credential.rotated",
+            subject=item.label,
+            details=(
+                f"previous_credential_id={item.id}; replacement_credential_id={replacement.id}; "
+                f"grace_period_seconds={payload.grace_period_seconds}; actor={principal.credential_id}"
+            ),
+        )
+    )
+    db.commit()
+    db.refresh(replacement)
+    db.refresh(item)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {
+        "previous_credential_id": item.id,
+        "grace_expires_at": grace_expires_at,
+        "credential": replacement,
+        "secret": secret,
+    }
 
 
 def _aware_utc(value: datetime) -> datetime:
