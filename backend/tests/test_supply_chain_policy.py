@@ -74,10 +74,14 @@ def test_dependabot_updates_all_manifest_ecosystems():
     assert docker_directories == {"/backend", "/frontend", "/"}
 
 
-def test_backend_image_uses_current_python_runtime_and_patched_build_tooling():
+def test_backend_image_uses_multistage_patched_python_runtime():
     dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
-    assert dockerfile.startswith("FROM python:3.13.18-slim-trixie")
+    assert "FROM python:3.13.18-slim-trixie AS builder" in dockerfile
+    assert "FROM debian:trixie-slim AS runtime" in dockerfile
+    assert "COPY --from=builder /usr/local /usr/local" in dockerfile
+    assert "COPY --from=builder --chown=10001:10001 /srv/backend /srv/backend" in dockerfile
     assert "setuptools>=78.1.1" in dockerfile
+    assert "python3.13-venv" not in dockerfile
 
 
 def test_backend_ci_covers_python_312_and_313():
