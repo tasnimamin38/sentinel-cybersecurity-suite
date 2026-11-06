@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'feat/sentinel-*']
+    branches: [main]
   pull_request:
     branches: [main, 'feat/sentinel-*']
   workflow_dispatch:
