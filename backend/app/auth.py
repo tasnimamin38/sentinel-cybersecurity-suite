@@ -256,7 +256,8 @@ def require_api_key(
                 scope_mode = getattr(managed, "asset_scope_mode", "all")
                 raw_scope_ids = getattr(managed, "asset_scope_ids", []) or []
                 if (
-                    scope_mode not in {"all", "selected"}
+                    not isinstance(scope_mode, str)
+                    or scope_mode not in {"all", "selected"}
                     or not isinstance(raw_scope_ids, list)
                     or any(not isinstance(asset_id, str) or len(asset_id) != 36 for asset_id in raw_scope_ids)
                     or len(raw_scope_ids) != len(set(raw_scope_ids))
