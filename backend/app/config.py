@@ -69,11 +69,23 @@ class Settings(BaseSettings):
             if not isinstance(item, dict) or set(item) != {"id", "key", "role"}:
                 raise ValueError("Each role credential must contain exactly id, key and role.")
             credential_id, key, role = item["id"], item["key"], item["role"]
-            if not isinstance(credential_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", credential_id):
-                raise ValueError("Static credential IDs must be 1–64 alphanumeric, underscore or hyphen characters.")
+            if not isinstance(credential_id, str) or not re.fullmatch(
+                r"[a-zA-Z0-9_-]{1,64}", credential_id
+            ):
+                raise ValueError(
+                    "Static credential IDs must be 1–64 alphanumeric, underscore or hyphen characters."
+                )
             if not isinstance(key, str) or len(key) < 32:
-                raise ValueError("Every static role credential must contain at least 32 characters.")
-            if not isinstance(role, str) or role not in {"admin", "analyst", "asset_manager", "auditor", "read_only"}:
+                raise ValueError(
+                    "Every static role credential must contain at least 32 characters."
+                )
+            if not isinstance(role, str) or role not in {
+                "admin",
+                "analyst",
+                "asset_manager",
+                "auditor",
+                "read_only",
+            }:
                 raise ValueError("Static credential role is not supported.")
             if credential_id in seen_ids or key in seen_keys:
                 raise ValueError("Static credential IDs and key material must be unique.")
@@ -87,16 +99,22 @@ class Settings(BaseSettings):
             raise ValueError("Static role credentials must not reuse legacy API key material.")
         legacy_ids = {f"legacy-admin-{index + 1}" for index in range(len(legacy_keys))}
         if seen_ids.intersection(legacy_ids):
-            raise ValueError("Static role credential IDs must not collide with legacy credential IDs.")
+            raise ValueError(
+                "Static role credential IDs must not collide with legacy credential IDs."
+            )
 
         if self.environment == "production":
             errors = []
             keys = self.configured_api_keys
             if self.process_role == "api":
-                if (not keys and not any(item["role"] == "admin" for item in role_credentials)) or any(len(key) < 32 for key in keys):
+                if (
+                    not keys and not any(item["role"] == "admin" for item in role_credentials)
+                ) or any(len(key) < 32 for key in keys):
                     errors.append("Configure a strong bootstrap admin API key")
                 if any(len(key) < 32 for key in keys):
-                    errors.append("Every configured legacy API key must contain at least 32 characters")
+                    errors.append(
+                        "Every configured legacy API key must contain at least 32 characters"
+                    )
                 for key in keys + [item["key"] for item in role_credentials]:
                     normalized_key = key.lower()
                     if any(
