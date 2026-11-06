@@ -275,7 +275,8 @@ The CI workflow runs Python dependency auditing with pip-audit, npm dependency a
 | Network egress gateway / firewall enforcement | Deployment requirement | App-level IP pinning is not a network boundary |
 | External append-only audit export/checkpoints | Roadmap | Database administrators can rewrite the stored chain |
 | External secret manager integration | Roadmap | Managed credentials are hashed in the application database; production bootstrap and environment keys still need secret-manager custody |
-| Metrics, traces, alerting and SLOs | Roadmap | Operational observability is incomplete |
+| Opt-in process-local Prometheus HTTP metrics | Implemented in 0.10 branch | Requires a separate metrics token; counters reset on restart |
+| Distributed metrics, tracing, alerting and SLOs | Roadmap | Centralized multi-replica observability is not yet implemented |
 | Backup/restore and disaster-recovery exercises | Roadmap | No tested RPO/RTO claim |
 | Independent penetration test | Not performed | External security assurance is still required |
 
