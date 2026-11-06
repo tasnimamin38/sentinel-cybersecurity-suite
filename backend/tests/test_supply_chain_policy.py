@@ -4,7 +4,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
-ACTION_LINE = re.compile(r"^\\s*uses:\\s*([^\\s#]+)", re.MULTILINE)
+ACTION_LINE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 IMMUTABLE_ACTION_REF = re.compile(r"^[^@]+@[0-9a-f]{40}$")
 
 
@@ -21,7 +21,7 @@ def test_every_workflow_action_uses_an_immutable_commit_sha():
             if not IMMUTABLE_ACTION_REF.fullmatch(reference):
                 unpinned.append(f"{workflow.relative_to(REPOSITORY_ROOT)}: {reference}")
 
-    message = "Every third-party action must use a full commit SHA:\\n" + "\\n".join(unpinned)
+    message = "Every third-party action must use a full commit SHA:\n" + "\n".join(unpinned)
     assert not unpinned, message
 
 
