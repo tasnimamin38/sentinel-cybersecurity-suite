@@ -60,7 +60,7 @@ def verify_assessment_evidence(db: Session, assessment: Assessment) -> dict:
         select(AuditEvent)
         .where(
             AuditEvent.event_type == "assessment.completed",
-            AuditEvent.subject == assessment.target,
+            AuditEvent.details.contains(f"assessment_id={assessment.id};"),
         )
         .order_by(AuditEvent.sequence_no.asc().nullsfirst(), AuditEvent.created_at.asc())
     ).all()
