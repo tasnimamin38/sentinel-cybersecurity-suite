@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.7.0--pre-3977a7.svg" alt="Version 0.7.0-pre" />
+    <img src="https://img.shields.io/badge/Release-0.8.0--pre-3977a7.svg" alt="Version 0.8.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -39,6 +39,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | PostgreSQL durable assessment queue, idempotency and cancellation | Implemented in 0.6 branch |
 | Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
 | RBAC and role-scoped service API credentials | Implemented in 0.7 branch |
+| Per-service request quotas, atomic rate limiting and controlled key rotation | Implemented in 0.8 branch |
 | OIDC/SSO, MFA, human user sessions and multi-tenant isolation | Roadmap |
 | Independent network egress gateway and immutable evidence storage | Roadmap |
 
@@ -156,6 +157,7 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code> and are protect
 | <code>GET</code> | <code>/api/v1/me</code> | Current service credential identity, role and permissions |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/credentials</code> | Admin-only managed API credential metadata and one-time key creation |
 | <code>POST</code> | <code>/api/v1/credentials/{credential_id}/revoke</code> | Admin-only immediate credential revocation |
+| <code>POST</code> | <code>/api/v1/credentials/{credential_id}/rotate</code> | Issue replacement key with a bounded overlap/grace window |
 | <code>GET</code> | <code>/api/v1/overview</code> | Operational summary |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/assets</code> | List and register authorized assets |
 | <code>PATCH</code> | <code>/api/v1/assets/{asset_id}</code> | Update asset metadata/authorization |
@@ -204,7 +206,7 @@ Interactive API documentation is enabled only outside production at <code>/docs<
    python -c "import secrets; print(secrets.token_hex(32))"
    ~~~
 
-3. Set <code>POSTGRES_PASSWORD</code>, a strong bootstrap admin <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Optional environment-managed service keys use <code>SENTINEL_API_CREDENTIALS_JSON</code>, a JSON array of <code>{id,key,role}</code> records. Prefer creating expiring database-managed credentials through the admin API. Never commit real keys; use a secret manager in production.
+3. Set <code>POSTGRES_PASSWORD</code>, a strong bootstrap admin <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Optional environment-managed service keys use <code>SENTINEL_API_CREDENTIALS_JSON</code>, a JSON array of <code>{id,key,role,rate_limit_per_minute,daily_request_limit}</code> records. Optional quotas default to 120 requests/minute and 10,000/day, with bounds of 1–600/minute and 1–1,000,000/day. Prefer creating expiring database-managed credentials through the admin API. Never commit real keys; use a secret manager in production.
 
 4. Start the stack:
 
@@ -247,7 +249,7 @@ The API key is entered into the console and held in component memory; it is not 
 
 ## Engineering validation
 
-The automated GitHub validation suite covers API authentication, role-scoped authorization, managed credential creation/expiry/revocation and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
+The automated GitHub validation suite covers API authentication, role-scoped authorization, managed credential creation/expiry/revocation, fixed-window request quotas, PostgreSQL concurrent quota enforcement and grace-period key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
 
 | Validation | Current local result |
 |:---|:---:|
