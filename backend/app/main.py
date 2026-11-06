@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import delete, desc, func, select, text
+from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,8 +26,8 @@ from app.schemas import (
     RemediationUpdate,
     SecretScanRequest,
 )
-from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.assessment_store import add_assessment_result
+from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
 from app.services.scope import ScopeViolation, authorize_domain
