@@ -31,7 +31,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Explainable risk scoring and findings | Implemented |
 | Remediation ownership and task status | Implemented |
 | Finding-linked security incident triage with audited status transitions | Implemented in 0.13 API branch |
-| Live incident register UI with role-aware status controls | Implemented in 0.14 branch |
+| Live incident register with ownership, deadlines, overdue flags and audited response history | Implemented in 0.14 branch |
 | Framework-neutral control mapping | Implemented |
 | Redacting inline secret-pattern review | Implemented |
 | Hash-linked audit event verification | Implemented |
@@ -49,7 +49,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 
 ## Operations console
 
-The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
+The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. The incident register supports finding-linked triage, role-aware status transitions, accountable ownership, response deadlines, overdue signals and a metadata-only audit trace. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
 
 | Command center | Asset governance |
 |:---:|:---:|
