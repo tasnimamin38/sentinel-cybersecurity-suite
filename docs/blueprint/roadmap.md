@@ -57,6 +57,21 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 
 **Exit gate:** restore proof, alert exercises, audit checkpoint verification and operational readiness review.
 
+## 0.7 — Role-scoped service access control
+
+- [x] Explicit admin, analyst, asset-manager, auditor and read-only roles
+- [x] Fail-closed route-to-permission matrix across the API, including queued worker operations
+- [x] Backward-compatible legacy admin keys and role-scoped environment credentials
+- [x] Database-managed service credentials stored as SHA-256 digests only
+- [x] One-time secret display, no-store creation responses and metadata-only listing
+- [x] Immediate revocation, expiry enforcement, last-used tracking and self-revocation guard
+- [x] Audited credential lifecycle events that never include raw key material or digests
+- [ ] Human identity federation, MFA and short-lived user sessions
+- [ ] Frontend permission-aware administration and operator experience
+- [ ] Service ownership, per-credential quotas and rotation notifications
+
+**Exit gate:** CI role-boundary tests, credential hash-only persistence checks, expiry/revocation tests, audit redaction and independent authorization review.
+
 ## 1.0 — Production readiness
 
 - Independent penetration test and remediation of critical/high issues
