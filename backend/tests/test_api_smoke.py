@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import ApiCredential, ApiCredentialUsage, Assessment, RemediationTask
+from app.models import ApiCredential, ApiCredentialUsage, Assessment, RemediationTask, SecurityIncident
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -507,7 +507,7 @@ def test_managed_api_credential_is_hash_only_one_time_and_revocable(client):
     created = client.post(
         "/api/v1/credentials",
         headers=API_HEADERS,
-        json={"label": "Read-only integration", "role": "read_only"},
+        json={"label": "Read-only integration", "role": "read_only", "asset_scope_mode": "all"},
     )
     assert created.status_code == 201
     assert created.headers["cache-control"] == "no-store"
@@ -518,6 +518,8 @@ def test_managed_api_credential_is_hash_only_one_time_and_revocable(client):
     credential = payload["credential"]
     assert len(secret) >= 60
     assert credential["role"] == "read_only"
+    assert credential["asset_scope_mode"] == "all"
+    assert credential["asset_scope_ids"] == []
     assert credential["key_prefix"] == secret[:12]
     assert "key_hash" not in created.text
 
@@ -580,7 +582,7 @@ def test_managed_admin_credential_cannot_revoke_itself(client):
     created = client.post(
         "/api/v1/credentials",
         headers=API_HEADERS,
-        json={"label": "Break-glass admin", "role": "admin"},
+        json={"label": "Break-glass admin", "role": "admin", "asset_scope_mode": "all"},
     )
     assert created.status_code == 201
     credential = created.json()["credential"]
@@ -903,6 +905,280 @@ def test_request_id_is_correlated_with_privacy_safe_json_access_log(client, capl
     assert secret_query not in record.getMessage()
     assert secret_header not in record.getMessage()
     assert "/healthz?access_token=" not in record.getMessage()
+
+
+
+def test_managed_credential_requires_an_explicit_nonempty_selected_asset_scope(client):
+    invalid = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={
+            "label": "Empty asset scope",
+            "role": "admin",
+            "asset_scope_mode": "selected",
+            "asset_scope_ids": [],
+        },
+    )
+    assert invalid.status_code == 422
+
+    missing_asset = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={
+            "label": "Unknown asset scope",
+            "role": "admin",
+            "asset_scope_mode": "selected",
+            "asset_scope_ids": ["00000000-0000-0000-0000-000000000000"],
+        },
+    )
+    assert missing_asset.status_code == 404
+
+
+def test_selected_asset_scope_is_enforced_across_api_data_surfaces_and_rotation(client):
+    suffix = uuid4().hex[:8]
+    first = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"scope-a-{suffix}.example.com"),
+    )
+    second = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"scope-b-{suffix}.example.com"),
+    )
+    assert first.status_code == second.status_code == 201
+    allowed_asset_id = first.json()["id"]
+    blocked_asset_id = second.json()["id"]
+
+    db = SessionLocal()
+    try:
+        allowed_assessment = Assessment(
+            asset_id=allowed_asset_id,
+            target=first.json()["hostname"],
+            status="completed",
+            score=25,
+            risk_level="low",
+            findings=[
+                {
+                    "code": "ALLOWED_FINDING",
+                    "title": "Allowed asset finding",
+                    "severity": "low",
+                    "category": "web-security",
+                    "description": "Allowed scoped evidence.",
+                    "recommendation": "Review the allowed asset.",
+                }
+            ],
+            evidence={},
+        )
+        blocked_assessment = Assessment(
+            asset_id=blocked_asset_id,
+            target=second.json()["hostname"],
+            status="completed",
+            score=85,
+            risk_level="critical",
+            findings=[
+                {
+                    "code": "BLOCKED_FINDING",
+                    "title": "Blocked asset finding",
+                    "severity": "critical",
+                    "category": "web-security",
+                    "description": "Out-of-scope evidence must not leak.",
+                    "recommendation": "Review the blocked asset.",
+                }
+            ],
+            evidence={},
+        )
+        db.add_all([allowed_assessment, blocked_assessment])
+        db.flush()
+        allowed_assessment_id = allowed_assessment.id
+        blocked_assessment_id = blocked_assessment.id
+        allowed_remediation = RemediationTask(
+            assessment_id=allowed_assessment_id,
+            asset_id=allowed_asset_id,
+            finding_code="ALLOWED_FINDING",
+            title="Allowed remediation",
+            severity="low",
+            status="open",
+            notes="Allowed scope.",
+        )
+        blocked_remediation = RemediationTask(
+            assessment_id=blocked_assessment_id,
+            asset_id=blocked_asset_id,
+            finding_code="BLOCKED_FINDING",
+            title="Blocked remediation",
+            severity="critical",
+            status="open",
+            notes="Must not leak.",
+        )
+        allowed_incident = SecurityIncident(
+            assessment_id=allowed_assessment_id,
+            asset_id=allowed_asset_id,
+            finding_code="ALLOWED_FINDING",
+            title="Allowed incident",
+            severity="low",
+            status="open",
+            notes="Allowed scope.",
+        )
+        blocked_incident = SecurityIncident(
+            assessment_id=blocked_assessment_id,
+            asset_id=blocked_asset_id,
+            finding_code="BLOCKED_FINDING",
+            title="Blocked incident",
+            severity="critical",
+            status="open",
+            notes="Must not leak.",
+        )
+        db.add_all(
+            [
+                allowed_remediation,
+                blocked_remediation,
+                allowed_incident,
+                blocked_incident,
+            ]
+        )
+        db.commit()
+        blocked_remediation_id = blocked_remediation.id
+        blocked_incident_id = blocked_incident.id
+    finally:
+        db.close()
+
+    limited = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={
+            "label": "Single asset administrator",
+            "role": "admin",
+            "asset_scope_mode": "selected",
+            "asset_scope_ids": [allowed_asset_id],
+        },
+    )
+    assert limited.status_code == 201
+    credential = limited.json()["credential"]
+    assert credential["asset_scope_mode"] == "selected"
+    assert credential["asset_scope_ids"] == [allowed_asset_id]
+    limited_headers = {"X-API-Key": limited.json()["secret"]}
+
+    identity = client.get("/api/v1/me", headers=limited_headers)
+    assert identity.status_code == 200
+    assert identity.json()["asset_scope_mode"] == "selected"
+    assert identity.json()["asset_scope_ids"] == [allowed_asset_id]
+
+    assets = client.get("/api/v1/assets", headers=limited_headers)
+    assert assets.status_code == 200
+    assert [item["id"] for item in assets.json()] == [allowed_asset_id]
+    assert client.post(
+        "/api/v1/assets",
+        headers=limited_headers,
+        json=_asset_payload(f"scope-new-{suffix}.example.com"),
+    ).status_code == 403
+    assert client.patch(
+        f"/api/v1/assets/{blocked_asset_id}",
+        headers=limited_headers,
+        json={"name": "Forbidden update"},
+    ).status_code == 404
+
+    overview = client.get("/api/v1/overview", headers=limited_headers)
+    assert overview.status_code == 200
+    assert overview.json()["asset_count"] == 1
+    assert overview.json()["assessment_count"] == 1
+    assert overview.json()["high_risk_count"] == 0
+
+    assessments = client.get("/api/v1/assessments", headers=limited_headers)
+    assert assessments.status_code == 200
+    assert [item["id"] for item in assessments.json()] == [allowed_assessment_id]
+    assert client.get(
+        f"/api/v1/assessments/{blocked_assessment_id}",
+        headers=limited_headers,
+    ).status_code == 404
+    assert client.post(
+        "/api/v1/assessments",
+        headers=limited_headers,
+        json={"domain": f"unregistered-{suffix}.example.com"},
+    ).status_code == 403
+    assert client.get(
+        f"/api/v1/assessments/{blocked_assessment_id}/evidence-integrity",
+        headers=limited_headers,
+    ).status_code == 404
+
+    remediation_list = client.get("/api/v1/remediations", headers=limited_headers)
+    assert remediation_list.status_code == 200
+    assert all(item["asset_id"] == allowed_asset_id for item in remediation_list.json())
+    assert client.patch(
+        f"/api/v1/remediations/{blocked_remediation_id}",
+        headers=limited_headers,
+        json={"notes": "Forbidden"},
+    ).status_code == 404
+
+    incident_list = client.get("/api/v1/incidents", headers=limited_headers)
+    assert incident_list.status_code == 200
+    assert all(item["asset_id"] == allowed_asset_id for item in incident_list.json())
+    assert client.patch(
+        f"/api/v1/incidents/{blocked_incident_id}",
+        headers=limited_headers,
+        json={"notes": "Forbidden"},
+    ).status_code == 404
+
+    for dataset, blocked_marker in (
+        ("assets", second.json()["hostname"]),
+        ("assessments", blocked_assessment_id),
+        ("findings", "BLOCKED_FINDING"),
+        ("remediations", "Blocked remediation"),
+        ("incidents", "Blocked incident"),
+    ):
+        exported = client.get(
+            f"/api/v1/exports/{dataset}.csv",
+            headers=limited_headers,
+        )
+        assert exported.status_code == 200
+        assert blocked_marker not in exported.text
+    assert client.get("/api/v1/audit", headers=limited_headers).status_code == 403
+    assert client.get("/api/v1/audit/integrity", headers=limited_headers).status_code == 403
+    assert client.get("/api/v1/exports/audit.csv", headers=limited_headers).status_code == 403
+
+    allowed_job = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": allowed_asset_id},
+    )
+    blocked_job = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": blocked_asset_id},
+    )
+    assert allowed_job.status_code == blocked_job.status_code == 202
+    queued = client.get("/api/v1/assessment-jobs", headers=limited_headers)
+    assert queued.status_code == 200
+    assert [item["asset_id"] for item in queued.json()] == [allowed_asset_id]
+    assert client.get(
+        f"/api/v1/assessment-jobs/{blocked_job.json()['id']}",
+        headers=limited_headers,
+    ).status_code == 404
+    assert client.post(
+        f"/api/v1/assessment-jobs/{blocked_job.json()['id']}/cancel",
+        headers=limited_headers,
+    ).status_code == 404
+    assert client.post(
+        "/api/v1/assessment-jobs",
+        headers=limited_headers,
+        json={"asset_id": blocked_asset_id},
+    ).status_code == 404
+
+    controls = client.get("/api/v1/controls", headers=limited_headers)
+    assert controls.status_code == 200
+    assert controls.json()["assessment_count"] == 1
+
+    rotated = client.post(
+        f"/api/v1/credentials/{credential['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 0},
+    )
+    assert rotated.status_code == 201
+    assert rotated.json()["credential"]["asset_scope_mode"] == "selected"
+    assert rotated.json()["credential"]["asset_scope_ids"] == [allowed_asset_id]
+    rotated_headers = {"X-API-Key": rotated.json()["secret"]}
+    rotated_assets = client.get("/api/v1/assets", headers=rotated_headers)
+    assert rotated_assets.status_code == 200
+    assert [item["id"] for item in rotated_assets.json()] == [allowed_asset_id]
 
 
 def _create_incident_source_assessment():
