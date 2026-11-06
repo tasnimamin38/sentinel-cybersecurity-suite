@@ -2,6 +2,26 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.9.0-pre — 2026-11-06
+
+### Added
+- Historical audit-journal prefix verification through `GET /api/v1/audit/integrity?through_sequence=<n>`, including fail-closed handling of legacy unsealed records.
+- A checkpoint anchor containing the verified sequence and event hash, emitted only for a complete, valid journal prefix.
+- Offline Ed25519 checkpoint signing and verification utility with encrypted PKCS#8 private keys, restrictive local file permissions where supported, and refuse-to-overwrite file creation.
+- Optional verification against the currently served historical journal prefix to detect changed, truncated or rewritten event history.
+- Operator documentation for separate private-key custody and independently controlled signed-checkpoint retention.
+
+### Security boundaries
+- The private signing key is never uploaded to or stored by the SENTINEL service.
+- Signing and external retention are operator-controlled; automated object-storage export, KMS/HSM integration and immutable-storage guarantees are not included.
+- This integrity control does not replace independent security review, penetration testing or disaster-recovery validation.
+
+### Validation
+- GitHub Actions CI: 114 backend tests passed; pip-audit reported no known vulnerabilities; Ruff format and lint passed; frontend npm audit and production build passed; Docker Compose validation and backend/frontend image builds passed.
+- CodeQL: Python and JavaScript/TypeScript analyses passed.
+
+All notable changes to SENTINEL are documented here.
+
 ## 0.8.0-pre — 2026-11-06
 
 ### Added
