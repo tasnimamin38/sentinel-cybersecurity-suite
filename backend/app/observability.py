@@ -81,10 +81,11 @@ class RequestMetrics:
             buckets_snapshot = {key: list(value) for key, value in durations}
 
         for (method, route, status_code), count in requests:
-            lines.append(
-                "sentinel_http_requests_total"
-                f'{{method="{_escape_label(method)}",route="{_escape_label(route)}",status_code="{status_code}"}} {count}'
+            labels = (
+                f'method="{_escape_label(method)}",'
+                f'route="{_escape_label(route)}",status_code="{status_code}"'
             )
+            lines.append(f"sentinel_http_requests_total{{{labels}}} {count}")
 
         lines.extend(
             [
@@ -95,10 +96,11 @@ class RequestMetrics:
         for (method, route), counts in buckets_snapshot.items():
             for boundary, count in zip(_BUCKETS_SECONDS, counts, strict=True):
                 label = "+Inf" if boundary == float("inf") else f"{boundary:g}"
-                lines.append(
-                    "sentinel_http_request_duration_seconds_bucket"
-                    f'{{method="{_escape_label(method)}",route="{_escape_label(route)}",le="{label}"}} {count}'
+                labels = (
+                    f'method="{_escape_label(method)}",'
+                    f'route="{_escape_label(route)}",le="{label}"'
                 )
+                lines.append(f"sentinel_http_request_duration_seconds_bucket{{{labels}}} {count}")
             lines.append(
                 "sentinel_http_request_duration_seconds_sum"
                 f'{{method="{_escape_label(method)}",route="{_escape_label(route)}"}} '
