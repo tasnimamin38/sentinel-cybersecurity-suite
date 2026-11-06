@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
+    metrics_enabled: bool = False
     process_role: str = "api"
     environment: str = "development"
 
