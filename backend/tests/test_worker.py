@@ -171,7 +171,6 @@ def test_worker_rechecks_authorization_before_persisting_result(tmp_path):
     engine.dispose()
 
 
-
 def test_worker_audits_dead_letter_after_expired_worker_lease(tmp_path, monkeypatch):
     worker = worker_module()
     engine = create_engine(f"sqlite:///{tmp_path / 'worker-expired-dead-letter.sqlite'}")

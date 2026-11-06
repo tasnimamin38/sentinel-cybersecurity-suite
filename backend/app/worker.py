@@ -159,6 +159,14 @@ def _claim_job(worker_id: str) -> str | None:
             db.commit()
             return None
         job_id = item.id
+        if item.status == "cancelled":
+            _record_job_event(db, "assessment.job.cancelled", item)
+            db.commit()
+            return None
+        if item.status == "dead_letter":
+            _record_job_event(db, "assessment.job.dead_lettered", item)
+            db.commit()
+            return None
         _record_job_event(db, "assessment.job.claimed", item)
         db.commit()
         return job_id

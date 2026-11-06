@@ -100,7 +100,7 @@ def claim_next_job(
         job.heartbeat_at = None
         job.updated_at = current
         db.flush()
-        return None
+        return job
 
     if job.attempts >= job.max_attempts:
         job.status = "dead_letter"
@@ -110,7 +110,7 @@ def claim_next_job(
         job.heartbeat_at = None
         job.updated_at = current
         db.flush()
-        return None
+        return job
 
     job.status = "running"
     job.attempts += 1
