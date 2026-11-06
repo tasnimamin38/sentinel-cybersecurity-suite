@@ -79,6 +79,14 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIn("api_credentials", tables)
             self.assertIn("assessment_jobs", tables)
             self.assertIn("api_credential_usage", tables)
+            usage_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(api_credential_usage)").fetchall()
+            }
+            self.assertIn("minute_window_start", usage_columns)
+            self.assertIn("minute_requests", usage_columns)
+            self.assertIn("day_window_start", usage_columns)
+            self.assertIn("day_requests", usage_columns)
 
             assessment_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(assessments)").fetchall()
