@@ -128,6 +128,13 @@ function dateTimeLabel(value?: string | null) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString();
 }
+function localDateTimeValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
 function severityClass(value: string) {
   const current = (value || "").toLowerCase();
   return ["critical", "high", "medium", "low"].includes(current) ? current : "info";
@@ -158,6 +165,8 @@ export default function App() {
   const [incidentSearch, setIncidentSearch] = useState("");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState("all");
   const [incidentSeverityFilter, setIncidentSeverityFilter] = useState("all");
+  const [editingIncidentId, setEditingIncidentId] = useState<string | null>(null);
+  const [incidentDraft, setIncidentDraft] = useState({ assignee: "", due_at: "", notes: "" });
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditIntegrity, setAuditIntegrity] = useState<AuditIntegrity | null>(null);
   const [controls, setControls] = useState<Control[]>([]);
@@ -356,6 +365,32 @@ export default function App() {
       notify("Incident " + incident.finding_code + " moved to " + nextStatus.replace("_", " ") + ".", "success");
     });
   }
+  function startIncidentEdit(incident: SecurityIncident) {
+    setEditingIncidentId(incident.id);
+    setIncidentDraft({
+      assignee: incident.assignee ?? "",
+      due_at: localDateTimeValue(incident.due_at),
+      notes: incident.notes ?? "",
+    });
+  }
+
+  async function saveIncidentDetails(event: FormEvent<HTMLFormElement>, incident: SecurityIncident) {
+    event.preventDefault();
+    await runAction(async () => {
+      await api<SecurityIncident>("/api/v1/incidents/" + incident.id, {
+        method: "PATCH",
+        body: JSON.stringify({
+          assignee: incidentDraft.assignee.trim(),
+          due_at: incidentDraft.due_at ? new Date(incidentDraft.due_at).toISOString() : null,
+          notes: incidentDraft.notes,
+        }),
+      });
+      await refreshData();
+      setEditingIncidentId(null);
+      notify("Incident details saved for " + incident.finding_code + ".", "success");
+    });
+  }
+
 
   async function scanSecrets(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -459,7 +494,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-emblem"><ShieldCheck size={22} strokeWidth={1.8} /></div>
-          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.14.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
+          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.15.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
         </div>
         <div className="workspace-chip"><span className="live-dot" /> PRIVATE SECURITY WORKSPACE <ChevronDown size={13} /></div>
         <div className="sidebar-scroll">
@@ -644,7 +679,30 @@ export default function App() {
                             <b>{incident.title}</b>
                             <p>{incident.assignee || "Unassigned"} · Due {dateLabel(incident.due_at)} · Incident {incident.id.slice(0, 8)}</p>
                             <small>Assessment {incident.assessment_id.slice(0, 12)} · Created {dateTimeLabel(incident.created_at)}{incident.closed_at ? " · Closed " + dateTimeLabel(incident.closed_at) : ""}</small>
-                            {incident.notes && <div className="incident-notes">{incident.notes}</div>}
+                            {editingIncidentId === incident.id ? (
+                              <form className="incident-edit-form" onSubmit={(event) => saveIncidentDetails(event, incident)}>
+                                <div className="incident-edit-grid">
+                                  <label>ASSIGNEE
+                                    <input value={incidentDraft.assignee} onChange={(event) => setIncidentDraft((current) => ({ ...current, assignee: event.target.value }))} maxLength={120} placeholder="Responsible owner" />
+                                  </label>
+                                  <label>DUE DATE
+                                    <input type="datetime-local" value={incidentDraft.due_at} onChange={(event) => setIncidentDraft((current) => ({ ...current, due_at: event.target.value }))} />
+                                  </label>
+                                </div>
+                                <label>RESPONSE NOTES
+                                  <textarea value={incidentDraft.notes} onChange={(event) => setIncidentDraft((current) => ({ ...current, notes: event.target.value }))} maxLength={4000} rows={3} placeholder="Record investigation and response context" />
+                                </label>
+                                <div className="incident-edit-actions">
+                                  <button className="button-small" type="submit" disabled={busy}>SAVE DETAILS</button>
+                                  <button className="link-button" type="button" onClick={() => setEditingIncidentId(null)} disabled={busy}>CANCEL</button>
+                                </div>
+                              </form>
+                            ) : (
+                              <>
+                                {incident.notes && <div className="incident-notes">{incident.notes}</div>}
+                                {can("incident.write") && <button className="link-button incident-edit-trigger" type="button" onClick={() => startIncidentEdit(incident)} disabled={busy}>EDIT DETAILS</button>}
+                              </>
+                            )}
                           </div>
                           <div className="incident-actions">
                             <label>STATUS</label>
@@ -739,7 +797,7 @@ export default function App() {
               )}
             </>
           )}
-          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.14.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.15.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>
