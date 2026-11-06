@@ -41,7 +41,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Audited CSV exports (assets, assessments, findings, remediation, incidents and audit) with formula-injection defense | Implemented |
 | PostgreSQL durable assessment queue, idempotency and cancellation | Implemented in 0.6 branch |
 | Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
-| RBAC and role-scoped service API credentials | Implemented in 0.7 branch |
+| RBAC and role-scoped service API credentials | Implemented in 0.7 branch |\n| AES-256-GCM encrypted PostgreSQL backup and authenticated isolated restore | Added in 0.18.0-pre branch; CI validation pending |
 | Per-service request quotas, atomic rate limiting and controlled key rotation | Implemented in 0.8 branch |
 | OIDC/SSO, MFA, human user sessions and multi-tenant isolation | Roadmap |
 | Independent network egress gateway and immutable evidence storage | Roadmap |
@@ -329,3 +329,4 @@ SENTINEL is licensed under the <strong>Apache License, Version 2.0</strong>. See
 <div align="center">
   <sub>SENTINEL · Defensive Security Operations · Authorization First</sub>
 </div>
+\n\n## Encrypted backup operations (0.18.0-pre)\n\nThe 0.18 development branch documents operator-managed AES-256-GCM backup encryption and isolated restore verification in [docs/backup-restore.md](docs/backup-restore.md). Do not treat this pre-release branch as production-ready until its exact-head CI and the organization's key-custody/recovery gates pass.\n
