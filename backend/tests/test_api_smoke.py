@@ -837,4 +837,3 @@ def test_audit_integrity_api_exports_verifiable_historical_checkpoint(client):
     )
     assert historical.status_code == 200
     assert historical.json()["checkpoint"] == first_checkpoint
-
