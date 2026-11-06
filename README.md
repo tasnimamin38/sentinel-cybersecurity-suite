@@ -43,7 +43,6 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | AES-256-GCM encrypted PostgreSQL backups with authenticated isolated restore | In 0.18.0-pre branch; exact-head CI pending |
 | Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
 | RBAC and role-scoped service API credentials | Implemented in 0.7 branch |
-| AES-256-GCM encrypted PostgreSQL backups with authenticated isolated restore | In 0.18.0-pre branch; exact-head CI pending |
 | Per-service request quotas, atomic rate limiting and controlled key rotation | Implemented in 0.8 branch |
 | OIDC/SSO, MFA, human user sessions and multi-tenant isolation | Roadmap |
 | Independent network egress gateway and immutable evidence storage | Roadmap |
