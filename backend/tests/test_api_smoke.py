@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -11,9 +13,10 @@ os.environ["SENTINEL_CORS_ORIGINS"] = "http://localhost:5173"
 
 from fastapi.testclient import TestClient
 
+from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import Assessment, RemediationTask
+from app.models import ApiCredential, Assessment, RemediationTask
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -41,7 +44,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.3.2"
+    assert response.json()["version"] == "0.7.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -455,3 +458,168 @@ def test_assessment_job_api_cancels_queued_job_and_rejects_retry(client):
         headers=API_HEADERS,
     )
     assert retry.status_code == 409
+
+
+def test_role_scoped_environment_credentials_enforce_route_permissions(client, monkeypatch):
+    analyst_key = "A" * 40
+    monkeypatch.setattr(
+        settings,
+        "api_credentials_json",
+        json.dumps([{"id": "analyst-ci", "key": analyst_key, "role": "analyst"}]),
+    )
+    analyst_headers = {"X-API-Key": analyst_key}
+
+    identity = client.get("/api/v1/me", headers=analyst_headers)
+    assert identity.status_code == 200
+    assert identity.json()["role"] == "analyst"
+    assert identity.json()["credential_source"] == "environment"
+
+    assets = client.get("/api/v1/assets", headers=analyst_headers)
+    assert assets.status_code == 200
+
+    denied_write = client.post(
+        "/api/v1/assets",
+        headers=analyst_headers,
+        json=_asset_payload("analyst-denied.example.com"),
+    )
+    assert denied_write.status_code == 403
+
+    denied_admin = client.get("/api/v1/credentials", headers=analyst_headers)
+    assert denied_admin.status_code == 403
+
+
+def test_managed_api_credential_is_hash_only_one_time_and_revocable(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={"label": "Read-only integration", "role": "read_only"},
+    )
+    assert created.status_code == 201
+    assert created.headers["cache-control"] == "no-store"
+    assert created.headers["pragma"] == "no-cache"
+
+    payload = created.json()
+    secret = payload["secret"]
+    credential = payload["credential"]
+    assert len(secret) >= 60
+    assert credential["role"] == "read_only"
+    assert credential["key_prefix"] == secret[:12]
+    assert "key_hash" not in created.text
+
+    db = SessionLocal()
+    try:
+        stored = db.get(ApiCredential, credential["id"])
+        assert stored is not None
+        assert stored.key_hash == hashlib.sha256(secret.encode("utf-8")).hexdigest()
+        assert secret not in stored.key_hash
+    finally:
+        db.close()
+
+    listed = client.get("/api/v1/credentials", headers=API_HEADERS)
+    assert listed.status_code == 200
+    listed_item = next(item for item in listed.json() if item["id"] == credential["id"])
+    assert secret not in listed.text
+    assert "key_hash" not in listed.text
+    assert listed_item["role"] == "read_only"
+
+    managed_headers = {"X-API-Key": secret}
+    identity = client.get("/api/v1/me", headers=managed_headers)
+    assert identity.status_code == 200
+    assert identity.json()["credential_source"] == "database"
+    assert identity.json()["credential_id"] == credential["id"]
+
+    read_allowed = client.get("/api/v1/assets", headers=managed_headers)
+    assert read_allowed.status_code == 200
+    write_denied = client.post(
+        "/api/v1/assets",
+        headers=managed_headers,
+        json=_asset_payload("managed-readonly-denied.example.com"),
+    )
+    assert write_denied.status_code == 403
+
+    db = SessionLocal()
+    try:
+        stored = db.get(ApiCredential, credential["id"])
+        assert stored.last_used_at is not None
+    finally:
+        db.close()
+
+    revoked = client.post(
+        f"/api/v1/credentials/{credential['id']}/revoke",
+        headers=API_HEADERS,
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+
+    rejected = client.get("/api/v1/me", headers=managed_headers)
+    assert rejected.status_code == 401
+
+    events = client.get("/api/v1/audit?limit=50", headers=API_HEADERS).json()
+    related = [event for event in events if credential["id"] in event["details"]]
+    assert any(event["event_type"] == "api_credential.created" for event in related)
+    assert any(event["event_type"] == "api_credential.revoked" for event in related)
+    assert all(secret not in event["details"] for event in events)
+
+
+def test_managed_admin_credential_cannot_revoke_itself(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={"label": "Break-glass admin", "role": "admin"},
+    )
+    assert created.status_code == 201
+    credential = created.json()["credential"]
+    managed_headers = {"X-API-Key": created.json()["secret"]}
+
+    self_revoke = client.post(
+        f"/api/v1/credentials/{credential['id']}/revoke",
+        headers=managed_headers,
+    )
+    assert self_revoke.status_code == 409
+
+    admin_revoke = client.post(
+        f"/api/v1/credentials/{credential['id']}/revoke",
+        headers=API_HEADERS,
+    )
+    assert admin_revoke.status_code == 200
+
+    revoked_key = client.get("/api/v1/me", headers=managed_headers)
+    assert revoked_key.status_code == 401
+
+
+def test_every_versioned_api_route_has_explicit_authentication_and_permission_policy():
+    for route in app.routes:
+        route_path = getattr(route, "path", "")
+        if not route_path.startswith("/api/v1/"):
+            continue
+        assert any(
+            dependency.call is require_api_key
+            for dependency in route.dependant.dependencies
+        ), f"Missing authentication dependency: {route_path}"
+        for method in route.methods or set():
+            assert (method, route_path) in ROUTE_PERMISSIONS, (
+                f"Missing role permission mapping: {method} {route_path}"
+            )
+
+
+def test_managed_credential_expiry_blocks_authentication(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={"label": "Short lived monitor", "role": "read_only"},
+    )
+    assert created.status_code == 201
+    payload = created.json()
+    key = payload["secret"]
+    credential_id = payload["credential"]["id"]
+
+    db = SessionLocal()
+    try:
+        stored = db.get(ApiCredential, credential_id)
+        stored.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        db.commit()
+    finally:
+        db.close()
+
+    rejected = client.get("/api/v1/me", headers={"X-API-Key": key})
+    assert rejected.status_code == 401
