@@ -22,7 +22,7 @@ This matrix links security claims to repeatable checks. A skipped check, unavail
 | Dependency changes | pip-audit, npm audit and Dependency Review configuration | Dependency Review is blocked until repository Dependency Graph is enabled; advisory databases and metadata have coverage/freshness limits |
 | Secret exposure | Gitleaks scans repository history | False positives require documented, reviewed exceptions |
 | Filesystem configuration | Trivy vulnerability/misconfiguration/secret/license SARIF plus readable HIGH/CRITICAL gate | Fork PR SARIF upload is skipped by GitHub permission restrictions; raw SARIF retained 14 days |
-| Container images | Trivy scans built backend/frontend images for HIGH/CRITICAL OS/library vulnerabilities | First 0.15 scan found setuptools 70.3.0 (CVE-2025-47273); Dockerfile remediation is pending exact-head rescan |
+| Container images | Trivy scans built backend/frontend images for HIGH/CRITICAL OS/library vulnerabilities; backend runtime excludes pip/setuptools/wheel/ensurepip | First 0.15 scans found setuptools 70.3.0 (CVE-2025-47273); multi-stage runtime remediation requires exact-head rescan |
 | Static analysis | CodeQL Python and JavaScript/TypeScript | SAST cannot prove absence of vulnerabilities |
 | SBOM | SPDX JSON generated from repository workspace and stored as a 14-day artifact | Not yet signed; artifact is not an immutable long-term evidence store |
 | Database migrations | PostgreSQL upgrade → downgrade → re-upgrade in CI | Does not prove production recovery objectives |

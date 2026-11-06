@@ -102,6 +102,7 @@ Production Compose separates PostgreSQL data, console web and API/worker egress 
 ## 7. Build and supply-chain assurance
 
 The 0.15 branch adds:
+- A multi-stage backend image: Python 3.13.18 builder, minimal Debian Trixie runtime, and no pip/setuptools/wheel/ensurepip in the final stage.
 - Full commit-SHA references for GitHub Actions used by CI and CodeQL.
 - Pull request dependency review for newly introduced high/critical runtime and development vulnerabilities; the action is currently blocked because repository Dependency Graph is disabled and requires an owner setting change.
 - Gitleaks repository-history scanning; PR comments are disabled.

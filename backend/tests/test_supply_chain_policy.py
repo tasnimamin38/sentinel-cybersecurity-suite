@@ -99,3 +99,11 @@ def test_workflows_avoid_duplicate_feature_branch_push_runs():
         assert "branches: [main]" in push_section
         assert "feat/sentinel-*" not in push_section
         assert "branches: [main, 'feat/sentinel-*']" in workflow.split("  pull_request:", 1)[1]
+
+
+
+def test_final_backend_runtime_image_excludes_python_build_tools():
+    dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "python -m pip uninstall --yes pip setuptools wheel" in dockerfile
+    assert "rm -rf /usr/local/lib/python3.13/ensurepip" in dockerfile
+    assert 'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")' in dockerfile

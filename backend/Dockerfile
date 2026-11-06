@@ -11,7 +11,9 @@ COPY backend/requirements.txt ./requirements.txt
 
 RUN python -m pip install --upgrade pip "setuptools>=78.1.1" wheel \
     && pip install -r requirements.txt \
-    && python -c 'import setuptools; v=tuple(int(x) for x in setuptools.__version__.split(".")[:3]); assert v >= (78, 1, 1), setuptools.__version__'
+    && python -c 'import setuptools; v=tuple(int(x) for x in setuptools.__version__.split(".")[:3]); assert v >= (78, 1, 1), setuptools.__version__' \
+    && python -m pip uninstall --yes pip setuptools wheel \
+    && rm -rf /usr/local/lib/python3.13/ensurepip
 
 COPY backend/app ./app
 COPY backend/alembic ./alembic
@@ -40,7 +42,7 @@ RUN set -eux; \
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder --chown=10001:10001 /srv/backend /srv/backend
 
-RUN python -c 'import fastapi, uvicorn, sqlalchemy, psycopg, cryptography, dns; print("Python runtime OK")'
+RUN python -c 'import fastapi, uvicorn, sqlalchemy, psycopg, cryptography, dns; from importlib.util import find_spec; assert all(find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")); print("Python runtime OK; build tooling absent")'
 
 USER 10001:10001
 
