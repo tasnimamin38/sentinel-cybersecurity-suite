@@ -26,7 +26,7 @@ This is an operator-triggered backup and disposable restore check, not automated
 
 ## Incident handling
 
-If a credential is exposed, revoke it first, rotate dependent credentials, review audit events, preserve logs, and investigate access. Do not paste live secrets into tickets or chat.
+If a credential is exposed, revoke it first, rotate dependent credentials, review audit events, preserve logs, and investigate access. Do not paste live secrets into tickets or chat. For assessment-linked security findings, use the triage API described in [Incident response and triage](incident-response.md).
 
 ## Production checklist
 

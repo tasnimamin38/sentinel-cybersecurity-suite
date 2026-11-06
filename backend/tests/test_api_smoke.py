@@ -45,7 +45,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.12.0-pre"
+    assert response.json()["version"] == "0.13.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -903,3 +903,163 @@ def test_request_id_is_correlated_with_privacy_safe_json_access_log(client, capl
     assert secret_query not in record.getMessage()
     assert secret_header not in record.getMessage()
     assert "/healthz?access_token=" not in record.getMessage()
+
+
+def _create_incident_source_assessment():
+    db = SessionLocal()
+    try:
+        assessment = Assessment(
+            target="app.example.com",
+            status="completed",
+            score=78,
+            risk_level="high",
+            findings=[
+                {
+                    "category": "tls",
+                    "code": "TLS_CERT_EXPIRY_WINDOW",
+                    "title": "TLS certificate expires within 14 days",
+                    "severity": "high",
+                    "confidence": 0.95,
+                }
+            ],
+            evidence={},
+        )
+        db.add(assessment)
+        db.commit()
+        db.refresh(assessment)
+        return assessment.id
+    finally:
+        db.close()
+
+
+def test_incidents_are_created_only_from_assessment_findings_and_audited(client):
+    assessment_id = _create_incident_source_assessment()
+    payload = {
+        "assessment_id": assessment_id,
+        "finding_code": "TLS_CERT_EXPIRY_WINDOW",
+        "assignee": "Platform Security",
+        "notes": "Coordinate certificate renewal with the service owner.",
+    }
+
+    created = client.post("/api/v1/incidents", headers=API_HEADERS, json=payload)
+    assert created.status_code == 201
+    incident = created.json()
+    assert incident["assessment_id"] == assessment_id
+    assert incident["finding_code"] == "TLS_CERT_EXPIRY_WINDOW"
+    assert incident["severity"] == "high"
+    assert incident["status"] == "open"
+    assert incident["assignee"] == "Platform Security"
+    assert incident["closed_at"] is None
+
+    listed = client.get(
+        "/api/v1/incidents?status=open&severity=high",
+        headers=API_HEADERS,
+    )
+    assert listed.status_code == 200
+    assert any(item["id"] == incident["id"] for item in listed.json())
+
+    duplicate = client.post("/api/v1/incidents", headers=API_HEADERS, json=payload)
+    assert duplicate.status_code == 409
+
+    unknown_finding = client.post(
+        "/api/v1/incidents",
+        headers=API_HEADERS,
+        json={**payload, "finding_code": "NOT_IN_THE_ASSESSMENT"},
+    )
+    assert unknown_finding.status_code == 404
+
+
+def test_incident_triage_enforces_state_transitions_and_records_closure(client):
+    assessment_id = _create_incident_source_assessment()
+    created = client.post(
+        "/api/v1/incidents",
+        headers=API_HEADERS,
+        json={
+            "assessment_id": assessment_id,
+            "finding_code": "TLS_CERT_EXPIRY_WINDOW",
+        },
+    )
+    assert created.status_code == 201
+    incident_id = created.json()["id"]
+
+    acknowledged = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=API_HEADERS,
+        json={"status": "acknowledged", "assignee": "On-call Security"},
+    )
+    assert acknowledged.status_code == 200
+    assert acknowledged.json()["acknowledged_at"] is not None
+
+    contained = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=API_HEADERS,
+        json={"status": "contained", "notes": "Mitigation applied; verification pending."},
+    )
+    assert contained.status_code == 200
+    assert contained.json()["status"] == "contained"
+
+    resolved = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=API_HEADERS,
+        json={"status": "resolved"},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["closed_at"] is not None
+
+    reopen = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=API_HEADERS,
+        json={"status": "investigating"},
+    )
+    assert reopen.status_code == 409
+
+
+def test_read_only_credentials_can_review_but_cannot_change_incidents(client, monkeypatch):
+    assessment_id = _create_incident_source_assessment()
+    created = client.post(
+        "/api/v1/incidents",
+        headers=API_HEADERS,
+        json={
+            "assessment_id": assessment_id,
+            "finding_code": "TLS_CERT_EXPIRY_WINDOW",
+        },
+    )
+    assert created.status_code == 201
+    incident_id = created.json()["id"]
+
+    read_only_key = "R" * 40
+    monkeypatch.setattr(
+        settings,
+        "api_credentials_json",
+        json.dumps(
+            [
+                {
+                    "id": "incident-auditor-ci",
+                    "key": read_only_key,
+                    "role": "read_only",
+                    "rate_limit_per_minute": 20,
+                    "daily_request_limit": 100,
+                }
+            ]
+        ),
+    )
+    headers = {"X-API-Key": read_only_key}
+    listed = client.get("/api/v1/incidents", headers=headers)
+    assert listed.status_code == 200
+
+    denied_create = client.post(
+        "/api/v1/incidents",
+        headers=headers,
+        json={
+            "assessment_id": assessment_id,
+            "finding_code": "TLS_CERT_EXPIRY_WINDOW",
+        },
+    )
+    assert denied_create.status_code == 403
+
+    denied_update = client.patch(
+        f"/api/v1/incidents/{incident_id}",
+        headers=headers,
+        json={"status": "resolved"},
+    )
+    assert denied_update.status_code == 403

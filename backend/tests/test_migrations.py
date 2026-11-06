@@ -79,6 +79,7 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIn("api_credentials", tables)
             self.assertIn("assessment_jobs", tables)
             self.assertIn("api_credential_usage", tables)
+            self.assertIn("security_incidents", tables)
             usage_columns = {
                 row[1]
                 for row in connection.execute("PRAGMA table_info(api_credential_usage)").fetchall()
@@ -117,8 +118,19 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertEqual(audit[0], "legacy event must be preserved")
             self.assertIsNone(audit[1])
             self.assertEqual(audit[2], 1)
+            incident_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(security_incidents)").fetchall()
+            }
+            self.assertIn("assessment_id", incident_columns)
+            self.assertIn("finding_code", incident_columns)
+            incident_indexes = {
+                row[1]
+                for row in connection.execute("PRAGMA index_list(security_incidents)").fetchall()
+            }
+            self.assertIn("ix_security_incidents_status_severity", incident_indexes)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0005_credential_controls")
+            self.assertEqual(revision[0], "0006_security_incidents")
             connection.close()
 
 

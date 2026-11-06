@@ -2,6 +2,20 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.13.0-pre — 2026-11-06
+
+### Added
+- Finding-linked security incident register with a unique incident per assessment finding.
+- Incident triage API with status/severity filtering, assignment, due dates and bounded operator notes.
+- Explicit status-transition rules, terminal closure timestamps and hash-linked audit events that record metadata and changed-field names without copying note content.
+- Server-side role permissions: analysts and asset managers can create/update incidents; auditors and read-only credentials can review only.
+- PostgreSQL migration, API regression tests, incident-response documentation and 0.13.0-pre release metadata.
+
+### Security and operational boundaries
+- Incidents can only be created from a finding in a stored, completed assessment; callers cannot use the API to introduce arbitrary scan targets.
+- Resolved and accepted incidents are terminal; repeated findings in a later assessment can create a separate incident.
+- This is an API triage workflow. Frontend incident views, notification delivery, on-call paging, SIEM ingestion and automatic incident creation are not included.
+
 ## 0.12.0-pre — 2026-11-06
 
 ### Added

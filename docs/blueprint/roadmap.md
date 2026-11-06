@@ -98,6 +98,17 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 
 **Exit gate:** encrypted off-host copies, documented retention, successful scheduled restore drills and independently reviewed recovery objectives.
 
+## 0.13 — Security incident triage
+
+- [x] Create one incident from a finding in a completed stored assessment
+- [x] Filter incidents by status and severity; assign owners and due dates
+- [x] Enforce auditable incident state transitions and terminal closure
+- [x] Apply role-scoped read/write API permissions and hash-linked audit events
+- [ ] Console incident register, notification delivery and on-call escalation
+- [ ] SIEM ingestion, alert correlation and automated incident creation
+
+**Exit gate:** incident list and transitions surfaced in the console, notification ownership defined, and end-to-end operational drill completed.
+
 ## 1.0 — Production readiness
 
 - Independent penetration test and remediation of critical/high issues

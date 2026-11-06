@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
 from app.observability import HTTP_METRICS, log_http_request
+from app.routes.incidents import router as security_incidents_router
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
     AssessmentRequest,
@@ -58,7 +59,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.12.0-pre",
+    version="0.13.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -107,6 +108,7 @@ async def security_response_headers(request, call_next):
 
 
 app.include_router(assessment_jobs_router)
+app.include_router(security_incidents_router)
 
 
 @app.get("/api/v1/me", dependencies=[Depends(require_api_key)])
@@ -379,7 +381,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.12.0-pre",
+        "version": "0.13.0-pre",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -412,7 +414,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.12.0-pre",
+        "version": "0.13.0-pre",
         "metrics_enabled": settings.metrics_enabled,
         "authorized_domains": settings.allowed_domain_list,
         "features": [
