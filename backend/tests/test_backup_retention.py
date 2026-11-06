@@ -101,6 +101,47 @@ def test_private_directory_permissions_are_required(tmp_path):
         prune_backups(directory)
 
 
+def test_missing_sidecar_is_never_deleted(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    archive = _archive(directory, "20261101T000000Z", b"one", 100)
+    Path(f"{archive}.sha256").unlink()
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (0, 0, 0)
+    assert archive.exists()
+    assert "SKIP" in capsys.readouterr().err
+
+
+def test_symlink_sidecar_is_never_followed_or_deleted(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    archive = _archive(directory, "20261101T000000Z", b"one", 100)
+    sidecar = Path(f"{archive}.sha256")
+    outside = tmp_path / "outside.sha256"
+    outside.write_bytes(sidecar.read_bytes())
+    sidecar.unlink()
+    sidecar.symlink_to(outside)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (0, 0, 0)
+    assert archive.exists()
+    assert sidecar.is_symlink()
+    assert outside.exists()
+    assert "SKIP" in capsys.readouterr().err
+
+
+def test_empty_archive_is_never_deleted(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    archive = _archive(directory, "20261101T000000Z", b"", 100)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (0, 0, 0)
+    assert archive.exists()
+    assert "empty encrypted archives" in capsys.readouterr().err
+
+
 def test_keep_last_must_never_be_zero(tmp_path):
     directory = _private_directory(tmp_path / "backups")
 
