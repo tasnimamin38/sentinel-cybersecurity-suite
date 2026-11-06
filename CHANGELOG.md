@@ -1,3 +1,19 @@
+## 0.15.0-pre — 2026-11-06
+
+### Added
+- Immutable commit-SHA pinning for GitHub Actions used in CI and CodeQL.
+- Pull-request dependency vulnerability audits using `pip-audit` for backend requirements and `npm audit --audit-level=high` for the exact frontend lockfile. GitHub's native PR-diff Dependency Review remains unavailable until the repository Dependency Graph is enabled.
+- Gitleaks repository-history scanning with pull-request comments disabled.
+- Trivy filesystem and built-container image scans for high/critical findings; backend uses a Python 3.13.18 builder and a clean Debian Trixie runtime, excluding package-manager tooling from the final image, with a Python 3.12/3.13 CI compatibility matrix.
+- SPDX JSON SBOM generation as a 14-day workflow artifact; no automatic release publication.
+- Weekly Dependabot updates for Python, npm and GitHub Actions.
+- Regression tests for workflow pinning and supply-chain policy.
+
+### Security boundaries
+- Scans fail on high/critical findings with available fixes; findings are not silently suppressed.
+- SARIF upload is skipped for fork-originated pull requests; scanner execution remains enabled.
+- No production deployment, secret rotation, tagging or release publication is performed.
+
 # Changelog
 
 All notable changes to SENTINEL are documented here.
