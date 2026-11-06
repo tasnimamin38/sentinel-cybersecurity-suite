@@ -37,7 +37,7 @@ Optional role-scoped static service credentials are configured with `SENTINEL_AP
     "key": "<at-least-32-random-characters>",
     "role": "analyst",
     "asset_scope_mode": "selected",
-    "asset_scope_ids": ["<registered-asset-uuid>"]
+    "asset_scope_ids": ["01234567-89ab-cdef-0123-456789abcdef"]
   },
   {
     "id": "audit-export",
@@ -66,7 +66,7 @@ Content-Type: application/json
   "label": "Nightly posture analyst",
   "role": "analyst",
   "asset_scope_mode": "selected",
-  "asset_scope_ids": ["<registered-asset-uuid>"],
+  "asset_scope_ids": ["01234567-89ab-cdef-0123-456789abcdef"],
   "expires_at": "2027-06-01T00:00:00Z"
 }
 ```
