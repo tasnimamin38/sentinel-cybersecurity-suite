@@ -164,11 +164,14 @@ def generate_key_pair(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
+    private_created = False
     try:
         _write_new_file(private_path, private_pem, 0o600)
+        private_created = True
         _write_new_file(public_path, public_pem, 0o644)
     except OSError:
-        private_path.unlink(missing_ok=True)
+        if private_created:
+            private_path.unlink(missing_ok=True)
         raise
     public_raw = private_key.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -230,7 +233,9 @@ def _build_parser() -> argparse.ArgumentParser:
     sign.add_argument("--private-key", required=True, type=Path)
     sign.add_argument("--output", required=True, type=Path)
 
-    verify = commands.add_parser("verify", help="Verify a signature and optional live journal prefix.")
+    verify = commands.add_parser(
+        "verify", help="Verify a signature and optional live journal prefix."
+    )
     verify.add_argument("--input", required=True, type=Path)
     verify.add_argument("--public-key", required=True, type=Path)
     verify.add_argument("--current", type=Path)
