@@ -103,6 +103,7 @@ ROUTE_PERMISSIONS: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/assets/{asset_id}/assessments"): "assessment.run",
     ("GET", "/api/v1/assessments"): "assessment.read",
     ("GET", "/api/v1/assessments/{assessment_id}"): "assessment.read",
+    ("GET", "/api/v1/assessments/{assessment_id}/evidence-integrity"): "assessment.read",
     ("POST", "/api/v1/assessments"): "assessment.run",
     ("GET", "/api/v1/remediations"): "remediation.read",
     ("POST", "/api/v1/remediations"): "remediation.write",
