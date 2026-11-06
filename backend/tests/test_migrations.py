@@ -78,9 +78,14 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIn("alembic_version", tables)
             self.assertIn("api_credentials", tables)
             self.assertIn("assessment_jobs", tables)
+            self.assertIn("api_credential_usage", tables)
 
             assessment_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(assessments)").fetchall()
+            }
+            credential_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(api_credentials)").fetchall()
             }
             audit_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(audit_events)").fetchall()
@@ -89,6 +94,10 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIn("event_hash", audit_columns)
             self.assertIn("previous_hash", audit_columns)
             self.assertIn("sequence_no", audit_columns)
+            self.assertIn("rate_limit_per_minute", credential_columns)
+            self.assertIn("daily_request_limit", credential_columns)
+            self.assertIn("rotated_to_id", credential_columns)
+            self.assertIn("rotation_grace_expires_at", credential_columns)
 
             assessment = connection.execute(
                 "SELECT target, score FROM assessments WHERE id='legacy-assessment-1'"
@@ -101,7 +110,7 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIsNone(audit[1])
             self.assertEqual(audit[2], 1)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0004_api_credentials")
+            self.assertEqual(revision[0], "0005_credential_controls")
             connection.close()
 
 
