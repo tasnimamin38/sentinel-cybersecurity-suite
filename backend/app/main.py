@@ -17,7 +17,7 @@ from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
-from app.observability import HTTP_METRICS
+from app.observability import HTTP_METRICS, log_http_request
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
     AssessmentRequest,
@@ -58,7 +58,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.10.0-pre",
+    version="0.11.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -79,13 +79,14 @@ async def security_response_headers(request, call_next):
     request_id = uuid4().hex
     started_at = perf_counter()
     response = await call_next(request)
+    route_template = getattr(request.scope.get("route"), "path", "unmatched")
+    duration_seconds = max(0.0, perf_counter() - started_at)
     if settings.metrics_enabled:
-        route = getattr(request.scope.get("route"), "path", "unmatched")
         HTTP_METRICS.observe(
             request.method,
-            route,
+            route_template,
             response.status_code,
-            perf_counter() - started_at,
+            duration_seconds,
         )
     response.headers.setdefault("X-Request-ID", request_id)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -95,6 +96,13 @@ async def security_response_headers(request, call_next):
     response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     response.headers.setdefault("Cache-Control", "no-store")
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    log_http_request(
+        request_id=request_id,
+        method=request.method,
+        route_template=route_template,
+        status_code=response.status_code,
+        duration_seconds=duration_seconds,
+    )
     return response
 
 
@@ -371,7 +379,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.10.0-pre",
+        "version": "0.11.0-pre",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -404,7 +412,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.10.0-pre",
+        "version": "0.11.0-pre",
         "metrics_enabled": settings.metrics_enabled,
         "authorized_domains": settings.allowed_domain_list,
         "features": [
