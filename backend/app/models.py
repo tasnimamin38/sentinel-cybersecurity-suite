@@ -157,3 +157,21 @@ class ApiCredential(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=120)
+    daily_request_limit: Mapped[int] = mapped_column(Integer, default=10000)
+    rotated_to_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    rotation_grace_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+class ApiCredentialUsage(Base):
+    __tablename__ = "api_credential_usage"
+
+    credential_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    minute_window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    minute_requests: Mapped[int] = mapped_column(Integer, default=0)
+    day_window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    day_requests: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
