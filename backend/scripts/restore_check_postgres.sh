@@ -81,7 +81,8 @@ if [[ "$ready" -ne 1 ]]; then
 fi
 
 echo "Restoring the authenticated archive into the disposable database..."
-docker exec -i "$container_name" pg_restore \
+docker exec --env "PGPASSWORD=$temporary_password" -i "$container_name" pg_restore \
+  --host=127.0.0.1 \
   --exit-on-error \
   --single-transaction \
   --no-owner \
@@ -89,11 +90,11 @@ docker exec -i "$container_name" pg_restore \
   --username=postgres \
   --dbname=postgres < "$restore_archive"
 
-revision="$(docker exec "$container_name" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc \
+revision="$(docker exec --env "PGPASSWORD=$temporary_password" "$container_name" psql -h 127.0.0.1 -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc \
   'SELECT version_num FROM public.alembic_version LIMIT 1')"
 [[ -n "$revision" ]] || { echo "Restore check failed: Alembic revision is missing." >&2; exit 1; }
 
-table_count="$(docker exec "$container_name" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc \
+table_count="$(docker exec --env "PGPASSWORD=$temporary_password" "$container_name" psql -h 127.0.0.1 -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc \
   "SELECT count(*) FROM unnest(ARRAY['assets','assessments','remediation_tasks','audit_events','assessment_jobs','api_credentials','api_credential_usage']) AS required(name) WHERE to_regclass('public.' || required.name) IS NOT NULL")"
 if [[ "$table_count" -ne 7 ]]; then
   echo "Restore check failed: expected core SENTINEL tables are missing." >&2
