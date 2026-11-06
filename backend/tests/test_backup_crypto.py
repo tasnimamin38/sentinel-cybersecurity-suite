@@ -8,6 +8,7 @@ from app.services.backup_crypto import (
     BackupCryptoError,
     decrypt_file,
     encrypt_file,
+    encrypt_stream,
 )
 
 
@@ -124,3 +125,18 @@ def test_malformed_or_truncated_archive_is_rejected(tmp_path, monkeypatch):
     with pytest.raises(BackupCryptoError, match="truncated|malformed"):
         decrypt_file(malformed, restored)
     assert not restored.exists()
+
+
+
+def test_stdin_stream_is_encrypted_without_creating_plaintext_staging_file(tmp_path, monkeypatch):
+    import io
+
+    original = (b"postgres-stream\\x00" * 100_000) + os.urandom(2048)
+    encrypted = tmp_path / "stdin.dump.enc"
+    set_backup_key(monkeypatch, os.urandom(32))
+
+    assert encrypt_stream(io.BytesIO(original), encrypted) == "test-key-v1"
+    ciphertext = encrypted.read_bytes()
+    assert ciphertext.startswith(b"SNTLBK01")
+    assert original not in ciphertext
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["stdin.dump.enc"]
