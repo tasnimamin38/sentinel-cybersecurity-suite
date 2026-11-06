@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'feat/sentinel-*']
+    branches: [main]
   pull_request:
     branches: [main, 'feat/sentinel-*']
   workflow_dispatch:
@@ -16,8 +16,12 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend security and tests
+    name: Backend security and tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     env:
       SENTINEL_TEST_POSTGRES_URL: postgresql+psycopg://sentinel:ci-only-postgres-password@localhost:5432/sentinel_test
     services:
@@ -38,10 +42,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install backend and audit tooling
@@ -68,8 +72,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "24"
           cache: npm
@@ -85,7 +89,7 @@ jobs:
     name: Container image and Compose validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate Compose interpolation and structure
         env:
           POSTGRES_PASSWORD: "ci-only-not-a-secret"
@@ -95,15 +99,48 @@ jobs:
         run: docker compose config --quiet
       - name: Build backend image
         run: docker build --pull -f backend/Dockerfile -t sentinel-api:ci .
+
+      - name: Scan backend image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: sentinel-api:ci
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 10m
       - name: Build frontend image
         run: docker build --pull -f frontend/Dockerfile -t sentinel-console:ci .
-      - name: Exercise PostgreSQL backup and isolated restore verification
+
+      - name: Scan frontend image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: sentinel-console:ci
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 10m
+          skip-setup-trivy: true
+      - name: Install backup encryption runtime
+        run: python -m pip install --disable-pip-version-check "cryptography>=50.0.2,<51"
+      - name: Exercise encrypted PostgreSQL backup and isolated restore verification
+        env:
+          SENTINEL_BACKUP_ENCRYPTION_KEY_ID: ci-run-${{ github.run_id }}
         run: |
           set -Eeuo pipefail
           compose_file="$(mktemp "$RUNNER_TEMP/sentinel-backup-compose.XXXXXX")"
           backup_dir="$(mktemp -d "$RUNNER_TEMP/sentinel-backups.XXXXXX")"
           export COMPOSE_FILE="$compose_file"
           export COMPOSE_PROJECT_NAME="sentinel-backup-restore-ci-$GITHUB_RUN_ID"
+          export SENTINEL_BACKUP_ENCRYPTION_KEY="$(python3 -c 'import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')"
+          echo "::add-mask::$SENTINEL_BACKUP_ENCRYPTION_KEY"
+          correct_key="$SENTINEL_BACKUP_ENCRYPTION_KEY"
+          export TMPDIR=/dev/shm
           cleanup() {
             docker compose down -v --remove-orphans >/dev/null 2>&1 || true
             rm -f -- "$compose_file"
@@ -137,18 +174,48 @@ jobs:
           CREATE TABLE public.api_credential_usage (id bigint);
           SQL
           bash backend/scripts/backup_postgres.sh "$backup_dir"
-          backup_file="$(find "$backup_dir" -maxdepth 1 -type f -name '*.dump' -print -quit)"
+          backup_file="$(find "$backup_dir" -maxdepth 1 -type f -name '*.dump.enc' -print -quit)"
           test -n "$backup_file"
           test "$(stat -c '%a' "$backup_dir")" = "700"
-          original_hash="$(awk '{print $1}' "$backup_file.sha256")"
-          corrupt_file="$backup_dir/corrupt.dump"
-          cp "$backup_file" "$corrupt_file"
-          printf '%s  %s\n' "$original_hash" "$(basename "$corrupt_file")" > "$corrupt_file.sha256"
-          printf 'corruption-test' >> "$corrupt_file"
-          if bash backend/scripts/restore_check_postgres.sh "$corrupt_file"; then
-            echo "Corrupted archive unexpectedly passed checksum validation." >&2
+          test "$(stat -c '%a' "$backup_file")" = "600"
+          python3 - "$backup_file" <<'PY'
+          import pathlib, sys
+          content = pathlib.Path(sys.argv[1]).read_bytes()
+          assert content.startswith(b"SNTLBK01"), "Encrypted backup marker is missing."
+          assert not content.startswith(b"PGDMP"), "Plaintext PostgreSQL dump was published."
+          PY
+          if find "$backup_dir" -maxdepth 1 -type d -name '.sentinel-backup.*' | grep -q .; then
+            echo "Plaintext/staging backup directory was not cleaned up." >&2
             exit 1
           fi
+
+          wrong_key="$(python3 -c 'import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')"
+          echo "::add-mask::$wrong_key"
+          export SENTINEL_BACKUP_ENCRYPTION_KEY="$wrong_key"
+          if bash backend/scripts/restore_check_postgres.sh "$backup_file"; then
+            echo "Wrong encryption key unexpectedly passed backup authentication." >&2
+            exit 1
+          fi
+          export SENTINEL_BACKUP_ENCRYPTION_KEY="$correct_key"
+          if docker ps -a --filter name=sentinel-restore-check- --format '{{.Names}}' | grep -q .; then
+            echo "Wrong-key restore unexpectedly created a PostgreSQL container." >&2
+            exit 1
+          fi
+
+          tampered_file="$backup_dir/tampered.dump.enc"
+          cp "$backup_file" "$tampered_file"
+          printf 'ciphertext-tamper' >> "$tampered_file"
+          tampered_digest="$(sha256sum "$tampered_file" | awk '{print $1}')"
+          printf '%s  %s\n' "$tampered_digest" "$(basename "$tampered_file")" > "$tampered_file.sha256"
+          if bash backend/scripts/restore_check_postgres.sh "$tampered_file"; then
+            echo "Tampered ciphertext unexpectedly passed authenticated decryption." >&2
+            exit 1
+          fi
+          if docker ps -a --filter name=sentinel-restore-check- --format '{{.Names}}' | grep -q .; then
+            echo "Tamper test unexpectedly created a PostgreSQL container." >&2
+            exit 1
+          fi
+
           bash backend/scripts/restore_check_postgres.sh "$backup_file"
           remaining="$(docker ps -a --filter name=sentinel-restore-check- --format '{{.Names}}')"
           if [[ -n "$remaining" ]]; then
