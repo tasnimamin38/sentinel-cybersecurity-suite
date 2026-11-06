@@ -63,7 +63,9 @@ class ProductionConfigTests(unittest.TestCase):
     def test_prometheus_metrics_are_disabled_by_default_and_opt_in(self):
         defaults = Settings()
         self.assertFalse(defaults.metrics_enabled)
-        enabled = Settings(metrics_enabled=True)
+        with self.assertRaises(ValidationError):
+            Settings(metrics_enabled=True)
+        enabled = Settings(metrics_enabled=True, metrics_token="M" * 40)
         self.assertTrue(enabled.metrics_enabled)
 
     def test_production_metrics_require_a_dedicated_strong_token(self):
