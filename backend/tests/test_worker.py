@@ -102,6 +102,7 @@ def test_worker_persists_assessment_and_job_success_in_one_transaction(tmp_path)
             worker_id="worker-a",
             asset=asset,
             result=result_for(asset.hostname),
+            allowed_domains=["example.com"],
             now=now,
         )
         assert persisted is True
@@ -133,10 +134,38 @@ def test_worker_discards_result_after_lease_is_lost(tmp_path):
             worker_id="worker-a",
             asset=asset,
             result=result_for(asset.hostname),
+            allowed_domains=["example.com"],
             now=now + timedelta(seconds=61),
         )
         assert persisted is False
         assert db.scalar(select(func.count()).select_from(Assessment)) == 0
         db.refresh(job)
         assert job.status == "running"
+    engine.dispose()
+
+
+def test_worker_rechecks_authorization_before_persisting_result(tmp_path):
+    worker = worker_module()
+    engine = create_engine(f"sqlite:///{tmp_path / 'worker-expiry-on-completion.sqlite'}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
+    with Session() as db:
+        asset = make_asset(db)
+        job = enqueue_assessment_job(db, asset)
+        claim_next_job(db, "worker-a", now=now)
+        asset.authorization_expires_at = now - timedelta(seconds=1)
+        db.flush()
+
+        with pytest.raises(worker.PermanentJobError):
+            worker.persist_job_result(
+                db,
+                job_id=job.id,
+                worker_id="worker-a",
+                asset=asset,
+                result=result_for(asset.hostname),
+                allowed_domains=["example.com"],
+                now=now,
+            )
+        assert db.scalar(select(func.count()).select_from(Assessment)) == 0
     engine.dispose()
