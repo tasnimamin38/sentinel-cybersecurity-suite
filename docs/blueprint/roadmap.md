@@ -67,7 +67,7 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [x] Immediate revocation, expiry enforcement, last-used tracking and self-revocation guard
 - [x] Audited credential lifecycle events that never include raw key material or digests
 - [ ] Human identity federation, MFA and short-lived user sessions
-- [ ] Frontend permission-aware administration and operator experience
+- [x] Frontend permission-aware administration and operator experience
 - [ ] Service ownership, per-credential quotas and rotation notifications
 
 **Exit gate:** CI role-boundary tests, credential hash-only persistence checks, expiry/revocation tests, audit redaction and independent authorization review.
