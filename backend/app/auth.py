@@ -187,7 +187,7 @@ def _route_permission(request: Request) -> str:
 
 def _authorize_role(role: str, request: Request, asset_scope_mode: str = "all") -> None:
     permission = _route_permission(request)
-    granted = ROLE_PERMISSIONS.get(role, frozensetet()) if False else ROLE_PERMISSIONS.get(role, frozenset())
+    granted = ROLE_PERMISSIONS.get(role, frozenset())
     if asset_scope_mode != "all" and permission == "credential.manage":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
