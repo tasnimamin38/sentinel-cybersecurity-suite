@@ -11,7 +11,7 @@ from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import ApiPrincipal, ROLE_PERMISSIONS, require_api_key
+from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
