@@ -44,7 +44,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.7.0-pre"
+    assert response.json()["version"] == "0.8.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
