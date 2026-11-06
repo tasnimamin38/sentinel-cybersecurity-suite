@@ -63,3 +63,32 @@ def test_credential_quota_uses_utc_minute_and_day_windows():
     finally:
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_credential_quota_returns_longest_retry_after_when_both_windows_exhausted():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    start = datetime(2026, 11, 6, 12, 30, 30, tzinfo=UTC)
+
+    try:
+        with Session() as db:
+            assert consume_credential_quota(
+                db, "quota-both", 1, 1, now=start
+            ) is None
+            db.commit()
+
+        with Session() as db:
+            retry_after = consume_credential_quota(
+                db, "quota-both", 1, 1, now=start + timedelta(seconds=2)
+            )
+            assert retry_after is not None
+            assert retry_after > 3600
+            db.rollback()
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
