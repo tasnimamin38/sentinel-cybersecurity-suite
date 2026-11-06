@@ -58,6 +58,8 @@ def _verified_anchor(response: Any) -> dict[str, Any]:
     """Extract an assessment anchor only when both payload and journal are verified."""
     if not isinstance(response, dict):
         raise ValueError("Input must be a SENTINEL assessment evidence-integrity JSON response.")
+    if response.get("format") != "sentinel.assessment.evidence-integrity.v1":
+        raise ValueError("Unsupported assessment evidence-integrity response format.")
     if not (
         response.get("integrity_valid") is True
         and response.get("verification_status") == "verified"
@@ -82,6 +84,11 @@ def _verified_anchor(response: Any) -> dict[str, Any]:
         raise ValueError("audit_sequence_no must be a positive integer.")
     if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
         raise ValueError("evidence_sha256 must be a lowercase SHA-256 digest.")
+    computed_digest = response.get("computed_sha256")
+    if not isinstance(computed_digest, str) or not _SHA256.fullmatch(computed_digest):
+        raise ValueError("computed_sha256 must be a lowercase SHA-256 digest.")
+    if not hmac.compare_digest(computed_digest, digest):
+        raise ValueError("computed_sha256 does not match evidence_sha256.")
     if not isinstance(event_hash, str) or not _SHA256.fullmatch(event_hash):
         raise ValueError("audit_event_hash must be a lowercase SHA-256 digest.")
     return {
@@ -99,11 +106,13 @@ def _validate_payload(payload: Any) -> dict[str, Any]:
     if payload.get("format") != ATTESTATION_FORMAT:
         raise ValueError("Unsupported assessment attestation format.")
     anchor = {
+        "format": "sentinel.assessment.evidence-integrity.v1",
         "integrity_valid": True,
         "verification_status": "verified",
         "payload_digest_matches": True,
         "audit_chain_valid": True,
         "audit_chain_status": "verified",
+        "computed_sha256": payload["evidence_sha256"],
         **{
             key: payload[key]
             for key in (
@@ -138,7 +147,9 @@ def build_signed_attestation(
     payload = {
         "format": ATTESTATION_FORMAT,
         **_verified_anchor(integrity_response),
-        "signed_at": signed_at or datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "signed_at": (
+            datetime.now(UTC).isoformat().replace("+00:00", "Z") if signed_at is None else signed_at
+        ),
     }
     _validate_payload(payload)
     public_raw = private_key.public_key().public_bytes(
