@@ -1,5 +1,6 @@
 import json
 import re
+from uuid import UUID
 from functools import lru_cache
 
 from pydantic import model_validator
@@ -120,15 +121,17 @@ class Settings(BaseSettings):
             scope_ids = item.get("asset_scope_ids", [])
             if scope_mode not in {"all", "selected"}:
                 raise ValueError("Static credential asset_scope_mode must be all or selected.")
-            if (
-                not isinstance(scope_ids, list)
-                or any(not isinstance(asset_id, str) or len(asset_id) != 36 for asset_id in scope_ids)
-                or len(scope_ids) != len(set(scope_ids))
-            ):
-                raise ValueError("Static credential asset_scope_ids must be a unique list of UUID strings.")
-            if scope_mode == "selected" and not scope_ids:
+            if not isinstance(scope_ids, list):
+                raise ValueError("Static credential asset_scope_ids must be a list of UUID strings.")
+            try:
+                normalized_scope_ids = [str(UUID(asset_id)) for asset_id in scope_ids]
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise ValueError("Static credential asset_scope_ids must contain valid UUIDs.") from exc
+            if len(normalized_scope_ids) != len(set(normalized_scope_ids)):
+                raise ValueError("Static credential asset_scope_ids must be unique.")
+            if scope_mode == "selected" and not normalized_scope_ids:
                 raise ValueError("Selected static credentials require at least one asset ID.")
-            if scope_mode == "all" and scope_ids:
+            if scope_mode == "all" and normalized_scope_ids:
                 raise ValueError("All-assets static credentials must not include asset IDs.")
             seen_ids.add(credential_id)
             seen_keys.add(key)
