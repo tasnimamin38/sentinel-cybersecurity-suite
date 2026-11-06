@@ -555,7 +555,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .credential-form-grid {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1.2fr;
+  grid-template-columns: 1.35fr .9fr 1.2fr .85fr .95fr;
   gap: 12px;
 }
 .credential-form-grid input, .credential-form-grid select {
@@ -596,7 +596,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .credential-inventory-heading span, .credential-inventory-heading b { display: block; }
 .credential-inventory-heading span { color: #6eb5b0; font: 7px var(--mono); letter-spacing: .85px; }
 .credential-inventory-heading b { margin-top: 4px; color: #dceaf1; font: 600 11px var(--display); }
-.credential-table { min-width: 920px; }
+.credential-table { min-width: 1180px; }
+.credential-limit { color: #a9c1d0; font: 7px/1.6 var(--mono); }
+.credential-grace { display: block; max-width: 120px; margin-top: 4px; color: #d5b87a; font: 6px/1.5 var(--mono); }
+.credential-actions { white-space: nowrap; }
+.credential-actions .table-action + .table-action { margin-left: 5px; }
 .credential-table td b { color: #e1edf3; font-size: 9px; }
 .credential-table td code { color: #7896a9; font: 7px var(--mono); }
 .credential-state {
