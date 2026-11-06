@@ -2,6 +2,20 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.12.0-pre — 2026-11-06
+
+### Added
+- Operator-invoked PostgreSQL custom-format backup from the Compose `db` service.
+- Restrictive backup-directory permissions, no-overwrite timestamped output and SHA-256 checksum sidecar.
+- Disposable PostgreSQL 16 restore verifier that validates the checksum, restores into an isolated container with networking disabled, and checks the Alembic revision plus seven core tables.
+- CI shell-syntax validation for both backup and restore scripts.
+
+### Security and operational boundaries
+- Backup archives contain sensitive database content and are **not encrypted by these scripts**. Encrypt before off-host transfer or production retention; keep keys outside the SENTINEL host.
+- A checksum sidecar detects accidental corruption, not malicious replacement of both archive and checksum.
+- Restore verification never connects to or modifies the source/production database. The disposable container is resource-limited and removed on exit.
+- Scheduled backups, automatic off-site retention, encryption/key management, retention policy, RPO/RTO guarantees and recurring recovery drills remain operator/deployment responsibilities.
+
 ## 0.11.0-pre — 2026-11-06
 
 ### Added
