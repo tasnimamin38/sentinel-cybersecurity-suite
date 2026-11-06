@@ -93,7 +93,8 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [x] Operator-run PostgreSQL custom-format backup from the Compose database service
 - [x] Timestamped no-overwrite archive, restrictive backup directory permissions and SHA-256 sidecar
 - [x] Disposable PostgreSQL restore verification with networking disabled, resource limits, Alembic revision check and core-table check
-- [x] Streaming AES-256-GCM encryption for PostgreSQL backups with authenticated restore verification and a non-secret key ID\n- [ ] KMS/HSM integration, automated backup scheduling, off-site replication and key-retention automation
+- [x] Streaming AES-256-GCM encryption for PostgreSQL backups with authenticated restore verification and a non-secret key ID
+- [ ] KMS/HSM integration, automated backup scheduling, off-site replication and key-retention automation
 - [ ] Retention policy, RPO/RTO targets and recurring recovery drills
 
 **Exit gate:** encrypted off-host copies, documented retention, successful scheduled restore drills and independently reviewed recovery objectives.
