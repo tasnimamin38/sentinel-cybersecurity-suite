@@ -494,7 +494,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-emblem"><ShieldCheck size={22} strokeWidth={1.8} /></div>
-          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.15.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
+          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.16.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
         </div>
         <div className="workspace-chip"><span className="live-dot" /> PRIVATE SECURITY WORKSPACE <ChevronDown size={13} /></div>
         <div className="sidebar-scroll">
@@ -650,7 +650,10 @@ export default function App() {
                 <section className="panel page-panel">
                   <div className="section-title-row">
                     <PanelHeading eyebrow="SECURITY INCIDENT RESPONSE" title="Finding-linked triage register" icon={<ShieldAlert size={15} />} />
-                    <span className="data-count">{incidents.length} TRACKED INCIDENTS</span>
+                    <div className="header-actions">
+                      {can("export.read") && <button className="link-button" onClick={() => downloadExport("incidents")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}
+                      <span className="data-count">{incidents.length} TRACKED INCIDENTS</span>
+                    </div>
                   </div>
                   <p className="panel-intro">Incidents are created only from findings in completed assessments. Review, assign and move each record through the controlled response lifecycle. Notification delivery and on-call paging are not configured in this release.</p>
                   <div className="incident-summary">
@@ -797,7 +800,7 @@ export default function App() {
               )}
             </>
           )}
-          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.15.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.16.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>

@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, engine, get_db
-from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
+from app.models import (
+    ApiCredential,
+    Assessment,
+    Asset,
+    AuditEvent,
+    RemediationTask,
+    SecurityIncident,
+)
 from app.observability import HTTP_METRICS, log_http_request
 from app.routes.incidents import router as security_incidents_router
 from app.routes.jobs import router as assessment_jobs_router
@@ -59,7 +66,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.13.0-pre",
+    version="0.16.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -381,7 +388,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.13.0-pre",
+        "version": "0.16.0-pre",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -414,7 +421,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.13.0-pre",
+        "version": "0.16.0-pre",
         "metrics_enabled": settings.metrics_enabled,
         "authorized_domains": settings.allowed_domain_list,
         "features": [
@@ -840,7 +847,7 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
 
     from app.services.exports import render_csv
 
-    if dataset not in {"assets", "assessments", "findings", "remediations", "audit"}:
+    if dataset not in {"assets", "assessments", "findings", "remediations", "incidents", "audit"}:
         raise HTTPException(status_code=404, detail="Unknown export dataset.")
 
     if dataset == "assets":
@@ -965,6 +972,45 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
                 item.status,
                 item.due_at.isoformat() if item.due_at else "",
                 item.notes,
+                item.created_at.isoformat(),
+                item.updated_at.isoformat(),
+            ]
+            for item in items
+        ]
+    elif dataset == "incidents":
+        items = db.scalars(
+            select(SecurityIncident).order_by(desc(SecurityIncident.updated_at)).limit(5000)
+        ).all()
+        headers = [
+            "id",
+            "assessment_id",
+            "asset_id",
+            "finding_code",
+            "title",
+            "severity",
+            "status",
+            "assignee",
+            "due_at",
+            "notes",
+            "acknowledged_at",
+            "closed_at",
+            "created_at",
+            "updated_at",
+        ]
+        rows = [
+            [
+                item.id,
+                item.assessment_id,
+                item.asset_id,
+                item.finding_code,
+                item.title,
+                item.severity,
+                item.status,
+                item.assignee,
+                item.due_at.isoformat() if item.due_at else "",
+                item.notes,
+                item.acknowledged_at.isoformat() if item.acknowledged_at else "",
+                item.closed_at.isoformat() if item.closed_at else "",
                 item.created_at.isoformat(),
                 item.updated_at.isoformat(),
             ]
