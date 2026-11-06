@@ -4,7 +4,7 @@
 - Immutable commit-SHA pinning for GitHub Actions used in CI and CodeQL.
 - Pull request dependency review for high/critical runtime and development vulnerabilities (requires the repository Dependency Graph setting to be enabled).
 - Gitleaks repository-history scanning with pull-request comments disabled.
-- Trivy filesystem and built-container image scans for high/critical findings; backend image remediation for CVE-2025-47273 is included in this PR.
+- Trivy filesystem and built-container image scans for high/critical findings; backend base image updates to Python 3.13.18 slim Trixie with a Python 3.12/3.13 CI compatibility matrix after the previous base exposed CVE-2025-47273.
 - SPDX JSON SBOM generation as a 14-day workflow artifact; no automatic release publication.
 - Weekly Dependabot updates for Python, npm and GitHub Actions.
 - Regression tests for workflow pinning and supply-chain policy.

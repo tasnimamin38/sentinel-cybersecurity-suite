@@ -74,9 +74,12 @@ def test_dependabot_updates_all_manifest_ecosystems():
     assert docker_directories == {"/backend", "/frontend", "/"}
 
 
-def test_backend_image_removes_vulnerable_system_setuptools_and_sets_safe_floor():
+def test_backend_image_uses_current_python_runtime_and_patched_build_tooling():
     dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert dockerfile.startswith("FROM python:3.13.18-slim-trixie")
     assert "setuptools>=78.1.1" in dockerfile
-    assert "ensurepip" in dockerfile
-    assert "setuptools-*.whl" in dockerfile
-    assert "apt-get update" not in dockerfile
+
+
+def test_backend_ci_covers_python_312_and_313():
+    workflow = (WORKFLOW_ROOT / "ci.yml").read_text(encoding="utf-8")
+    assert 'python-version: ["3.12", "3.13"]' in workflow

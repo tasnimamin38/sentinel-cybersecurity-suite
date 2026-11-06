@@ -44,7 +44,7 @@ Do not suppress a finding merely to make CI green. An exception must identify th
 
 ## Current limitations
 
-The SBOM is not yet signed and the workflow does not generate SLSA provenance or attest container artifacts. A repository SBOM is not a complete bill of materials for a production deployment that adds external services or runtime configuration. Independent review of upstream packages, release signing, protected release environments and long-term evidence retention remain future work.
+The backend runtime base image is updated to the official Python 3.13.18 slim Trixie image while CI tests both Python 3.12 and 3.13. The SBOM is not yet signed and the workflow does not generate SLSA provenance or attest container artifacts. A repository SBOM is not a complete bill of materials for a production deployment that adds external services or runtime configuration. Independent review of upstream packages, release signing, protected release environments and long-term evidence retention remain future work.
 
 
 ## Current repository prerequisites and findings

@@ -16,8 +16,12 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend security and tests
+    name: Backend security and tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     env:
       SENTINEL_TEST_POSTGRES_URL: postgresql+psycopg://sentinel:ci-only-postgres-password@localhost:5432/sentinel_test
     services:
@@ -41,7 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install backend and audit tooling

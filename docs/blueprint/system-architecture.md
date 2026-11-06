@@ -4,7 +4,7 @@
 **Hardening track:** 0.15 supply-chain security and release assurance  
 **Scope:** Authorized defensive security posture operations.
 
-This document describes the repository state and its verified boundaries. Roadmap diagrams and planned components are not evidence that a control has been deployed.
+This document describes the repository state and its verified boundaries. The 0.15 backend image uses the official Python 3.13.18 slim Trixie image; CI exercises Python 3.12 and 3.13. Roadmap diagrams and planned components are not evidence that a control has been deployed.
 
 ## 1. Architecture principles
 
@@ -58,7 +58,7 @@ flowchart TB
 | Service identity | Legacy admin and role-scoped static/database-managed credentials | Hash-only managed-key storage, one-time display, expiry, revocation and bounded rotation |
 | Quota service | Per-credential request limits | PostgreSQL-backed atomic minute/day accounting |
 | Asset authorization | Owner, environment, criticality, approval reference, status and expiry | Server-side allowlist and time-bounded authorization |
-| Assessment services | DNS/TLS/HTTPS and email/domain posture evidence | Validated public addresses, pinned connection, bounded GET/header read, no redirects |
+| Assessment services | DNS/TLS/HTTPS and email/domain posture evidence | Python 3.13.18 runtime image; CI compatibility matrix Python 3.12/3.13; validated public addresses, pinned connection, bounded GET/header read, no redirects |
 | Queue and worker | Durable assessment job execution | PostgreSQL claims/leases, retry/dead-letter lifecycle and resource-limited worker container |
 | Risk/remediation | Stable finding codes, deterministic scoring and task ownership | Score is SENTINEL-specific, not CVSS |
 | Incident response | Finding-linked triage, constrained status transitions, operator/deadline/notes | API-enforced permissions and metadata-only audit details |

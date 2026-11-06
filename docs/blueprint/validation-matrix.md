@@ -4,7 +4,7 @@ This matrix links security claims to repeatable checks. A skipped check, unavail
 
 | Area | Automated evidence | Limits |
 |:---|:---|:---|
-| API authentication | Missing/invalid/weak key, constant-time comparison path, static/managed credentials | No human SSO/MFA or session testing |
+| Backend runtime compatibility | Full backend suite and static checks across Python 3.12 and 3.13; production Docker image on Python 3.13.18 | Exact-head CI matrix results remain the authoritative evidence |\n| API authentication | Missing/invalid/weak key, constant-time comparison path, static/managed credentials | No human SSO/MFA or session testing |
 | Role authorization | Route-to-permission map, allowed and denied role tests | No tenant isolation to verify |
 | Credential lifecycle | Hash-only persistence, one-time secret, expiry, revocation, rotation grace | External secret-manager integration is absent |
 | Per-credential quota | Minute/day boundaries and PostgreSQL atomic concurrency checks | No tenant-wide fair-share policy |
