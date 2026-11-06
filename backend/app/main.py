@@ -25,6 +25,7 @@ from app.models import (
     SecurityIncident,
 )
 from app.observability import HTTP_METRICS, log_http_request
+from app.routes.assessment_evidence import router as assessment_evidence_router
 from app.routes.incidents import router as security_incidents_router
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
@@ -116,6 +117,7 @@ async def security_response_headers(request, call_next):
 
 app.include_router(assessment_jobs_router)
 app.include_router(security_incidents_router)
+app.include_router(assessment_evidence_router)
 
 
 @app.get("/api/v1/me", dependencies=[Depends(require_api_key)])
