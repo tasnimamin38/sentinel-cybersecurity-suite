@@ -593,8 +593,7 @@ def test_every_versioned_api_route_has_explicit_authentication_and_permission_po
         if not route_path.startswith("/api/v1/"):
             continue
         assert any(
-            dependency.call is require_api_key
-            for dependency in route.dependant.dependencies
+            dependency.call is require_api_key for dependency in route.dependant.dependencies
         ), f"Missing authentication dependency: {route_path}"
         for method in route.methods or set():
             assert (method, route_path) in ROUTE_PERMISSIONS, (
