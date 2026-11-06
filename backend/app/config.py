@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
+    process_role: str = "api"
     environment: str = "development"
 
     @property
@@ -53,6 +54,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SENTINEL_ENVIRONMENT must be development, test, staging or production."
             )
+        if self.process_role not in {"api", "worker"}:
+            raise ValueError("SENTINEL_PROCESS_ROLE must be api or worker.")
         if not 0.5 <= self.request_timeout_seconds <= 20:
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
         if not 1 <= self.max_assessment_records <= 100_000:
@@ -89,24 +92,27 @@ class Settings(BaseSettings):
         if self.environment == "production":
             errors = []
             keys = self.configured_api_keys
-            if (not keys and not any(item["role"] == "admin" for item in role_credentials)) or any(len(key) < 32 for key in keys):
-                errors.append("Configure a strong bootstrap admin API key")
-            if any(len(key) < 32 for key in keys):
-                errors.append("Every configured legacy API key must contain at least 32 characters")
-            for key in keys + [item["key"] for item in role_credentials]:
-                normalized_key = key.lower()
-                if any(
-                    marker in normalized_key
-                    for marker in (
-                        "replace-with",
-                        "change-me",
-                        "your-api-key",
-                        "placeholder",
-                        "example",
-                    )
-                ):
-                    errors.append("API keys must not contain sample or placeholder values")
-                    break
+            if self.process_role == "api":
+                if (not keys and not any(item["role"] == "admin" for item in role_credentials)) or any(len(key) < 32 for key in keys):
+                    errors.append("Configure a strong bootstrap admin API key")
+                if any(len(key) < 32 for key in keys):
+                    errors.append("Every configured legacy API key must contain at least 32 characters")
+                for key in keys + [item["key"] for item in role_credentials]:
+                    normalized_key = key.lower()
+                    if any(
+                        marker in normalized_key
+                        for marker in (
+                            "replace-with",
+                            "change-me",
+                            "your-api-key",
+                            "placeholder",
+                            "example",
+                        )
+                    ):
+                        errors.append("API keys must not contain sample or placeholder values")
+                        break
+            elif keys or role_credentials:
+                errors.append("Worker processes must not be configured with API credentials")
             if not self.allowed_domain_list:
                 errors.append(
                     "SENTINEL_ALLOWED_DOMAINS must contain at least one authorized domain"
