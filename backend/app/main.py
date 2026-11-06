@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -120,6 +120,11 @@ def create_api_credential(
     db: Session = Depends(get_db),
 ):
     now = datetime.now(UTC)
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": 7812340912346},
+        )
     active_count = db.scalar(
         select(func.count())
         .select_from(ApiCredential)
@@ -137,7 +142,7 @@ def create_api_credential(
         role=payload.role,
         key_hash=hashlib.sha256(secret.encode("utf-8")).hexdigest(),
         key_prefix=secret[:12],
-        expires_at=payload.expires_at,
+        expires_at=payload.expires_at or (now + timedelta(days=90)),
         created_by=principal.credential_id,
         created_at=now,
     )
