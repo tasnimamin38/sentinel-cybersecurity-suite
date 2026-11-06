@@ -51,9 +51,9 @@ jobs:
       - name: Backend tests
         run: python -m pytest -q
       - name: Ruff format
-        run: ruff format --check app tests alembic
+        run: ruff format --check app tests scripts alembic
       - name: Ruff lint
-        run: ruff check app tests alembic
+        run: ruff check app tests scripts alembic
 
   frontend:
     name: Frontend security and build
