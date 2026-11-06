@@ -71,6 +71,7 @@ def create_assessment_job(
     payload: AssessmentJobCreate,
     response: Response,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     asset = db.get(Asset, payload.asset_id)
@@ -144,6 +145,7 @@ def list_assessment_jobs(
     ]
     | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     query = apply_asset_scope(select(AssessmentJob), principal, AssessmentJob.asset_id)
