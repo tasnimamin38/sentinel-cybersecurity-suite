@@ -811,6 +811,15 @@ def test_rotation_enforces_global_active_credential_cap_during_grace(client):
     assert client.get("/api/v1/me", headers={"X-API-Key": prior_secret}).status_code == 401
     assert client.get("/api/v1/me", headers={"X-API-Key": replacement_secret}).status_code == 200
 
+    # Keep the module-scoped SQLite database isolated for subsequent credential tests.
+    db = SessionLocal()
+    try:
+        db.query(ApiCredentialUsage).delete(synchronize_session=False)
+        db.query(ApiCredential).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
 
 def test_audit_integrity_api_exports_verifiable_historical_checkpoint(client):
     first = client.post(
