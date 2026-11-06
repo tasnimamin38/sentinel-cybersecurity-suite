@@ -57,11 +57,15 @@ type SecretScan = {
   findings: Finding[]; finding_count: number; input_bytes: number;
   source_persisted: boolean; redaction_policy: string;
 };
-type ApiIdentity = { credential_id: string; role: string; credential_source: string; permissions: string[] };
+type ApiIdentity = {
+  credential_id: string; role: string; credential_source: string; permissions: string[];
+  asset_scope_mode: "all" | "selected"; asset_scope_ids: string[];
+};
 type ApiCredential = {
   id: string; label: string; role: string; key_prefix: string; expires_at?: string | null;
   revoked_at?: string | null; created_by: string; created_at: string; last_used_at?: string | null;
   rate_limit_per_minute: number; daily_request_limit: number;
+  asset_scope_mode: "all" | "selected"; asset_scope_ids: string[];
   rotated_to_id?: string | null; rotation_grace_expires_at?: string | null;
 };
 type CreatedCredential = { credential: ApiCredential; secret: string };
@@ -154,7 +158,15 @@ export default function App() {
   const [identity, setIdentity] = useState<ApiIdentity | null>(null);
   const [credentials, setCredentials] = useState<ApiCredential[]>([]);
   const [createdCredential, setCreatedCredential] = useState<CreatedCredential | null>(null);
-  const [credentialDraft, setCredentialDraft] = useState({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90), rate_limit_per_minute: 120, daily_request_limit: 10000 });
+  const [credentialDraft, setCredentialDraft] = useState({
+    label: "Service integration",
+    role: "analyst",
+    expires_at: localDateTimeAfterDays(90),
+    rate_limit_per_minute: 120,
+    daily_request_limit: 10000,
+    asset_scope_mode: "selected" as "all" | "selected",
+    asset_scope_ids: [] as string[],
+  });
   const [toast, setToast] = useState("Connect the API to load live security telemetry.");
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -212,19 +224,19 @@ export default function App() {
         api<Remediation[]>("/api/v1/remediations"),
         api<{ controls: Control[] }>("/api/v1/controls"),
       ]),
-      principal.role === "admin" || principal.permissions.includes("incident.read")
+      principal.permissions.includes("*") || principal.permissions.includes("incident.read")
         ? api<SecurityIncident[]>("/api/v1/incidents")
         : Promise.resolve([] as SecurityIncident[]),
     ]);
     setOverview(results[0]); setAssets(results[1]); setAssessments(results[2]);
     setRemediations(results[3]); setControls(results[4].controls); setIncidents(incidentData);
-    if (principal.role === "admin" || principal.permissions.includes("audit.read")) {
+    if (principal.permissions.includes("*") || principal.permissions.includes("audit.read")) {
       const [events, integrity] = await Promise.all([
         api<AuditEvent[]>("/api/v1/audit?limit=100"), api<AuditIntegrity>("/api/v1/audit/integrity"),
       ]);
       setAuditEvents(events); setAuditIntegrity(integrity);
     } else { setAuditEvents([]); setAuditIntegrity(null); }
-    if (principal.role === "admin" || principal.permissions.includes("credential.manage")) await loadCredentials();
+    if (principal.permissions.includes("*") || principal.permissions.includes("credential.manage")) await loadCredentials();
   }
 
   async function downloadExport(dataset: string) {
@@ -413,9 +425,20 @@ export default function App() {
           expires_at: new Date(credentialDraft.expires_at).toISOString(),
           rate_limit_per_minute: credentialDraft.rate_limit_per_minute,
           daily_request_limit: credentialDraft.daily_request_limit,
+          asset_scope_mode: credentialDraft.asset_scope_mode,
+          asset_scope_ids: credentialDraft.asset_scope_ids,
         }),
       });
-      setCreatedCredential(created); setCredentialDraft({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90), rate_limit_per_minute: 120, daily_request_limit: 10000 });
+      setCreatedCredential(created);
+      setCredentialDraft({
+        label: "Service integration",
+        role: "analyst",
+        expires_at: localDateTimeAfterDays(90),
+        rate_limit_per_minute: 120,
+        daily_request_limit: 10000,
+        asset_scope_mode: "selected",
+        asset_scope_ids: [],
+      });
       await loadCredentials();
       notify("API credential created. Copy the secret now; it will not be shown again.", "success");
     });
@@ -486,7 +509,9 @@ export default function App() {
   const activeCount = assets.filter((asset) => asset.status === "active").length;
   const latest = assessments[0];
   const environmentLabel = assets.some((asset) => asset.environment === "production") ? "PRODUCTION SCOPE" : "LOCAL WORKSPACE";
-  const can = (permission: string) => identity?.role === "admin" || Boolean(identity?.permissions.includes(permission));
+  const can = (permission: string) => Boolean(
+    identity?.permissions.includes("*") || identity?.permissions.includes(permission),
+  );
   const visibleNavGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => can(viewPermissions[item.id])) })).filter((group) => group.items.length > 0);
 
   return (
@@ -763,7 +788,11 @@ export default function App() {
                   {createdCredential && <div className="credential-secret-panel">
                     <div className="credential-secret-title"><ShieldCheck size={17} /><div><b>New credential created</b><span>Copy this secret now. It cannot be retrieved after this panel is cleared.</span></div></div>
                     <div className="credential-secret-value"><code>{createdCredential.secret}</code><button className="button-small" onClick={copyCreatedSecret}><ClipboardCheck size={13} /> COPY SECRET</button></div>
-                    <div className="credential-secret-meta">{createdCredential.credential.label} · {createdCredential.credential.role} · Expires {dateTimeLabel(createdCredential.credential.expires_at)}</div>
+                    <div className="credential-secret-meta">
+                      {createdCredential.credential.label} · {createdCredential.credential.role} ·
+                      {createdCredential.credential.asset_scope_mode === "all" ? " All assets" : " " + createdCredential.credential.asset_scope_ids.length + " selected assets"} ·
+                      Expires {dateTimeLabel(createdCredential.credential.expires_at)}
+                    </div>
                     <button className="link-button" onClick={() => setCreatedCredential(null)}>CLEAR ONE-TIME SECRET</button>
                   </div>}
                   <form className="credential-create-form" onSubmit={createCredential}>
@@ -774,12 +803,27 @@ export default function App() {
                       <label className="field-label">EXPIRES AT<input type="datetime-local" value={credentialDraft.expires_at} onChange={(event) => setCredentialDraft({ ...credentialDraft, expires_at: event.target.value })} required /></label>
                       <label className="field-label">REQUESTS / MIN<input type="number" min={1} max={600} value={credentialDraft.rate_limit_per_minute} onChange={(event) => setCredentialDraft({ ...credentialDraft, rate_limit_per_minute: Number(event.target.value) })} required /></label>
                       <label className="field-label">REQUESTS / DAY<input type="number" min={1} max={1000000} value={credentialDraft.daily_request_limit} onChange={(event) => setCredentialDraft({ ...credentialDraft, daily_request_limit: Number(event.target.value) })} required /></label>
+                      <label className="field-label">ASSET ACCESS<select value={credentialDraft.asset_scope_mode} onChange={(event) => setCredentialDraft({
+                        ...credentialDraft,
+                        asset_scope_mode: event.target.value as "all" | "selected",
+                        asset_scope_ids: event.target.value === "all" ? [] : credentialDraft.asset_scope_ids,
+                      })}><option value="selected">Selected registered assets (least privilege)</option><option value="all">All registered assets</option></select></label>
+                      {credentialDraft.asset_scope_mode === "selected" && <label className="field-label credential-scope-picker">SELECT AUTHORIZED ASSETS
+                        <select className="credential-asset-select" multiple size={Math.min(6, Math.max(3, assets.length))} value={credentialDraft.asset_scope_ids}
+                          onChange={(event) => setCredentialDraft({
+                            ...credentialDraft,
+                            asset_scope_ids: Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+                          })}>
+                          {assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name} · {asset.hostname}</option>)}
+                        </select>
+                        <small className="credential-scope-help">Choose one or more assets. Hold Ctrl (Windows) or Command (Mac) to select multiple.</small>
+                      </label>}
                     </div>
-                    <div className="form-footer"><p>Max lifetime 365 days · default 90 days · 1–600 requests/min · 1–1,000,000 requests/day. Keep one independent admin key for recovery.</p><button className="button-connect" disabled={busy || credentialDraft.label.trim().length < 2 || credentialDraft.rate_limit_per_minute < 1 || credentialDraft.rate_limit_per_minute > 600 || credentialDraft.daily_request_limit < 1 || credentialDraft.daily_request_limit > 1000000}><Plus size={14} /> CREATE API CREDENTIAL</button></div>
+                    <div className="form-footer"><p>New keys default to selected assets. Choose “All registered assets” only when the integration needs broad access. Keep one independent all-assets admin key for recovery. {credentialDraft.asset_scope_mode === "selected" ? assets.length ? credentialDraft.asset_scope_ids.length + " of " + assets.length + " available assets selected." : "Register an authorized asset before creating this key." : "This key can access every registered asset."}</p><button className="button-connect" disabled={busy || credentialDraft.label.trim().length < 2 || credentialDraft.rate_limit_per_minute < 1 || credentialDraft.rate_limit_per_minute > 600 || credentialDraft.daily_request_limit < 1 || credentialDraft.daily_request_limit > 1000000 || (credentialDraft.asset_scope_mode === "selected" && credentialDraft.asset_scope_ids.length === 0)}><Plus size={14} /> CREATE API CREDENTIAL</button></div>
                   </form>
                   <div className="credential-inventory-heading"><div><span>MANAGED CREDENTIALS</span><b>{credentials.length} records</b></div><button className="link-button" onClick={() => runAction(loadCredentials)} disabled={busy}><RefreshCw size={13} /> REFRESH</button></div>
                   {credentials.length ? <div className="table-wrap"><table className="data-table credential-table">
-                    <thead><tr><th>LABEL / PREFIX</th><th>ROLE</th><th>LIMITS</th><th>CREATED</th><th>LAST USED</th><th>EXPIRES</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+                    <thead><tr><th>LABEL / PREFIX</th><th>ROLE</th><th>ASSET SCOPE</th><th>LIMITS</th><th>CREATED</th><th>LAST USED</th><th>EXPIRES</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
                     <tbody>{credentials.map((credential) => {
                       const expired = Boolean(credential.expires_at && new Date(credential.expires_at).getTime() <= Date.now());
                       const graceActive = Boolean(credential.rotated_to_id && credential.rotation_grace_expires_at && new Date(credential.rotation_grace_expires_at).getTime() > Date.now());
@@ -789,6 +833,7 @@ export default function App() {
                       return <tr key={credential.id}>
                         <td><b>{credential.label}</b><br /><code>{credential.key_prefix}…</code></td>
                         <td><span className="env-chip">{credential.role.replace("_", " ")}</span></td>
+                        <td><span className="credential-limit">{credential.asset_scope_mode === "all" ? "ALL ASSETS" : credential.asset_scope_ids.length + " SELECTED"}</span></td>
                         <td><span className="credential-limit">{credential.rate_limit_per_minute}/min</span><br /><span className="credential-limit">{credential.daily_request_limit.toLocaleString()}/day</span></td>
                         <td>{dateTimeLabel(credential.created_at)}</td><td>{dateTimeLabel(credential.last_used_at)}</td><td>{dateTimeLabel(credential.expires_at)}</td>
                         <td><span className={"credential-state " + (active ? "active" : "inactive")}>{state}</span>{graceActive && <small className="credential-grace">until {dateTimeLabel(credential.rotation_grace_expires_at)}</small>}</td>

@@ -160,6 +160,8 @@ class ApiCredential(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=120)
     daily_request_limit: Mapped[int] = mapped_column(Integer, default=10000)
+    asset_scope_mode: Mapped[str] = mapped_column(String(16), default="all")
+    asset_scope_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     rotated_to_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     rotation_grace_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

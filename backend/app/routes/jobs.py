@@ -8,7 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import require_api_key
+from app.auth import ApiPrincipal, apply_asset_scope, require_api_key
 from app.config import get_settings
 from app.database import get_db
 from app.models import AssessmentJob, Asset
@@ -71,10 +71,11 @@ def create_assessment_job(
     payload: AssessmentJobCreate,
     response: Response,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     asset = db.get(Asset, payload.asset_id)
-    if asset is None:
+    if asset is None or not principal.can_access_asset(asset.id):
         raise HTTPException(status_code=404, detail="Asset not found.")
     _ensure_asset_authorization(asset)
 
@@ -144,9 +145,11 @@ def list_assessment_jobs(
     ]
     | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
-    query = select(AssessmentJob).order_by(desc(AssessmentJob.created_at)).limit(limit)
+    query = apply_asset_scope(select(AssessmentJob), principal, AssessmentJob.asset_id)
+    query = query.order_by(desc(AssessmentJob.created_at)).limit(limit)
     if state:
         query = query.where(AssessmentJob.status == state)
     return db.scalars(query).all()
@@ -157,9 +160,13 @@ def list_assessment_jobs(
     response_model=AssessmentJobResponse,
     dependencies=[Depends(require_api_key)],
 )
-def get_assessment_job(job_id: str, db: Session = Depends(get_db)):
+def get_assessment_job(
+    job_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     item = db.get(AssessmentJob, job_id)
-    if item is None:
+    if item is None or not principal.can_access_asset(item.asset_id):
         raise HTTPException(status_code=404, detail="Assessment job not found.")
     return item
 
@@ -169,8 +176,14 @@ def get_assessment_job(job_id: str, db: Session = Depends(get_db)):
     response_model=AssessmentJobResponse,
     dependencies=[Depends(require_api_key)],
 )
-def cancel_assessment_job(job_id: str, db: Session = Depends(get_db)):
+def cancel_assessment_job(
+    job_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     item = _get_job_for_update(db, job_id)
+    if not principal.can_access_asset(item.asset_id):
+        raise HTTPException(status_code=404, detail="Assessment job not found.")
     if item.status in ("succeeded", "failed", "dead_letter"):
         raise HTTPException(
             status_code=409, detail="A terminal assessment job cannot be cancelled."
@@ -194,8 +207,14 @@ def cancel_assessment_job(job_id: str, db: Session = Depends(get_db)):
     response_model=AssessmentJobResponse,
     dependencies=[Depends(require_api_key)],
 )
-def retry_assessment_job(job_id: str, db: Session = Depends(get_db)):
+def retry_assessment_job(
+    job_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     item = _get_job_for_update(db, job_id)
+    if not principal.can_access_asset(item.asset_id):
+        raise HTTPException(status_code=404, detail="Assessment job not found.")
     if item.asset_id is None:
         raise HTTPException(status_code=409, detail="The original asset is no longer available.")
     asset = db.get(Asset, item.asset_id)

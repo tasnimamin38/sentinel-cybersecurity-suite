@@ -69,6 +69,8 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [x] One-time secret display, no-store creation responses and metadata-only listing
 - [x] Immediate revocation, expiry enforcement, last-used tracking and self-revocation guard
 - [x] Audited credential lifecycle events that never include raw key material or digests
+- [x] Per-credential registered-asset allowlists across API reads, writes, jobs, incidents, evidence, dashboard aggregates and CSV exports
+- [x] Scope-preserving managed-key rotation and explicit all-assets administrator mode
 - [ ] Human identity federation, MFA and short-lived user sessions
 - [x] Frontend permission-aware administration and operator experience
 - [ ] Service ownership, per-credential quotas and rotation notifications

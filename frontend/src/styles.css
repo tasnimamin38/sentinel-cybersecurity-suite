@@ -555,8 +555,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .credential-form-grid {
   display: grid;
-  grid-template-columns: 1.35fr .9fr 1.2fr .85fr .95fr;
+  grid-template-columns: 1.35fr .9fr 1.2fr .85fr .95fr 1.4fr 2fr;
   gap: 12px;
+  align-items: start;
 }
 .credential-form-grid input, .credential-form-grid select {
   display: block;
@@ -569,6 +570,20 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 4px;
   background: #081522;
   font: 9px var(--mono);
+}
+.credential-form-grid .credential-asset-select {
+  height: auto;
+  min-height: 112px;
+  padding: 6px;
+  line-height: 1.5;
+}
+.credential-asset-select option { padding: 4px 5px; }
+.credential-scope-help {
+  display: block;
+  margin-top: 6px;
+  color: #8197a7;
+  font-size: 7px;
+  line-height: 1.45;
 }
 .credential-secret-panel {
   margin: 14px 0;

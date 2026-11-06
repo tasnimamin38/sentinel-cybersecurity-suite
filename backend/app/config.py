@@ -1,6 +1,7 @@
 import json
 import re
 from functools import lru_cache
+from uuid import UUID
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,10 +72,19 @@ class Settings(BaseSettings):
             if (
                 not isinstance(item, dict)
                 or not {"id", "key", "role"}.issubset(item)
-                or set(item) - {"id", "key", "role", "rate_limit_per_minute", "daily_request_limit"}
+                or set(item)
+                - {
+                    "id",
+                    "key",
+                    "role",
+                    "rate_limit_per_minute",
+                    "daily_request_limit",
+                    "asset_scope_mode",
+                    "asset_scope_ids",
+                }
             ):
                 raise ValueError(
-                    "Each role credential must contain id, key, role and optional request quota limits only."
+                    "Each role credential must contain id, key, role and only the supported optional quota and asset-scope fields."
                 )
             credential_id, key, role = item["id"], item["key"], item["role"]
             if not isinstance(credential_id, str) or not re.fullmatch(
@@ -107,6 +117,30 @@ class Settings(BaseSettings):
                 )
             if credential_id in seen_ids or key in seen_keys:
                 raise ValueError("Static credential IDs and key material must be unique.")
+            scope_mode = item.get("asset_scope_mode", "all")
+            scope_ids = item.get("asset_scope_ids", [])
+            if not isinstance(scope_mode, str) or scope_mode not in {"all", "selected"}:
+                raise ValueError("Static credential asset_scope_mode must be all or selected.")
+            if not isinstance(scope_ids, list):
+                raise ValueError(
+                    "Static credential asset_scope_ids must be a list of UUID strings."
+                )
+            try:
+                normalized_scope_ids = [str(UUID(asset_id)) for asset_id in scope_ids]
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    "Static credential asset_scope_ids must contain valid UUIDs."
+                ) from exc
+            if len(normalized_scope_ids) != len(set(normalized_scope_ids)):
+                raise ValueError("Static credential asset_scope_ids must be unique.")
+            if scope_ids != normalized_scope_ids:
+                raise ValueError(
+                    "Static credential asset_scope_ids must use canonical lowercase UUID strings."
+                )
+            if scope_mode == "selected" and not normalized_scope_ids:
+                raise ValueError("Selected static credentials require at least one asset ID.")
+            if scope_mode == "all" and normalized_scope_ids:
+                raise ValueError("All-assets static credentials must not include asset IDs.")
             seen_ids.add(credential_id)
             seen_keys.add(key)
 

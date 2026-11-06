@@ -14,6 +14,16 @@ All `/api/v1/*` operations require `X-API-Key`. Authentication identifies a serv
 
 Permissions are enforced in the shared API-key dependency, so the same policy covers the main API and assessment-job router. The frontend is not a security boundary; server-side authorization remains authoritative.
 
+## Per-credential asset scopes
+
+Role permissions and asset scope are independent checks. A role answers **which operations** a key may perform; its asset scope answers **which registered assets** those operations may touch.
+
+Database-managed credentials created through the API default to `asset_scope_mode: "selected"` and must include one or more existing IDs in `asset_scope_ids`. The API rejects empty selections and unknown asset IDs. Administrators may deliberately set `asset_scope_mode: "all"` with an empty ID list for integrations that genuinely need every registered asset.
+
+Selected scopes are enforced on asset inventory, dashboard aggregates, configuration-domain disclosure, assessments and evidence-integrity reads, queued jobs, incidents, remediations, control summaries and asset-bearing CSV exports. Out-of-scope record lookups return 404 to avoid disclosing whether another asset exists. Selected-scope credentials cannot create new assets, perform arbitrary unregistered ad-hoc assessments, inspect the global audit event stream or audit-chain checkpoint, export the global audit journal, or administer credentials. Maintain a separate all-assets administrator credential for bootstrap, credential lifecycle and global audit operations.
+
+Existing database-managed credentials are migrated with `asset_scope_mode = "all"` and an empty ID list so their access does not silently change. Legacy `SENTINEL_API_KEY` / `SENTINEL_API_KEYS` remain all-assets. Environment-managed entries in `SENTINEL_API_CREDENTIALS_JSON` also default to all-assets for backward compatibility; they may opt into `"asset_scope_mode": "selected"` plus a non-empty `"asset_scope_ids"` list. Credential rotation preserves the original role, quota and asset scope.
+
 ## Bootstrap and environment credentials
 
 Legacy `SENTINEL_API_KEY` and comma-separated `SENTINEL_API_KEYS` remain backward compatible and are treated as administrator credentials. During zero-downtime rotation, configure both keys, move clients, then remove the previous key and restart the service.
@@ -25,12 +35,16 @@ Optional role-scoped static service credentials are configured with `SENTINEL_AP
   {
     "id": "nightly-analyst",
     "key": "<at-least-32-random-characters>",
-    "role": "analyst"
+    "role": "analyst",
+    "asset_scope_mode": "selected",
+    "asset_scope_ids": ["01234567-89ab-cdef-0123-456789abcdef"]
   },
   {
     "id": "audit-export",
     "key": "<a-different-at-least-32-character-secret>",
-    "role": "auditor"
+    "role": "auditor",
+    "asset_scope_mode": "all",
+    "asset_scope_ids": []
   }
 ]
 ```
@@ -51,13 +65,15 @@ Content-Type: application/json
 {
   "label": "Nightly posture analyst",
   "role": "analyst",
+  "asset_scope_mode": "selected",
+  "asset_scope_ids": ["01234567-89ab-cdef-0123-456789abcdef"],
   "expires_at": "2027-06-01T00:00:00Z"
 }
 ```
 
 `expires_at` is optional. When omitted, the API sets a 90-day expiry. When present, it must include a timezone, be in the future and be no more than 365 days ahead. Active managed credentials are capped at 250.
 
-The creation response includes the raw secret exactly once and sends `Cache-Control: no-store` and `Pragma: no-cache`. Copy it into the intended secret manager immediately. The database stores only its SHA-256 digest and a short display prefix. The digest and raw secret are never included in API list responses or credential audit details.
+The creation response includes the raw secret exactly once and sends `Cache-Control: no-store` and `Pragma: no-cache`. When broad access is intentionally required, use `"asset_scope_mode": "all"` and `"asset_scope_ids": []`; this is an explicit administrator decision, not the default. Copy it into the intended secret manager immediately. The database stores only its SHA-256 digest and a short display prefix. The digest and raw secret are never included in API list responses or credential audit details.
 
 ### List
 
@@ -86,11 +102,11 @@ GET /api/v1/me
 X-API-Key: <service-key>
 ```
 
-Returns credential ID, role, credential source and granted permission names. It never reveals the raw key or digest.
+Returns credential ID, role, credential source, granted permission names, `asset_scope_mode` and `asset_scope_ids`. It never reveals the raw key or digest. Selected-scope identities receive only the permissions applicable to their restricted scope.
 
 ## Limitations and production requirements
 
-This release provides service-to-service RBAC, not human identity. It does not provide OIDC/SAML federation, MFA, browser login sessions, per-user audit attribution, tenant isolation, per-credential quotas or external key custody. Environment credentials remain plaintext in deployment configuration and need secret-manager protection. Database-managed credential hashes are SHA-256 digests of high-entropy random secrets; the system does not claim password-style slow hashing is necessary for these random API tokens.
+This release provides service-to-service RBAC and per-credential registered-asset scope, not human identity or full tenant isolation. It does not provide OIDC/SAML federation, MFA, browser login sessions, per-user audit attribution, tenant isolation or external key custody. Environment credentials remain plaintext in deployment configuration and need secret-manager protection. Database-managed credential hashes are SHA-256 digests of high-entropy random secrets; the system does not claim password-style slow hashing is necessary for these random API tokens.
 
 Keep a separately controlled bootstrap admin key available for managed-key recovery. Review route-to-permission mappings whenever a protected endpoint is added. Unknown routes intentionally fail closed to administrator access.
 

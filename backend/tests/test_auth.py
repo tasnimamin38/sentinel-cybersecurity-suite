@@ -76,6 +76,28 @@ class ApiKeyAuthTests(unittest.TestCase):
         self.assertEqual(principal.role, "analyst")
         self.assertEqual(raised.exception.status_code, 403)
 
+    def test_static_role_credential_preserves_selected_asset_scope(self):
+        asset_id = "00000000-0000-0000-0000-000000000001"
+        analyst = [
+            {
+                "id": "scoped-analyst",
+                "key": "S" * 40,
+                "role": "analyst",
+                "asset_scope_mode": "selected",
+                "asset_scope_ids": [asset_id],
+            }
+        ]
+        with (
+            patch("app.auth.get_settings", return_value=self.settings(roles=analyst)),
+            patch("app.services.credential_quota.consume_credential_quota", return_value=None),
+        ):
+            principal = require_api_key(make_request("/api/v1/assets"), "S" * 40, self.db)
+
+        self.assertEqual(principal.asset_scope_mode, "selected")
+        self.assertTrue(principal.can_access_asset(asset_id))
+        self.assertFalse(principal.can_access_asset("00000000-0000-0000-0000-000000000002"))
+        self.assertFalse(principal.can_access_asset(None))
+
     def test_unmapped_route_fails_closed_for_non_admin(self):
         auditor = [{"id": "audit-reader", "key": "R" * 40, "role": "auditor"}]
         with patch("app.auth.get_settings", return_value=self.settings(roles=auditor)):

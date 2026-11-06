@@ -20,6 +20,13 @@ class ApiPrincipal:
     credential_source: str
     rate_limit_per_minute: int
     daily_request_limit: int
+    asset_scope_mode: str = "all"
+    asset_scope_ids: frozenset[str] = frozenset()
+
+    def can_access_asset(self, asset_id: str | None) -> bool:
+        return self.asset_scope_mode == "all" or (
+            asset_id is not None and asset_id in self.asset_scope_ids
+        )
 
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
@@ -128,11 +135,13 @@ ROUTE_PERMISSIONS: dict[tuple[str, str], str] = {
 }
 
 
-def _configured_static_principals() -> list[tuple[str, str, str, int, int]]:
+def _configured_static_principals() -> list[tuple[str, str, str, int, int, str, frozenset[str]]]:
     settings = get_settings()
-    principals: list[tuple[str, str, str, int, int]] = []
+    principals: list[tuple[str, str, str, int, int, str, frozenset[str]]] = []
     for index, key in enumerate(settings.configured_api_keys):
-        principals.append((f"legacy-admin-{index + 1}", key, "admin", 600, 1_000_000))
+        principals.append(
+            (f"legacy-admin-{index + 1}", key, "admin", 600, 1_000_000, "all", frozenset())
+        )
     for item in getattr(settings, "configured_role_credentials", []):
         principals.append(
             (
@@ -141,9 +150,33 @@ def _configured_static_principals() -> list[tuple[str, str, str, int, int]]:
                 item["role"],
                 item.get("rate_limit_per_minute", 120),
                 item.get("daily_request_limit", 10000),
+                item.get("asset_scope_mode", "all"),
+                frozenset(item.get("asset_scope_ids", [])),
             )
         )
     return principals
+
+
+def apply_asset_scope(query, principal: ApiPrincipal, asset_id_column):
+    """Filter an asset-bearing query to the credential's explicit asset IDs."""
+    if principal.asset_scope_mode == "selected":
+        return query.where(asset_id_column.in_(sorted(principal.asset_scope_ids)))
+    return query
+
+
+def ensure_asset_access(principal: ApiPrincipal, asset_id: str | None) -> None:
+    """Return 404 for out-of-scope records so their existence is not disclosed."""
+    if not principal.can_access_asset(asset_id):
+        raise HTTPException(status_code=404, detail="Record not found.")
+
+
+def require_global_asset_scope(principal: ApiPrincipal) -> None:
+    """Some global assurance surfaces cannot be safely partitioned by asset."""
+    if principal.asset_scope_mode != "all":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This operation requires an all-assets credential scope.",
+        )
 
 
 def _route_permission(request: Request) -> str:
@@ -154,9 +187,14 @@ def _route_permission(request: Request) -> str:
     return ROUTE_PERMISSIONS.get((request.method.upper(), route_path), "admin.only")
 
 
-def _authorize_role(role: str, request: Request) -> None:
+def _authorize_role(role: str, request: Request, asset_scope_mode: str = "all") -> None:
     permission = _route_permission(request)
     granted = ROLE_PERMISSIONS.get(role, frozenset())
+    if asset_scope_mode != "all" and permission == "credential.manage":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Credential administration requires an all-assets API credential.",
+        )
     if "*" not in granted and permission not in granted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -175,26 +213,38 @@ def require_api_key(
 ) -> ApiPrincipal:
     supplied = x_api_key or ""
     static_credentials = _configured_static_principals()
-    if any(len(candidate) < 32 for _, candidate, _, _, _ in static_credentials):
+    if any(len(candidate) < 32 for _, candidate, _, _, _, _, _ in static_credentials):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="API authentication is not securely configured. Static API keys must contain at least 32 characters.",
         )
-    matches: list[tuple[str, str, str, int, int]] = []
-    for credential_id, candidate, role, rpm_limit, daily_limit in static_credentials:
+    matches: list[tuple[str, str, str, int, int, str, frozenset[str]]] = []
+    for (
+        credential_id,
+        candidate,
+        role,
+        rpm_limit,
+        daily_limit,
+        scope_mode,
+        scope_ids,
+    ) in static_credentials:
         if hmac.compare_digest(supplied, candidate):
-            matches.append((credential_id, role, "environment", rpm_limit, daily_limit))
+            matches.append(
+                (credential_id, role, "environment", rpm_limit, daily_limit, scope_mode, scope_ids)
+            )
 
     principal: ApiPrincipal | None = None
     if matches:
         # Configuration validation prevents duplicate key material and IDs.
-        credential_id, role, source, rpm_limit, daily_limit = matches[0]
+        credential_id, role, source, rpm_limit, daily_limit, scope_mode, scope_ids = matches[0]
         principal = ApiPrincipal(
             credential_id=credential_id,
             role=role,
             credential_source=source,
             rate_limit_per_minute=rpm_limit,
             daily_request_limit=daily_limit,
+            asset_scope_mode=scope_mode,
+            asset_scope_ids=scope_ids,
         )
     elif supplied:
         digest = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
@@ -213,6 +263,24 @@ def require_api_key(
                 rotation_deadline is not None and rotation_deadline > now
             )
             if managed.revoked_at is None and (expires is None or expires > now) and rotation_valid:
+                scope_mode = getattr(managed, "asset_scope_mode", "all")
+                raw_scope_ids = getattr(managed, "asset_scope_ids", []) or []
+                if (
+                    not isinstance(scope_mode, str)
+                    or scope_mode not in {"all", "selected"}
+                    or not isinstance(raw_scope_ids, list)
+                    or any(
+                        not isinstance(asset_id, str) or len(asset_id) != 36
+                        for asset_id in raw_scope_ids
+                    )
+                    or len(raw_scope_ids) != len(set(raw_scope_ids))
+                    or (scope_mode == "selected" and not raw_scope_ids)
+                    or (scope_mode == "all" and raw_scope_ids)
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="API credential asset scope is invalid. Contact an administrator.",
+                    )
                 managed.last_used_at = now
                 principal = ApiPrincipal(
                     credential_id=managed.id,
@@ -220,6 +288,8 @@ def require_api_key(
                     credential_source="database",
                     rate_limit_per_minute=managed.rate_limit_per_minute,
                     daily_request_limit=managed.daily_request_limit,
+                    asset_scope_mode=scope_mode,
+                    asset_scope_ids=frozenset(raw_scope_ids),
                 )
 
     if principal is None:
@@ -228,7 +298,7 @@ def require_api_key(
             detail="Invalid, expired, revoked or missing API key.",
         )
 
-    _authorize_role(principal.role, request)
+    _authorize_role(principal.role, request, principal.asset_scope_mode)
     from app.services.credential_quota import consume_credential_quota
 
     retry_after = consume_credential_quota(

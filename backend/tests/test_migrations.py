@@ -130,7 +130,9 @@ class LegacyMigrationTests(unittest.TestCase):
             }
             self.assertIn("ix_security_incidents_status_severity", incident_indexes)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0006_security_incidents")
+            self.assertEqual(revision[0], "0007_credential_asset_scopes")
+            self.assertIn("asset_scope_mode", credential_columns)
+            self.assertIn("asset_scope_ids", credential_columns)
             connection.close()
 
 
