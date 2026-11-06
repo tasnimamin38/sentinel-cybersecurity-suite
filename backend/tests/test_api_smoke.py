@@ -17,7 +17,13 @@ from fastapi.testclient import TestClient
 from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import ApiCredential, ApiCredentialUsage, Assessment, RemediationTask, SecurityIncident
+from app.models import (
+    ApiCredential,
+    ApiCredentialUsage,
+    Assessment,
+    RemediationTask,
+    SecurityIncident,
+)
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -767,7 +773,11 @@ def test_rotation_enforces_global_active_credential_cap_during_grace(client):
     created = client.post(
         "/api/v1/credentials",
         headers=API_HEADERS,
-        json={"label": "Capacity-bound integration", "role": "read_only", "asset_scope_mode": "all"},
+        json={
+            "label": "Capacity-bound integration",
+            "role": "read_only",
+            "asset_scope_mode": "all",
+        },
     )
     assert created.status_code == 201
     prior = created.json()["credential"]
