@@ -72,6 +72,9 @@ def _verify_archive(directory_fd: int, name: str) -> BackupRecord:
     if not ARCHIVE_NAME.fullmatch(name):
         raise RetentionError(f"{name}: unexpected archive name.")
     archive_fd, archive_stat = _open_regular_at(directory_fd, name)
+    if archive_stat.st_size == 0:
+        os.close(archive_fd)
+        raise RetentionError(f"{name}: empty encrypted archives are not eligible for retention.")
     sidecar_name = f"{name}.sha256"
     try:
         actual_digest = _digest_file(archive_fd)
@@ -116,8 +119,14 @@ def _open_private_directory(path: Path) -> int:
         raise RetentionError("Backup directory must not be a symlink.")
     if not path.is_dir():
         raise RetentionError("Backup directory must already exist.")
-    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
-        raise RetentionError("This platform lacks safe directory-open flags; refusing retention.")
+    if (
+        not hasattr(os, "O_NOFOLLOW")
+        or not hasattr(os, "O_DIRECTORY")
+        or os.open not in os.supports_dir_fd
+        or os.stat not in os.supports_dir_fd
+        or os.unlink not in os.supports_dir_fd
+    ):
+        raise RetentionError("This platform lacks safe directory-file operations; refusing retention.")
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     directory_fd = os.open(path, flags)
     metadata = os.fstat(directory_fd)
@@ -168,6 +177,12 @@ def prune_backups(directory: Path, keep_last: int = 7, apply: bool = False) -> t
                 continue
             if (current.device, current.inode) != (record.device, record.inode):
                 print(f"SKIP {record.name}: archive identity changed.", file=sys.stderr)
+                continue
+            if (
+                current.sidecar_device,
+                current.sidecar_inode,
+            ) != (record.sidecar_device, record.sidecar_inode):
+                print(f"SKIP {record.name}: checksum sidecar identity changed.", file=sys.stderr)
                 continue
             if not apply:
                 print(f"DRY-RUN DELETE {record.name}")
