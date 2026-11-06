@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.models import AssessmentJob, Asset
 
-
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_LEASE_SECONDS = 60
 MAX_MANUAL_RETRIES = 3
