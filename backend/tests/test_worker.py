@@ -92,7 +92,7 @@ def test_worker_persists_assessment_and_job_success_in_one_transaction(tmp_path)
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        job = enqueue_assessment_job(db, asset)
+        job = enqueue_assessment_job(db, asset, scheduled_for=now)
         claimed = claim_next_job(db, "worker-a", now=now)
         assert claimed.id == job.id
 
@@ -125,7 +125,7 @@ def test_worker_discards_result_after_lease_is_lost(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        job = enqueue_assessment_job(db, asset)
+        job = enqueue_assessment_job(db, asset, scheduled_for=now)
         claim_next_job(db, "worker-a", now=now)
 
         persisted = worker.persist_job_result(
@@ -152,7 +152,7 @@ def test_worker_rechecks_authorization_before_persisting_result(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        job = enqueue_assessment_job(db, asset)
+        job = enqueue_assessment_job(db, asset, scheduled_for=now)
         claim_next_job(db, "worker-a", now=now)
         asset.authorization_expires_at = now - timedelta(seconds=1)
         db.flush()

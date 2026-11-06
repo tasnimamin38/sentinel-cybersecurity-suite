@@ -109,7 +109,7 @@ def test_expired_lease_can_be_reclaimed_by_only_one_next_worker(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        job = service.enqueue_assessment_job(db, asset)
+        job = service.enqueue_assessment_job(db, asset, scheduled_for=now)
         first = service.claim_next_job(db, "worker-a", now=now)
         assert first.id == job.id
 
@@ -187,7 +187,7 @@ def test_cancel_transitions_queued_and_running_jobs_safely(tmp_path):
         assert cancelled.completed_at == now
 
         running_asset = make_asset(db, hostname="running.example.com")
-        running_job = service.enqueue_assessment_job(db, running_asset)
+        running_job = service.enqueue_assessment_job(db, running_asset, scheduled_for=now)
         claimed = service.claim_next_job(db, "worker-a", now=now)
         assert claimed.id == running_job.id
         cancel_requested = service.request_job_cancel(db, claimed, now=now)
@@ -204,7 +204,7 @@ def test_complete_job_requires_current_lease_owner(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        job = service.enqueue_assessment_job(db, asset)
+        job = service.enqueue_assessment_job(db, asset, scheduled_for=now)
         claimed = service.claim_next_job(db, "worker-a", now=now)
 
         assert service.complete_job(db, claimed.id, "worker-b", "assessment-1") is False
@@ -224,7 +224,7 @@ def test_expired_lease_owner_cannot_heartbeat_or_complete(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        job = service.enqueue_assessment_job(db, asset)
+        job = service.enqueue_assessment_job(db, asset, scheduled_for=now)
         claimed = service.claim_next_job(db, "worker-a", now=now)
 
         expired = now + timedelta(seconds=61)
@@ -245,7 +245,7 @@ def test_worker_can_finalize_cancellation_and_permanent_failures(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         cancelled_asset = make_asset(db, "cooperative-cancel.example.com")
-        cancelled_job = service.enqueue_assessment_job(db, cancelled_asset)
+        cancelled_job = service.enqueue_assessment_job(db, cancelled_asset, scheduled_for=now)
         claimed = service.claim_next_job(db, "worker-a", now=now)
         service.request_job_cancel(db, claimed, now=now)
         assert service.finish_cancelled_job(
@@ -256,7 +256,7 @@ def test_worker_can_finalize_cancellation_and_permanent_failures(tmp_path):
         assert cancelled_job.worker_id is None
 
         failed_asset = make_asset(db, "permanent-failure.example.com")
-        failed_job = service.enqueue_assessment_job(db, failed_asset)
+        failed_job = service.enqueue_assessment_job(db, failed_asset, scheduled_for=now)
         service.claim_next_job(db, "worker-b", now=now)
         failed = service.fail_job_permanently(
             db, failed_job.id, "worker-b", "authorization expired", now=now
