@@ -25,7 +25,9 @@ def upgrade():
     if "asset_scope_mode" not in columns:
         op.add_column(
             "api_credentials",
-            sa.Column("asset_scope_mode", sa.String(length=16), nullable=False, server_default="all"),
+            sa.Column(
+                "asset_scope_mode", sa.String(length=16), nullable=False, server_default="all"
+            ),
         )
     if "asset_scope_ids" not in columns:
         op.add_column(
