@@ -44,7 +44,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.8.0-pre"
+    assert response.json()["version"] == "0.9.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -807,3 +807,33 @@ def test_rotation_enforces_global_active_credential_cap_during_grace(client):
     replacement_secret = immediate.json()["secret"]
     assert client.get("/api/v1/me", headers={"X-API-Key": prior_secret}).status_code == 401
     assert client.get("/api/v1/me", headers={"X-API-Key": replacement_secret}).status_code == 200
+
+
+def test_audit_integrity_api_exports_verifiable_historical_checkpoint(client):
+    first = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload("checkpoint-first.example.com"),
+    )
+    assert first.status_code == 201
+    first_integrity = client.get("/api/v1/audit/integrity", headers=API_HEADERS)
+    assert first_integrity.status_code == 200
+    first_checkpoint = first_integrity.json()["checkpoint"]
+    assert first_checkpoint["format"] == "sentinel.audit.checkpoint.v1"
+
+    second = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload("checkpoint-second.example.com"),
+    )
+    assert second.status_code == 201
+    current_integrity = client.get("/api/v1/audit/integrity", headers=API_HEADERS)
+    assert current_integrity.json()["checkpoint"]["sequence_no"] > first_checkpoint["sequence_no"]
+
+    historical = client.get(
+        "/api/v1/audit/integrity",
+        params={"through_sequence": first_checkpoint["sequence_no"]},
+        headers=API_HEADERS,
+    )
+    assert historical.status_code == 200
+    assert historical.json()["checkpoint"] == first_checkpoint

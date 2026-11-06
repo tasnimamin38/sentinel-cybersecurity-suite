@@ -27,3 +27,7 @@ If a credential is exposed, revoke it first, rotate dependent credentials, revie
 - Database backups encrypted and restore-tested.
 - Monitoring, alerting and incident ownership assigned.
 - Migrations, retention and audit immutability policy implemented.
+
+## Audit checkpoint verification
+
+See [Offline signed audit checkpoints](audit-checkpoints.md) for the operator workflow. Keep the Ed25519 private key outside the SENTINEL host and store signed checkpoint artifacts in an independently controlled retention destination. The application does not store the signing key or automatically upload checkpoint files.

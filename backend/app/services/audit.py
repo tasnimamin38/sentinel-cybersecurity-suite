@@ -71,9 +71,14 @@ def record_audit_event(
     return event
 
 
-def verify_audit_chain(db: Session) -> dict:
+def verify_audit_chain(db: Session, through_sequence: int | None = None) -> dict:
+    query = select(AuditEvent)
+    if through_sequence is not None:
+        query = query.where(
+            (AuditEvent.sequence_no <= through_sequence) | AuditEvent.sequence_no.is_(None)
+        )
     events = db.scalars(
-        select(AuditEvent).order_by(
+        query.order_by(
             AuditEvent.sequence_no.asc().nullsfirst(),
             AuditEvent.created_at,
             AuditEvent.id,
@@ -86,6 +91,8 @@ def verify_audit_chain(db: Session) -> dict:
     errors: list[str] = []
     chain_started = False
     verified_until: str | None = None
+    last_sequence_no: int | None = None
+    last_event_hash: str | None = None
 
     for event in events:
         if event.sequence_no is None:
@@ -111,6 +118,8 @@ def verify_audit_chain(db: Session) -> dict:
             errors.append(f"Event-hash mismatch at event {event.id}")
         expected_previous = event.event_hash
         verified_until = _utc(event.created_at).isoformat()
+        last_sequence_no = event.sequence_no
+        last_event_hash = event.event_hash
         sealed += 1
 
     integrity_valid = bool(events) and not errors and legacy_unsealed == 0 and sealed == len(events)
@@ -130,6 +139,19 @@ def verify_audit_chain(db: Session) -> dict:
         "sealed_events": sealed,
         "legacy_unsealed_events": legacy_unsealed,
         "verified_until": verified_until,
+        "last_sequence_no": last_sequence_no,
+        "last_event_hash": last_event_hash,
+        "checkpoint": (
+            {
+                "format": "sentinel.audit.checkpoint.v1",
+                "sequence_no": last_sequence_no,
+                "event_hash": last_event_hash,
+                "sealed_events": sealed,
+                "verified_until": verified_until,
+            }
+            if integrity_valid
+            else None
+        ),
         "errors": errors[:50],
         "assurance_note": (
             "Sequence numbers make event ordering explicit and hash chaining makes accidental or "
