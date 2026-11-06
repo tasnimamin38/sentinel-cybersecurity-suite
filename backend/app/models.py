@@ -165,7 +165,6 @@ class ApiCredential(Base):
     )
 
 
-
 class ApiCredentialUsage(Base):
     __tablename__ = "api_credential_usage"
 
