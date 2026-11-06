@@ -2,6 +2,20 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.22.0-pre — 2026-11-07
+
+### Added
+- Per-credential registered-asset scopes for database-managed API credentials, defaulting to selected assets with an explicit all-assets option.
+- Server-side scope enforcement across inventory, assessments and evidence, queued jobs, incidents, remediations, dashboard/config aggregates, controls and asset-bearing CSV exports.
+- Scope-aware identity permissions, global-audit and credential-administration restrictions for selected-scope keys, and scope-preserving key rotation.
+- Multi-select asset-scope controls and visible scope metadata in the operator console.
+
+### Security and compatibility boundaries
+- Existing database-managed credentials and environment-configured keys retain all-assets access during migration unless explicitly scoped.
+- Selected-scope credentials cannot create assets, run arbitrary unregistered assessments, or read/export the global audit journal.
+- Asset scope is a per-credential access boundary; it is not a substitute for independently reviewed tenant isolation, human identity or egress enforcement.
+- This pre-release branch is not merged or deployed.
+
 ## 0.18.0-pre — 2026-11-06
 
 ### Added
