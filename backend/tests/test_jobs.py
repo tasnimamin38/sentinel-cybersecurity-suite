@@ -135,7 +135,7 @@ def test_failed_attempts_use_bounded_backoff_then_dead_letter(tmp_path):
     now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
     with Session() as db:
         asset = make_asset(db)
-        service.enqueue_assessment_job(db, asset)
+        service.enqueue_assessment_job(db, asset, scheduled_for=now)
         first = service.claim_next_job(db, "worker-a", now=now)
         queued = service.fail_job_attempt(
             db, first.id, "worker-a", "temporary network failure", now=now
@@ -212,7 +212,7 @@ def test_complete_job_requires_current_lease_owner(tmp_path):
         db.refresh(job)
         assert job.status == "succeeded"
         assert job.assessment_id == "assessment-1"
-        assert job.completed_at == now
+        assert job.completed_at.replace(tzinfo=UTC) == now
     engine.dispose()
 
 
