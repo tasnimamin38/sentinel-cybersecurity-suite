@@ -6,6 +6,7 @@ import pytest
 
 from app.services.backup_crypto import (
     BackupCryptoError,
+    _publish_temp,
     decrypt_file,
     encrypt_file,
     encrypt_stream,
@@ -125,6 +126,24 @@ def test_malformed_or_truncated_archive_is_rejected(tmp_path, monkeypatch):
     with pytest.raises(BackupCryptoError, match="truncated|malformed"):
         decrypt_file(malformed, restored)
     assert not restored.exists()
+
+
+def test_atomic_publication_does_not_clobber_a_concurrent_destination(tmp_path, monkeypatch):
+    temporary = tmp_path / ".backup.tmp"
+    destination = tmp_path / "backup.enc"
+    temporary.write_bytes(b"trusted encrypted backup")
+    original_link = os.link
+
+    def create_racing_destination(source, target):
+        Path(target).write_bytes(b"concurrent file")
+        return original_link(source, target)
+
+    monkeypatch.setattr("app.services.backup_crypto.os.link", create_racing_destination)
+    with pytest.raises(BackupCryptoError, match="refusing to overwrite"):
+        _publish_temp(temporary, destination)
+
+    assert destination.read_bytes() == b"concurrent file"
+    assert temporary.read_bytes() == b"trusted encrypted backup"
 
 
 def test_stdin_stream_is_encrypted_without_creating_plaintext_staging_file(
