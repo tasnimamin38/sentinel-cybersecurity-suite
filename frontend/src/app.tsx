@@ -61,8 +61,11 @@ type ApiIdentity = { credential_id: string; role: string; credential_source: str
 type ApiCredential = {
   id: string; label: string; role: string; key_prefix: string; expires_at?: string | null;
   revoked_at?: string | null; created_by: string; created_at: string; last_used_at?: string | null;
+  rate_limit_per_minute: number; daily_request_limit: number;
+  rotated_to_id?: string | null; rotation_grace_expires_at?: string | null;
 };
 type CreatedCredential = { credential: ApiCredential; secret: string };
+type CredentialRotation = { previous_credential_id: string; grace_expires_at: string; credential: ApiCredential; secret: string };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const viewLabels: Record<View, string> = {
@@ -126,7 +129,7 @@ export default function App() {
   const [identity, setIdentity] = useState<ApiIdentity | null>(null);
   const [credentials, setCredentials] = useState<ApiCredential[]>([]);
   const [createdCredential, setCreatedCredential] = useState<CreatedCredential | null>(null);
-  const [credentialDraft, setCredentialDraft] = useState({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90) });
+  const [credentialDraft, setCredentialDraft] = useState({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90), rate_limit_per_minute: 120, daily_request_limit: 10000 });
   const [toast, setToast] = useState("Connect the API to load live security telemetry.");
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -324,9 +327,11 @@ export default function App() {
         method: "POST", body: JSON.stringify({
           label: credentialDraft.label, role: credentialDraft.role,
           expires_at: new Date(credentialDraft.expires_at).toISOString(),
+          rate_limit_per_minute: credentialDraft.rate_limit_per_minute,
+          daily_request_limit: credentialDraft.daily_request_limit,
         }),
       });
-      setCreatedCredential(created); setCredentialDraft({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90) });
+      setCreatedCredential(created); setCredentialDraft({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90), rate_limit_per_minute: 120, daily_request_limit: 10000 });
       await loadCredentials();
       notify("API credential created. Copy the secret now; it will not be shown again.", "success");
     });
@@ -337,6 +342,25 @@ export default function App() {
     await runAction(async () => {
       await api("/api/v1/credentials/" + credential.id + "/revoke", { method: "POST" });
       await loadCredentials(); notify("Credential revoked. Subsequent requests will be denied.", "success");
+    });
+  }
+
+  async function rotateCredential(credential: ApiCredential) {
+    const rawGrace = window.prompt("Rotation overlap in seconds (0 to 86400). Use 0 for immediate cutover.", "3600");
+    if (rawGrace === null) return;
+    const grace = Number(rawGrace);
+    if (!Number.isInteger(grace) || grace < 0 || grace > 86400) {
+      notify("Grace period must be a whole number between 0 and 86400 seconds.", "error");
+      return;
+    }
+    await runAction(async () => {
+      const rotated = await api<CredentialRotation>(
+        "/api/v1/credentials/" + credential.id + "/rotate",
+        { method: "POST", body: JSON.stringify({ grace_period_seconds: grace }) },
+      );
+      setCreatedCredential({ credential: rotated.credential, secret: rotated.secret });
+      await loadCredentials();
+      notify("Credential rotated. Previous key remains valid only through the configured grace window.", "success");
     });
   }
 
@@ -376,7 +400,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-emblem"><ShieldCheck size={22} strokeWidth={1.8} /></div>
-          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.7.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
+          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.8.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
         </div>
         <div className="workspace-chip"><span className="live-dot" /> PRIVATE SECURITY WORKSPACE <ChevronDown size={13} /></div>
         <div className="sidebar-scroll">
@@ -576,20 +600,27 @@ export default function App() {
                       <label className="field-label">CREDENTIAL LABEL<input value={credentialDraft.label} onChange={(event) => setCredentialDraft({ ...credentialDraft, label: event.target.value })} required minLength={2} maxLength={80} /></label>
                       <label className="field-label">ROLE<select value={credentialDraft.role} onChange={(event) => setCredentialDraft({ ...credentialDraft, role: event.target.value })}><option value="analyst">Analyst</option><option value="asset_manager">Asset manager</option><option value="auditor">Auditor</option><option value="read_only">Read only</option><option value="admin">Administrator</option></select></label>
                       <label className="field-label">EXPIRES AT<input type="datetime-local" value={credentialDraft.expires_at} onChange={(event) => setCredentialDraft({ ...credentialDraft, expires_at: event.target.value })} required /></label>
+                      <label className="field-label">REQUESTS / MIN<input type="number" min={1} max={600} value={credentialDraft.rate_limit_per_minute} onChange={(event) => setCredentialDraft({ ...credentialDraft, rate_limit_per_minute: Number(event.target.value) })} required /></label>
+                      <label className="field-label">REQUESTS / DAY<input type="number" min={1} max={1000000} value={credentialDraft.daily_request_limit} onChange={(event) => setCredentialDraft({ ...credentialDraft, daily_request_limit: Number(event.target.value) })} required /></label>
                     </div>
-                    <div className="form-footer"><p>Maximum lifetime: 365 days. Default: 90 days. Keep one independent admin credential for recovery.</p><button className="button-connect" disabled={busy || credentialDraft.label.trim().length < 2}><Plus size={14} /> CREATE API CREDENTIAL</button></div>
+                    <div className="form-footer"><p>Max lifetime 365 days · default 90 days · 1–600 requests/min · 1–1,000,000 requests/day. Keep one independent admin key for recovery.</p><button className="button-connect" disabled={busy || credentialDraft.label.trim().length < 2 || credentialDraft.rate_limit_per_minute < 1 || credentialDraft.rate_limit_per_minute > 600 || credentialDraft.daily_request_limit < 1 || credentialDraft.daily_request_limit > 1000000}><Plus size={14} /> CREATE API CREDENTIAL</button></div>
                   </form>
                   <div className="credential-inventory-heading"><div><span>MANAGED CREDENTIALS</span><b>{credentials.length} records</b></div><button className="link-button" onClick={() => runAction(loadCredentials)} disabled={busy}><RefreshCw size={13} /> REFRESH</button></div>
                   {credentials.length ? <div className="table-wrap"><table className="data-table credential-table">
-                    <thead><tr><th>LABEL / PREFIX</th><th>ROLE</th><th>CREATED</th><th>LAST USED</th><th>EXPIRES</th><th>STATUS</th><th>ACTION</th></tr></thead>
+                    <thead><tr><th>LABEL / PREFIX</th><th>ROLE</th><th>LIMITS</th><th>CREATED</th><th>LAST USED</th><th>EXPIRES</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
                     <tbody>{credentials.map((credential) => {
                       const expired = Boolean(credential.expires_at && new Date(credential.expires_at).getTime() <= Date.now());
-                      const active = !credential.revoked_at && !expired;
+                      const graceActive = Boolean(credential.rotated_to_id && credential.rotation_grace_expires_at && new Date(credential.rotation_grace_expires_at).getTime() > Date.now());
+                      const rotationEnded = Boolean(credential.rotated_to_id && !graceActive);
+                      const active = !credential.revoked_at && !expired && !rotationEnded;
+                      const state = credential.revoked_at ? "REVOKED" : expired ? "EXPIRED" : graceActive ? "ROTATION GRACE" : rotationEnded ? "ROTATED" : "ACTIVE";
                       return <tr key={credential.id}>
-                        <td><b>{credential.label}</b><br /><code>{credential.key_prefix}…</code></td><td><span className="env-chip">{credential.role.replace("_", " ")}</span></td>
+                        <td><b>{credential.label}</b><br /><code>{credential.key_prefix}…</code></td>
+                        <td><span className="env-chip">{credential.role.replace("_", " ")}</span></td>
+                        <td><span className="credential-limit">{credential.rate_limit_per_minute}/min</span><br /><span className="credential-limit">{credential.daily_request_limit.toLocaleString()}/day</span></td>
                         <td>{dateTimeLabel(credential.created_at)}</td><td>{dateTimeLabel(credential.last_used_at)}</td><td>{dateTimeLabel(credential.expires_at)}</td>
-                        <td><span className={"credential-state " + (active ? "active" : "inactive")}>{credential.revoked_at ? "REVOKED" : expired ? "EXPIRED" : "ACTIVE"}</span></td>
-                        <td><button className="table-action" disabled={busy || !active || credential.id === identity?.credential_id} onClick={() => revokeCredential(credential)}>REVOKE</button></td>
+                        <td><span className={"credential-state " + (active ? "active" : "inactive")}>{state}</span>{graceActive && <small className="credential-grace">until {dateTimeLabel(credential.rotation_grace_expires_at)}</small>}</td>
+                        <td className="credential-actions"><button className="table-action" disabled={busy || !active || Boolean(credential.rotated_to_id)} onClick={() => rotateCredential(credential)}>ROTATE</button><button className="table-action" disabled={busy || !active || credential.id === identity?.credential_id} onClick={() => revokeCredential(credential)}>REVOKE</button></td>
                       </tr>;
                     })}</tbody>
                   </table></div> : <EmptyState icon={<KeyRound size={22} />} title="No managed credentials" text="Create a scoped service key for an integration, analyst or audit workflow." /> }
@@ -597,7 +628,7 @@ export default function App() {
               )}
             </>
           )}
-          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.7.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.8.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>

@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import ApiCredential, Assessment, RemediationTask
+from app.models import ApiCredential, ApiCredentialUsage, Assessment, RemediationTask
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -44,7 +44,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.7.0-pre"
+    assert response.json()["version"] == "0.8.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -465,7 +465,17 @@ def test_role_scoped_environment_credentials_enforce_route_permissions(client, m
     monkeypatch.setattr(
         settings,
         "api_credentials_json",
-        json.dumps([{"id": "analyst-ci", "key": analyst_key, "role": "analyst"}]),
+        json.dumps(
+            [
+                {
+                    "id": "analyst-ci",
+                    "key": analyst_key,
+                    "role": "analyst",
+                    "rate_limit_per_minute": 2,
+                    "daily_request_limit": 10,
+                }
+            ]
+        ),
     )
     analyst_headers = {"X-API-Key": analyst_key}
 
@@ -486,6 +496,10 @@ def test_role_scoped_environment_credentials_enforce_route_permissions(client, m
 
     denied_admin = client.get("/api/v1/credentials", headers=analyst_headers)
     assert denied_admin.status_code == 403
+
+    throttled = client.get("/api/v1/assets", headers=analyst_headers)
+    assert throttled.status_code == 429
+    assert int(throttled.headers["retry-after"]) >= 1
 
 
 def test_managed_api_credential_is_hash_only_one_time_and_revocable(client):
@@ -622,3 +636,174 @@ def test_managed_credential_expiry_blocks_authentication(client):
 
     rejected = client.get("/api/v1/me", headers={"X-API-Key": key})
     assert rejected.status_code == 401
+
+
+def test_managed_credential_enforces_per_minute_quota_and_persists_usage(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={
+            "label": "Rate-limited monitor",
+            "role": "read_only",
+            "rate_limit_per_minute": 2,
+            "daily_request_limit": 10,
+        },
+    )
+    assert created.status_code == 201
+    credential = created.json()["credential"]
+    key = created.json()["secret"]
+    headers = {"X-API-Key": key}
+
+    assert client.get("/api/v1/me", headers=headers).status_code == 200
+    assert client.get("/api/v1/assets", headers=headers).status_code == 200
+    limited = client.get("/api/v1/assets", headers=headers)
+    assert limited.status_code == 429
+    assert int(limited.headers["retry-after"]) >= 1
+    assert "quota exceeded" in limited.json()["detail"].lower()
+
+    db = SessionLocal()
+    try:
+        usage = db.get(ApiCredentialUsage, credential["id"])
+        assert usage is not None
+        assert usage.minute_requests == 2
+        assert usage.day_requests == 2
+    finally:
+        db.close()
+
+
+def test_managed_credential_enforces_daily_quota(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={
+            "label": "Daily-limited monitor",
+            "role": "read_only",
+            "rate_limit_per_minute": 10,
+            "daily_request_limit": 1,
+        },
+    )
+    assert created.status_code == 201
+    headers = {"X-API-Key": created.json()["secret"]}
+
+    assert client.get("/api/v1/me", headers=headers).status_code == 200
+    limited = client.get("/api/v1/assets", headers=headers)
+    assert limited.status_code == 429
+    assert 1 <= int(limited.headers["retry-after"]) <= 86400
+
+
+def test_managed_credential_rotation_preserves_grace_and_expires_old_key(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={
+            "label": "Rotating integration",
+            "role": "read_only",
+            "rate_limit_per_minute": 20,
+            "daily_request_limit": 100,
+        },
+    )
+    assert created.status_code == 201
+    old_credential = created.json()["credential"]
+    old_key = created.json()["secret"]
+
+    rotated = client.post(
+        f"/api/v1/credentials/{old_credential['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 3600},
+    )
+    assert rotated.status_code == 201
+    rotation = rotated.json()
+    replacement = rotation["credential"]
+    new_key = rotation["secret"]
+    assert rotation["previous_credential_id"] == old_credential["id"]
+    assert replacement["id"] != old_credential["id"]
+    assert replacement["rate_limit_per_minute"] == 20
+    assert replacement["daily_request_limit"] == 100
+
+    # Both keys are accepted while the previous key's overlap window is live.
+    assert client.get("/api/v1/me", headers={"X-API-Key": old_key}).status_code == 200
+    assert client.get("/api/v1/me", headers={"X-API-Key": new_key}).status_code == 200
+
+    db = SessionLocal()
+    try:
+        prior = db.get(ApiCredential, old_credential["id"])
+        assert prior.rotated_to_id == replacement["id"]
+        assert prior.rotation_grace_expires_at is not None
+    finally:
+        db.close()
+
+    # A zero-second rotation ends overlap immediately and returns a one-time replacement.
+    immediate = client.post(
+        f"/api/v1/credentials/{replacement['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 0},
+    )
+    assert immediate.status_code == 201
+    final_secret = immediate.json()["secret"]
+    assert client.get("/api/v1/me", headers={"X-API-Key": new_key}).status_code == 401
+    assert client.get("/api/v1/me", headers={"X-API-Key": final_secret}).status_code == 200
+
+    events = client.get("/api/v1/audit?limit=100", headers=API_HEADERS).json()
+    assert any(
+        event["event_type"] == "api_credential.rotated" and old_credential["id"] in event["details"]
+        for event in events
+    )
+
+
+def test_rotation_enforces_global_active_credential_cap_during_grace(client):
+    db = SessionLocal()
+    try:
+        db.query(ApiCredential).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={"label": "Capacity-bound integration", "role": "read_only"},
+    )
+    assert created.status_code == 201
+    prior = created.json()["credential"]
+    prior_secret = created.json()["secret"]
+
+    now = datetime.now(UTC)
+    db = SessionLocal()
+    try:
+        db.add_all(
+            [
+                ApiCredential(
+                    id=f"cap-{index:04d}",
+                    label=f"Capacity fixture {index}",
+                    role="read_only",
+                    key_hash=hashlib.sha256(f"capacity-fixture-{index}".encode()).hexdigest(),
+                    key_prefix=f"capacity{index:04d}",
+                    expires_at=now + timedelta(days=30),
+                    created_by="capacity-test",
+                    created_at=now,
+                    rate_limit_per_minute=120,
+                    daily_request_limit=10000,
+                )
+                for index in range(249)
+            ]
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    blocked_overlap = client.post(
+        f"/api/v1/credentials/{prior['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 3600},
+    )
+    assert blocked_overlap.status_code == 409
+
+    immediate = client.post(
+        f"/api/v1/credentials/{prior['id']}/rotate",
+        headers=API_HEADERS,
+        json={"grace_period_seconds": 0},
+    )
+    assert immediate.status_code == 201
+    replacement_secret = immediate.json()["secret"]
+    assert client.get("/api/v1/me", headers={"X-API-Key": prior_secret}).status_code == 401
+    assert client.get("/api/v1/me", headers={"X-API-Key": replacement_secret}).status_code == 200

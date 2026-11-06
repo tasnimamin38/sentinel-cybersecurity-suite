@@ -18,6 +18,8 @@ class ApiPrincipal:
     credential_id: str
     role: str
     credential_source: str
+    rate_limit_per_minute: int
+    daily_request_limit: int
 
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
@@ -112,16 +114,25 @@ ROUTE_PERMISSIONS: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/credentials"): "credential.manage",
     ("POST", "/api/v1/credentials"): "credential.manage",
     ("POST", "/api/v1/credentials/{credential_id}/revoke"): "credential.manage",
+    ("POST", "/api/v1/credentials/{credential_id}/rotate"): "credential.manage",
 }
 
 
-def _configured_static_principals() -> list[tuple[str, str, str]]:
+def _configured_static_principals() -> list[tuple[str, str, str, int, int]]:
     settings = get_settings()
-    principals: list[tuple[str, str, str]] = []
+    principals: list[tuple[str, str, str, int, int]] = []
     for index, key in enumerate(settings.configured_api_keys):
-        principals.append((f"legacy-admin-{index + 1}", key, "admin"))
+        principals.append((f"legacy-admin-{index + 1}", key, "admin", 600, 1_000_000))
     for item in getattr(settings, "configured_role_credentials", []):
-        principals.append((item["id"], item["key"], item["role"]))
+        principals.append(
+            (
+                item["id"],
+                item["key"],
+                item["role"],
+                item.get("rate_limit_per_minute", 120),
+                item.get("daily_request_limit", 10000),
+            )
+        )
     return principals
 
 
@@ -154,21 +165,27 @@ def require_api_key(
 ) -> ApiPrincipal:
     supplied = x_api_key or ""
     static_credentials = _configured_static_principals()
-    if any(len(candidate) < 32 for _, candidate, _ in static_credentials):
+    if any(len(candidate) < 32 for _, candidate, _, _, _ in static_credentials):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="API authentication is not securely configured. Static API keys must contain at least 32 characters.",
         )
-    matches: list[tuple[str, str, str]] = []
-    for credential_id, candidate, role in static_credentials:
+    matches: list[tuple[str, str, str, int, int]] = []
+    for credential_id, candidate, role, rpm_limit, daily_limit in static_credentials:
         if hmac.compare_digest(supplied, candidate):
-            matches.append((credential_id, role, "environment"))
+            matches.append((credential_id, role, "environment", rpm_limit, daily_limit))
 
     principal: ApiPrincipal | None = None
     if matches:
         # Configuration validation prevents duplicate key material and IDs.
-        credential_id, role, source = matches[0]
-        principal = ApiPrincipal(credential_id=credential_id, role=role, credential_source=source)
+        credential_id, role, source, rpm_limit, daily_limit = matches[0]
+        principal = ApiPrincipal(
+            credential_id=credential_id,
+            role=role,
+            credential_source=source,
+            rate_limit_per_minute=rpm_limit,
+            daily_request_limit=daily_limit,
+        )
     elif supplied:
         digest = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
         managed = db.scalar(
@@ -177,13 +194,22 @@ def require_api_key(
         if managed is not None and hmac.compare_digest(managed.key_hash, digest):
             now = datetime.now(UTC)
             expires = _as_utc(managed.expires_at) if managed.expires_at is not None else None
-            if managed.revoked_at is None and (expires is None or expires > now):
+            rotation_deadline = (
+                _as_utc(managed.rotation_grace_expires_at)
+                if managed.rotation_grace_expires_at is not None
+                else None
+            )
+            rotation_valid = managed.rotated_to_id is None or (
+                rotation_deadline is not None and rotation_deadline > now
+            )
+            if managed.revoked_at is None and (expires is None or expires > now) and rotation_valid:
                 managed.last_used_at = now
-                db.commit()
                 principal = ApiPrincipal(
                     credential_id=managed.id,
                     role=managed.role,
                     credential_source="database",
+                    rate_limit_per_minute=managed.rate_limit_per_minute,
+                    daily_request_limit=managed.daily_request_limit,
                 )
 
     if principal is None:
@@ -193,5 +219,20 @@ def require_api_key(
         )
 
     _authorize_role(principal.role, request)
+    from app.services.credential_quota import consume_credential_quota
+
+    retry_after = consume_credential_quota(
+        db,
+        principal.credential_id,
+        principal.rate_limit_per_minute,
+        principal.daily_request_limit,
+    )
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="API credential request quota exceeded. Retry after the quota window resets.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    db.commit()
     request.state.api_principal = principal
     return principal

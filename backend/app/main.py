@@ -26,6 +26,8 @@ from app.schemas import (
     CredentialCreatedResponse,
     CredentialResponse,
     CredentialRevokeResponse,
+    CredentialRotateRequest,
+    CredentialRotationResponse,
     OverviewResponse,
     RemediationCreate,
     RemediationResponse,
@@ -53,7 +55,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.7.0-pre",
+    version="0.8.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -132,6 +134,8 @@ def create_api_credential(
             .where(
                 ApiCredential.revoked_at.is_(None),
                 (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+                (ApiCredential.rotated_to_id.is_(None))
+                | (ApiCredential.rotation_grace_expires_at > now),
             )
         )
         or 0
@@ -150,6 +154,8 @@ def create_api_credential(
         expires_at=payload.expires_at or (now + timedelta(days=90)),
         created_by=principal.credential_id,
         created_at=now,
+        rate_limit_per_minute=payload.rate_limit_per_minute,
+        daily_request_limit=payload.daily_request_limit,
     )
     db.add(item)
     db.flush()
@@ -203,6 +209,104 @@ def revoke_api_credential(
     return {"id": item.id, "status": "revoked", "revoked_at": item.revoked_at}
 
 
+@app.post(
+    "/api/v1/credentials/{credential_id}/rotate",
+    response_model=CredentialRotationResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_api_key)],
+)
+def rotate_api_credential(
+    credential_id: str,
+    payload: CredentialRotateRequest,
+    response: Response,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(UTC)
+    item = db.scalar(
+        select(ApiCredential).where(ApiCredential.id == credential_id).with_for_update()
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="API credential not found.")
+    if item.revoked_at is not None or item.rotated_to_id is not None:
+        raise HTTPException(
+            status_code=409, detail="Only an active, unrotated credential can be rotated."
+        )
+    current_expiry = (
+        _aware_utc(item.expires_at) if item.expires_at is not None else now + timedelta(days=90)
+    )
+    if current_expiry <= now:
+        raise HTTPException(status_code=409, detail="An expired credential cannot be rotated.")
+
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": 7812340912346},
+        )
+    active_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ApiCredential)
+            .where(
+                ApiCredential.id != item.id,
+                ApiCredential.revoked_at.is_(None),
+                (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+                (ApiCredential.rotated_to_id.is_(None))
+                | (ApiCredential.rotation_grace_expires_at > now),
+            )
+        )
+        or 0
+    )
+    grace_expires_at = now + timedelta(seconds=payload.grace_period_seconds)
+    temporary_previous_key = payload.grace_period_seconds > 0
+    projected_active_count = active_count + 1 + int(temporary_previous_key)
+    if projected_active_count > 250:
+        raise HTTPException(
+            status_code=409,
+            detail="The active API credential limit would be exceeded during the rotation grace period.",
+        )
+
+    secret = secrets.token_urlsafe(48)
+    replacement = ApiCredential(
+        label=item.label,
+        role=item.role,
+        key_hash=hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+        key_prefix=secret[:12],
+        expires_at=current_expiry,
+        created_by=principal.credential_id,
+        created_at=now,
+        rate_limit_per_minute=item.rate_limit_per_minute,
+        daily_request_limit=item.daily_request_limit,
+    )
+    db.add(replacement)
+    db.flush()
+
+    item.rotated_to_id = replacement.id
+    item.rotation_grace_expires_at = grace_expires_at
+    db.add(
+        record_audit_event(
+            db,
+            event_type="api_credential.rotated",
+            subject=item.label,
+            details=(
+                f"previous_credential_id={item.id}; replacement_credential_id={replacement.id}; "
+                f"grace_period_seconds={payload.grace_period_seconds}; actor={principal.credential_id}"
+            ),
+        )
+    )
+    db.commit()
+    db.refresh(replacement)
+    db.refresh(item)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {
+        "previous_credential_id": item.id,
+        "grace_expires_at": grace_expires_at,
+        "credential": replacement,
+        "secret": secret,
+    }
+
+
 def _aware_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
@@ -239,7 +343,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.7.0-pre",
+        "version": "0.8.0-pre",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -272,7 +376,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.7.0-pre",
+        "version": "0.8.0-pre",
         "authorized_domains": settings.allowed_domain_list,
         "features": [
             "dns-pinned-https-headers",
@@ -301,6 +405,9 @@ def read_config():
             "role-scoped-static-api-credentials",
             "database-managed-api-credentials",
             "credential-expiry-and-revocation",
+            "per-service-fixed-window-api-quotas",
+            "postgresql-atomic-credential-rate-limits",
+            "credential-rotation-with-bounded-grace-period",
         ],
         "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
     }

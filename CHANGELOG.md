@@ -2,6 +2,26 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.8.0-pre — 2026-11-06
+
+### Added
+- Per-service fixed UTC minute and daily request quotas for database-managed and environment-managed service credentials.
+- PostgreSQL advisory transaction locks to serialize first-use and concurrent quota counters across API replicas.
+- HTTP 429 responses with a `Retry-After` value representing the longest exhausted quota window.
+- Bounded per-credential limits: 1–600 requests/minute and 1–1,000,000 requests/day; role-scoped environment credentials default to 120/minute and 10,000/day.
+- Controlled database-managed API credential rotation with a 0–24 hour grace window. Replacement credentials inherit the role, quota limits and original expiry; previous keys are rejected after grace expires.
+- Admin console controls for request limits, key rotation, rotation-grace status and revocation.
+- Migration 0005 adds quota policy fields, rotation metadata and the per-credential usage counter table.
+
+### Security and compatibility
+- Legacy bootstrap admin keys remain backward-compatible with bounded 600/minute and 1,000,000/day limits.
+- Environment-managed keys continue to be rotated through deployment configuration; the managed rotation API only applies to database-managed credentials.
+- Audit events record rotation identifiers and grace duration, never raw secrets or key digests.
+- Quotas are per credential, not per tenant, user or client IP. Clients sharing a key share its quota.
+
+### Validation
+- GitHub Actions CI #192: 107 backend tests passed; no known dependency vulnerabilities; Ruff format passed for 52 Python files; Ruff lint passed; frontend dependency audit and production build passed; Compose validation and backend/frontend Docker image builds passed.
+- CodeQL #189: Python and JavaScript/TypeScript analyses both passed.
 ## 0.3.2 — 2026-11-06
 
 ### Added
