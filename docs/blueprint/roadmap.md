@@ -72,6 +72,19 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 
 **Exit gate:** CI role-boundary tests, credential hash-only persistence checks, expiry/revocation tests, audit redaction and independent authorization review.
 
+## 0.8 — Service quotas and controlled credential rotation
+
+- [x] Per-service fixed UTC minute and daily quotas for database-managed and environment-managed service identities
+- [x] PostgreSQL advisory transaction locking to keep first-use and concurrent counters atomic across API replicas
+- [x] HTTP 429 responses with Retry-After semantics
+- [x] Database-managed credential quota configuration with bounded values and role-preserving rotation
+- [x] Zero-downtime managed-key rotation with a 0–24 hour grace window and automatic old-key rejection
+- [x] Audit events for rotation that omit raw secrets and key digests
+- [ ] OIDC/SAML federation, MFA and human user sessions
+- [ ] Per-tenant quotas, spend budgets and adaptive abuse detection
+- [ ] External secret-manager API integration and expiry/rotation notifications
+
+**Exit gate:** minute/day counter boundary tests, PostgreSQL concurrency test, rotation grace/expiry tests, dependency audit, Ruff, frontend build and CodeQL.
 ## 1.0 — Production readiness
 
 - Independent penetration test and remediation of critical/high issues
