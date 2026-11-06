@@ -398,6 +398,7 @@ def readyz(db: Session = Depends(get_db)):
 def read_config():
     return {
         "version": "0.10.0-pre",
+        "metrics_enabled": settings.metrics_enabled,
         "authorized_domains": settings.allowed_domain_list,
         "features": [
             "dns-pinned-https-headers",
