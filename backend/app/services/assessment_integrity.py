@@ -43,7 +43,9 @@ def assessment_evidence_digest(assessment: Assessment) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def _event_fields(details: str) -> dict[str, str]:
+def _event_fields(details: str | None) -> dict[str, str]:
+    if not isinstance(details, str):
+        return {}
     fields: dict[str, str] = {}
     for token in details.split(";"):
         key, separator, value = token.strip().partition("=")
