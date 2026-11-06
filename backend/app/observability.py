@@ -118,7 +118,6 @@ class RequestMetrics:
 HTTP_METRICS = RequestMetrics()
 
 
-
 def log_http_request(
     request_id: str,
     method: str,
@@ -139,4 +138,6 @@ def log_http_request(
         "status_code": normalized_status,
         "duration_ms": round(max(0.0, float(duration_seconds)) * 1000, 3),
     }
-    _ACCESS_LOGGER.info(json.dumps(event, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
+    _ACCESS_LOGGER.info(
+        json.dumps(event, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    )
