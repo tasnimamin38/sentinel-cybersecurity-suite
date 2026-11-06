@@ -56,6 +56,61 @@ def test_apply_deletes_only_older_verified_archive_and_checksum(tmp_path):
     assert Path(f"{newest}.sha256").exists()
 
 
+def test_retention_uses_filename_timestamp_not_mutable_mtime(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    older_name = _archive(directory, "20261101T000000Z", b"older", 300)
+    newer_name = _archive(directory, "20261102T000000Z", b"newer", 100)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=False)
+
+    output = capsys.readouterr().out
+    assert (verified, retained, deleted) == (2, 1, 0)
+    assert f"KEEP {newer_name.name}" in output
+    assert f"DRY-RUN DELETE {older_name.name}" in output
+
+
+def test_invalid_calendar_timestamp_is_never_deleted(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    invalid = _archive(directory, "20261301T000000Z", b"invalid-date", 300)
+    valid = _archive(directory, "20261102T000000Z", b"valid", 100)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (1, 1, 0)
+    assert invalid.exists()
+    assert valid.exists()
+    assert "valid UTC date/time" in capsys.readouterr().err
+
+
+def test_backup_directory_must_be_owned_by_invoking_user(tmp_path, monkeypatch):
+    directory = _private_directory(tmp_path / "backups")
+    actual_uid = os.geteuid()
+    monkeypatch.setattr(os, "geteuid", lambda: actual_uid + 1)
+
+    with pytest.raises(RetentionError, match="owned by the invoking user"):
+        prune_backups(directory)
+
+
+def test_hard_linked_archive_is_never_deleted(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    target = tmp_path / "outside.enc"
+    target.write_bytes(b"shared-backup")
+    target.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    archive = directory / "sentinel-20261101T000000Z.dump.enc"
+    os.link(target, archive)
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    sidecar = directory / f"{archive.name}.sha256"
+    sidecar.write_text(f"{digest}  {archive.name}\\n", encoding="ascii")
+    sidecar.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (0, 0, 0)
+    assert archive.exists()
+    assert target.exists()
+    assert "hard-linked files" in capsys.readouterr().err
+
+
 def test_invalid_checksum_is_never_deleted_or_counted_as_verified(tmp_path, capsys):
     directory = _private_directory(tmp_path / "backups")
     valid = _archive(directory, "20261102T000000Z", b"valid", 200)
