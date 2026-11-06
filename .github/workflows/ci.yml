@@ -18,6 +18,22 @@ jobs:
   backend:
     name: Backend security and tests
     runs-on: ubuntu-latest
+    env:
+      SENTINEL_TEST_POSTGRES_URL: postgresql+psycopg://sentinel:ci-only-postgres-password@localhost:5432/sentinel_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sentinel_test
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: ci-only-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinel -d sentinel_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend

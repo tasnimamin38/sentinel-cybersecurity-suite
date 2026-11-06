@@ -34,13 +34,18 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 
 ## 0.5 — Scalable data plane
 
-- Durable queue, scheduler, idempotent jobs and cancellation
-- Isolated ephemeral workers and strict execution/resource budgets
-- Network egress gateway and connection-time destination enforcement
-- Bounded retry policy and dead-letter workflow
-- External encrypted evidence storage with retention and access control
+- [x] PostgreSQL-backed durable assessment queue, scheduled availability and idempotency
+- [x] Authenticated job listing, detail, cancellation and manual retry lifecycle
+- [x] Independent resource-bounded worker service; no API-process network assessment for queued jobs
+- [x] PostgreSQL `FOR UPDATE SKIP LOCKED` claims, renewable leases and stale-worker recovery
+- [x] Authorization re-check before execution and before result persistence
+- [x] Bounded automatic retry/backoff and dead-letter workflow
+- [x] Worker cancellation polling and atomic assessment/result/audit persistence
+- [ ] Per-job disposable sandbox isolation and strict outbound egress gateway/firewall
+- [ ] External encrypted evidence storage with retention and access control
+- [ ] Sustained load/soak tests and production queue recovery drills
 
-**Exit gate:** load tests, queue recovery, worker isolation and egress policy validation.
+**Exit gate:** PostgreSQL race test, CI backend tests, queue crash-recovery/load tests, independent egress enforcement and stronger per-job isolation.
 
 ## 0.6 — Audit and operational assurance
 

@@ -23,7 +23,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 
 <div align="center">
 
-| 0.3.2 capability | Implementation |
+| Capability | Implementation |
 |:---|:---:|
 | Time-bounded authorized asset inventory | Implemented |
 | DNS-pinned HTTPS/TLS and extended email/certificate DNS posture | Implemented |
@@ -36,8 +36,10 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Alembic schema migrations | Implemented |
 | Overlapping API-key rotation | Implemented |
 | Audited CSV exports with formula-injection defense | Implemented |
-| SSO, RBAC and multi-tenant isolation | Roadmap |
-| Durable workers, queue and egress gateway | Roadmap |
+| PostgreSQL durable assessment queue, idempotency and cancellation | Implemented in 0.6 branch |
+| Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
+| OIDC/SSO, MFA, full RBAC and multi-tenant isolation | Roadmap |
+| Independent network egress gateway and immutable evidence storage | Roadmap |
 
 </div>
 
@@ -153,7 +155,12 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code>.
 | <code>GET</code> | <code>/api/v1/overview</code> | Operational summary |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/assets</code> | List and register authorized assets |
 | <code>PATCH</code> | <code>/api/v1/assets/{asset_id}</code> | Update asset metadata/authorization |
-| <code>POST</code> | <code>/api/v1/assets/{asset_id}/assessments</code> | Assess a registered, currently authorized asset |
+| <code>POST</code> | <code>/api/v1/assets/{asset_id}/assessments</code> | Synchronous compatibility route for a registered, currently authorized asset |
+| <code>POST</code> | <code>/api/v1/assessment-jobs</code> | Enqueue an idempotent, optionally scheduled registered-asset assessment (HTTP 202) |
+| <code>GET</code> | <code>/api/v1/assessment-jobs</code> | List durable jobs with status filter |
+| <code>GET</code> | <code>/api/v1/assessment-jobs/{job_id}</code> | Job status, lease and linked result |
+| <code>POST</code> | <code>/api/v1/assessment-jobs/{job_id}/cancel</code> | Cancel or request cooperative cancellation |
+| <code>POST</code> | <code>/api/v1/assessment-jobs/{job_id}/retry</code> | Manually retry failed/dead-letter jobs after authorization re-check |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/assessments</code> | List or run an ad-hoc in-scope assessment |
 | <code>GET</code> | <code>/api/v1/assessments/{assessment_id}</code> | Assessment detail |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/remediations</code> | List or create remediation tasks |
@@ -163,6 +170,8 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code>.
 | <code>GET</code> | <code>/api/v1/audit</code> | Recent audit events and hashes |
 | <code>GET</code> | <code>/api/v1/audit/integrity</code> | Verify hash-chain continuity |
 | <code>GET</code> | <code>/api/v1/exports/{dataset}.csv</code> | Authenticated, bounded and audited CSV export (`assets`, `assessments`, `findings`, `remediations`, `audit`) |
+
+Queued work is processed by the separate PostgreSQL-backed worker service; the API does not execute queued network assessments in the request process. See [assessment job and worker operations](docs/assessment-jobs.md) for lifecycle, retry, lease and scaling details.
 
 Interactive API documentation is enabled only outside production at <code>/docs</code>.
 
@@ -199,7 +208,7 @@ Interactive API documentation is enabled only outside production at <code>/docs<
    docker compose up --build
    ~~~
 
-5. Open the console at <code>http://localhost:8080</code>. API liveness is <code>http://localhost:8000/healthz</code>; readiness is <code>http://localhost:8000/readyz</code>.
+5. Open the console at <code>http://localhost:8080</code>. API liveness is <code>http://localhost:8000/healthz</code>; readiness is <code>http://localhost:8000/readyz</code>. Compose also starts one isolated assessment worker after API readiness. Scale the worker independently with <code>docker compose up -d --scale worker=3 worker</code>.
 
 The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network; the API joins a separate outbound network for authorized DNS/HTTPS checks; the static console is isolated on its own internal web network. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
 
@@ -255,7 +264,7 @@ The CI workflow runs Python dependency auditing with pip-audit, npm dependency a
 | OIDC/SSO, MFA, RBAC and service identities | Roadmap | Current API key is a single shared operator credential |
 | Multi-tenant isolation and row-level policy | Roadmap | Current data model is single-workspace |
 | Distributed rate limits and quotas | Roadmap | No cluster-wide abuse control yet |
-| Durable assessment queue and isolated workers | Roadmap | Assessments execute in the API process |
+| Per-job disposable sandboxes and stronger worker isolation | Roadmap | Current worker replicas are resource-bounded containers but share the host kernel |
 | Network egress gateway / firewall enforcement | Deployment requirement | App-level IP pinning is not a network boundary |
 | External append-only audit export/checkpoints | Roadmap | Database administrators can rewrite the stored chain |
 | Secret manager and managed key lifecycle | Roadmap | Rotation overlap is implemented; production secret custody still needs a secret manager |
@@ -270,9 +279,11 @@ See [system architecture](docs/blueprint/system-architecture.md), [security algo
 ~~~text
 backend/
   app/
-    services/        # scope, DNS, pinned HTTPS, risk, audit, controls, secrets
+    routes/           # authenticated assessment-job API
+    services/         # scope, DNS, pinned HTTPS, risk, audit, queue and evidence persistence
+    worker.py         # separate durable assessment worker entry point
   alembic/            # versioned database migrations
-  tests/              # API, authorization, risk, transport and migration tests
+  tests/              # API, queue lifecycle, worker safety, PostgreSQL race and migration tests
 frontend/
   src/                # React operations console and SOC design system
 docs/
