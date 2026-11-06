@@ -211,6 +211,20 @@ def test_empty_archive_is_never_deleted(tmp_path, capsys):
     assert "empty encrypted archives" in capsys.readouterr().err
 
 
+def test_sidecar_must_not_be_group_or_other_accessible(tmp_path, capsys):
+    directory = _private_directory(tmp_path / "backups")
+    archive = _archive(directory, "20261101T000000Z", b"one", 100)
+    sidecar = Path(f"{archive}.sha256")
+    sidecar.chmod(0o644)
+
+    verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
+
+    assert (verified, retained, deleted) == (0, 0, 0)
+    assert archive.exists()
+    assert sidecar.exists()
+    assert "private regular file" in capsys.readouterr().err
+
+
 def test_keep_last_must_never_be_zero(tmp_path):
     directory = _private_directory(tmp_path / "backups")
 
@@ -232,10 +246,11 @@ def test_cli_requires_explicit_apply_for_deletion(tmp_path, capsys):
     assert "deleted=1" in capsys.readouterr().out
 
 
-def test_archive_and_sidecar_must_be_private(tmp_path, capsys):
+@pytest.mark.parametrize("unsafe_mode", [0o644, 0o700])
+def test_archive_and_sidecar_must_be_private(tmp_path, capsys, unsafe_mode):
     directory = _private_directory(tmp_path / "backups")
     archive = _archive(directory, "20261101T000000Z", b"one", 100)
-    archive.chmod(0o644)
+    archive.chmod(unsafe_mode)
 
     verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
 
