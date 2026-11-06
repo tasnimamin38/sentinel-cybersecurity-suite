@@ -2,6 +2,18 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.15.0-pre — 2026-11-06
+
+### Added
+- Incident detail editor for authorized incident writers.
+- Update assignee, timezone-aware due date and response notes through the existing incident PATCH API.
+- Editor controls are hidden from read-only/auditor roles and remain subject to server-side `incident.write` authorization.
+- UI release metadata aligned to `0.15.0-pre`.
+
+### Boundaries
+- No new API permission or endpoint is introduced; the UI reuses the 0.13 incident update contract.
+- Response notes are stored in the incident record; audit events continue to record changed-field names rather than copying free-form notes.
+
 ## 0.14.0-pre — 2026-11-06
 
 ### Added

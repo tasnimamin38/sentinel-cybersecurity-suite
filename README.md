@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.14.0--pre-3977a7.svg" alt="Version 0.14.0-pre" />
+    <img src="https://img.shields.io/badge/Release-0.15.0--pre-3977a7.svg" alt="Version 0.15.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -32,6 +32,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Remediation ownership and task status | Implemented |
 | Finding-linked security incident triage with audited status transitions | Implemented in 0.13 API branch |
 | Live incident register UI with role-aware status controls | Implemented in 0.14 branch |
+| Role-aware incident assignee, due date and response-note editing | Implemented in 0.15 branch |
 | Framework-neutral control mapping | Implemented |
 | Redacting inline secret-pattern review | Implemented |
 | Hash-linked audit event verification | Implemented |
