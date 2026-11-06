@@ -138,6 +138,57 @@ class ProductionConfigTests(unittest.TestCase):
         settings = Settings(api_credentials_json=json.dumps(values))
         self.assertEqual(settings.configured_role_credentials, values)
 
+    def test_static_role_credentials_support_selected_asset_scopes(self):
+        asset_id = "00000000-0000-0000-0000-000000000001"
+        selected = Settings(
+            _env_file=None,
+            api_credentials_json=json.dumps(
+                [
+                    {
+                        "id": "scoped-analyst",
+                        "key": "S" * 40,
+                        "role": "analyst",
+                        "asset_scope_mode": "selected",
+                        "asset_scope_ids": [asset_id],
+                    }
+                ]
+            ),
+        )
+        self.assertEqual(selected.configured_role_credentials[0]["asset_scope_mode"], "selected")
+        self.assertEqual(selected.configured_role_credentials[0]["asset_scope_ids"], [asset_id])
+
+        with self.assertRaises(ValidationError):
+            Settings(
+                _env_file=None,
+                api_credentials_json=json.dumps(
+                    [
+                        {
+                            "id": "empty-scope",
+                            "key": "E" * 40,
+                            "role": "analyst",
+                            "asset_scope_mode": "selected",
+                            "asset_scope_ids": [],
+                        }
+                    ]
+                ),
+            )
+
+        with self.assertRaises(ValidationError):
+            Settings(
+                _env_file=None,
+                api_credentials_json=json.dumps(
+                    [
+                        {
+                            "id": "malformed-scope",
+                            "key": "M" * 40,
+                            "role": "analyst",
+                            "asset_scope_mode": "selected",
+                            "asset_scope_ids": ["not-a-uuid"],
+                        }
+                    ]
+                ),
+            )
+
     def test_role_credentials_reject_duplicate_ids_and_weak_keys(self):
         duplicate = [
             {"id": "same", "key": "A" * 40, "role": "analyst"},
