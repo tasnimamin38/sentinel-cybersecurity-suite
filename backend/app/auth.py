@@ -22,29 +22,68 @@ class ApiPrincipal:
 
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "admin": frozenset({"*"}),
-    "analyst": frozenset({
-        "identity.read", "system.read", "dashboard.read", "asset.read",
-        "assessment.read", "assessment.run", "job.read", "job.enqueue",
-        "remediation.read", "controls.read", "secrets.scan", "audit.read",
-        "export.read",
-    }),
-    "asset_manager": frozenset({
-        "identity.read", "system.read", "dashboard.read", "asset.read",
-        "asset.write", "assessment.read", "assessment.run", "job.read",
-        "job.enqueue", "job.manage", "remediation.read", "remediation.write",
-        "controls.read", "audit.read", "export.read",
-    }),
-    "auditor": frozenset({
-        "identity.read", "system.read", "dashboard.read", "asset.read",
-        "assessment.read", "job.read", "remediation.read", "controls.read",
-        "audit.read", "export.read",
-    }),
-    "read_only": frozenset({
-        "identity.read", "dashboard.read", "asset.read", "assessment.read",
-        "job.read", "remediation.read", "controls.read",
-    }),
+    "analyst": frozenset(
+        {
+            "identity.read",
+            "system.read",
+            "dashboard.read",
+            "asset.read",
+            "assessment.read",
+            "assessment.run",
+            "job.read",
+            "job.enqueue",
+            "remediation.read",
+            "controls.read",
+            "secrets.scan",
+            "audit.read",
+            "export.read",
+        }
+    ),
+    "asset_manager": frozenset(
+        {
+            "identity.read",
+            "system.read",
+            "dashboard.read",
+            "asset.read",
+            "asset.write",
+            "assessment.read",
+            "assessment.run",
+            "job.read",
+            "job.enqueue",
+            "job.manage",
+            "remediation.read",
+            "remediation.write",
+            "controls.read",
+            "audit.read",
+            "export.read",
+        }
+    ),
+    "auditor": frozenset(
+        {
+            "identity.read",
+            "system.read",
+            "dashboard.read",
+            "asset.read",
+            "assessment.read",
+            "job.read",
+            "remediation.read",
+            "controls.read",
+            "audit.read",
+            "export.read",
+        }
+    ),
+    "read_only": frozenset(
+        {
+            "identity.read",
+            "dashboard.read",
+            "asset.read",
+            "assessment.read",
+            "job.read",
+            "remediation.read",
+            "controls.read",
+        }
+    ),
 }
-
 
 ROUTE_PERMISSIONS: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/me"): "identity.read",
