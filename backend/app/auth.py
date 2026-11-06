@@ -139,7 +139,9 @@ def _configured_static_principals() -> list[tuple[str, str, str, int, int, str, 
     settings = get_settings()
     principals: list[tuple[str, str, str, int, int, str, frozenset[str]]] = []
     for index, key in enumerate(settings.configured_api_keys):
-        principals.append((f"legacy-admin-{index + 1}", key, "admin", 600, 1_000_000, "all", frozenset()))
+        principals.append(
+            (f"legacy-admin-{index + 1}", key, "admin", 600, 1_000_000, "all", frozenset())
+        )
     for item in getattr(settings, "configured_role_credentials", []):
         principals.append(
             (
