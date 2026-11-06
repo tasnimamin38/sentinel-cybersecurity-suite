@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import (
     ROLE_PERMISSIONS,
+    ROUTE_PERMISSIONS,
     ApiPrincipal,
     apply_asset_scope,
-    ensure_asset_access,
     require_api_key,
     require_global_asset_scope,
 )
@@ -131,19 +131,14 @@ app.include_router(assessment_evidence_router)
 def read_api_identity(principal: ApiPrincipal = Depends(require_api_key)):
     permissions = ROLE_PERMISSIONS.get(principal.role, frozenset())
     if principal.asset_scope_mode == "selected":
-        permissions = frozenset(
-            permission
-            for permission in (
-                {item for item in ROLE_PERMISSIONS.get(principal.role, frozenset())}
-                if "*" not in ROLE_PERMISSIONS.get(principal.role, frozenset())
-                else {
-                    permission
-                    for _, permission in ROUTE_PERMISSIONS.items()
-                    if permission != "credential.manage"
-                }
+        if "*" in permissions:
+            permissions = frozenset(
+                permission
+                for permission in ROUTE_PERMISSIONS.values()
+                if permission not in {"credential.manage", "audit.read"}
             )
-            if permission not in {"credential.manage", "audit.read"}
-        )
+        else:
+            permissions = permissions - {"credential.manage", "audit.read"}
     return {
         "credential_id": principal.credential_id,
         "role": principal.role,
