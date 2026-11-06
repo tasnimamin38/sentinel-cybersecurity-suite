@@ -2,41 +2,56 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 1 ]]; then
-  printf 'Usage: %s /path/to/sentinel-backup.dump\n' "$0" >&2
+  printf 'Usage: %s /path/to/sentinel-backup.dump.enc\n' "$0" >&2
   exit 2
 fi
 
 command -v docker >/dev/null 2>&1 || { echo "Docker CLI is required." >&2; exit 1; }
 command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum is required." >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "Python 3 is required for backup decryption." >&2; exit 1; }
+: "${SENTINEL_BACKUP_ENCRYPTION_KEY:?Set the matching SENTINEL_BACKUP_ENCRYPTION_KEY from the operator-managed secret store.}"
+: "${SENTINEL_BACKUP_ENCRYPTION_KEY_ID:?Set the matching SENTINEL_BACKUP_ENCRYPTION_KEY_ID.}"
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+backend_dir="$(cd -- "$script_dir/.." && pwd)"
 backup_file="$1"
-[[ -f "$backup_file" ]] || { echo "Backup archive not found." >&2; exit 1; }
+[[ -f "$backup_file" && ! -L "$backup_file" ]] || { echo "Encrypted backup archive not found or not a regular file." >&2; exit 1; }
 backup_dir="$(cd -- "$(dirname -- "$backup_file")" && pwd)"
 backup_base="$(basename -- "$backup_file")"
+backup_file="$backup_dir/$backup_base"
 checksum_base="$backup_base.sha256"
-[[ -f "$backup_dir/$checksum_base" ]] || { echo "SHA-256 sidecar is missing." >&2; exit 1; }
+[[ -f "$backup_dir/$checksum_base" && ! -L "$backup_dir/$checksum_base" ]] || { echo "SHA-256 sidecar is missing or invalid." >&2; exit 1; }
 
 (
   cd -- "$backup_dir"
   sha256sum --check -- "$checksum_base"
 )
 
-# Pull before creating the isolated container; the container itself has no network.
-postgres_image="postgres:16-alpine"
-docker image inspect "$postgres_image" >/dev/null 2>&1 || docker pull "$postgres_image"
-
+temporary_restore_dir="$(mktemp -d "${TMPDIR:-/tmp}/sentinel-restore-check.XXXXXX")"
+chmod 700 -- "$temporary_restore_dir"
+restore_archive="$temporary_restore_dir/restore.dump"
 container_name="sentinel-restore-check-$$-$RANDOM"
 temporary_password="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
-[[ -n "$temporary_password" ]] || { echo "Could not generate an ephemeral password." >&2; exit 1; }
+[[ -n "$temporary_password" ]] || { echo "Could not generate an ephemeral password." >&2; rm -rf -- "$temporary_restore_dir"; exit 1; }
 
 cleanup() {
   if docker container inspect "$container_name" >/dev/null 2>&1; then
     docker stop "$container_name" >/dev/null 2>&1 || docker rm -f "$container_name" >/dev/null 2>&1 || true
   fi
+  rm -rf -- "$temporary_restore_dir"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+echo "Authenticating and decrypting the backup into a private temporary directory..."
+PYTHONPATH="$backend_dir${PYTHONPATH:+:$PYTHONPATH}" python3 -m app.services.backup_crypto \
+  decrypt "$backup_file" "$restore_archive"
+chmod 600 -- "$restore_archive"
+
+# Pull before creating the isolated container; the container itself has no network.
+postgres_image="postgres:16-alpine"
+docker image inspect "$postgres_image" >/dev/null 2>&1 || docker pull "$postgres_image"
 
 echo "Starting a disposable PostgreSQL 16 restore target (network disabled)..."
 docker run --detach --rm \
@@ -65,14 +80,14 @@ if [[ "$ready" -ne 1 ]]; then
   exit 1
 fi
 
-echo "Restoring the archive into the disposable database..."
+echo "Restoring the authenticated archive into the disposable database..."
 docker exec -i "$container_name" pg_restore \
   --exit-on-error \
   --single-transaction \
   --no-owner \
   --no-acl \
   --username=postgres \
-  --dbname=postgres < "$backup_file"
+  --dbname=postgres < "$restore_archive"
 
 revision="$(docker exec "$container_name" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -Atqc \
   'SELECT version_num FROM public.alembic_version LIMIT 1')"
@@ -86,4 +101,4 @@ if [[ "$table_count" -ne 7 ]]; then
 fi
 
 printf 'Restore verification passed. Alembic revision: %s; core tables: %s/7.\n' "$revision" "$table_count"
-echo "The disposable database will now be stopped and deleted; the source archive is unchanged."
+echo "The disposable database and private plaintext restore file will be removed; the source encrypted archive is unchanged."
