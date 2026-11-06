@@ -55,7 +55,7 @@ The worker renews leases every 10 seconds and checks cancellation/state at least
 
 ## Run and scale workers
 
-The Compose worker uses the same backend image but runs `python -m app.worker`, not Uvicorn. It has no published port, runs as the non-root image user, has a read-only root filesystem, dropped capabilities, `no-new-privileges`, a 32 MiB `/tmp`, a 1 CPU limit, 512 MiB memory limit and 128 PIDs. It joins the internal database network and the outbound assessment network only after the API has completed database migrations and passed readiness.
+The Compose worker uses the same backend image but runs `python -m app.worker`, not Uvicorn. It sets `SENTINEL_PROCESS_ROLE=worker` and receives no `SENTINEL_API_KEY` or `SENTINEL_API_KEYS`; the API service runs with the `api` role and retains its service credentials. Production configuration rejects API credentials on a worker process. It has no published port, runs as the non-root image user, has a read-only root filesystem, dropped capabilities, `no-new-privileges`, a 32 MiB `/tmp`, a 1 CPU limit, 512 MiB memory limit and 128 PIDs. It joins the internal database network and the outbound assessment network only after the API has completed database migrations and passed readiness.
 
 Start the normal stack:
 

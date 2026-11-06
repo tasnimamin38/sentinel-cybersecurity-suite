@@ -33,6 +33,7 @@ class ProductionConfigTests(unittest.TestCase):
             cors_origins="https://console.example.com",
         )
         self.assertEqual(settings.allowed_domain_list, ["example.com"])
+        self.assertEqual(settings.process_role, "api")
 
     def test_production_rejects_placeholder_key_even_when_long(self):
         with self.assertRaises(ValidationError):
@@ -78,6 +79,17 @@ class ProductionConfigTests(unittest.TestCase):
                 environment="production",
                 process_role="api",
                 api_key="",
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                cors_origins="https://console.example.com",
+            )
+
+    def test_production_worker_rejects_api_credentials(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                process_role="worker",
+                api_key="W" * 40,
                 allowed_domains="example.com",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
                 cors_origins="https://console.example.com",
