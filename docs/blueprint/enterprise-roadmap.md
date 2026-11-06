@@ -6,7 +6,7 @@ SENTINEL 0.3 delivers a single-workspace defensive operations foundation: author
 
 It is not yet a multi-user enterprise service.
 
-## Target platform layers
+## Recent operational increments\n- 0.18: authenticated PostgreSQL backup encryption, isolated restore verification and supply-chain gates.\n- 0.19: verified encrypted-backup retention with dry-run default, private-directory enforcement and no-follow file handling.\n\n## Target platform layers
 
 ### Identity and governance
 - OIDC/SAML SSO, MFA, RBAC and just-in-time privileges
