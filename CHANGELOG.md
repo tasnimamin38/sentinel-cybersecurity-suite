@@ -2,6 +2,18 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.11.0-pre — 2026-11-06
+
+### Added
+- Structured JSON HTTP request events correlated with the server-generated `X-Request-ID` response header.
+- Bounded method normalization and FastAPI route-template logging; unmatched routes use a fixed `unmatched` label.
+- Request events include only timestamp, event name, request ID, normalized method, route template, response status and duration in milliseconds.
+- Regression coverage verifies request-ID correlation and confirms query-string values and API-key headers are not written to access logs.
+
+### Security and operational boundaries
+- Access events omit raw request paths, query strings, client IP addresses, hostnames, user agents, cookies, authorization/API-key/metrics-token headers, request bodies, response bodies and credential identifiers.
+- Events are emitted to the container's standard error stream through the dedicated `sentinel.access` logger. Centralized collection, retention, distributed tracing, alert delivery and incident response remain separate capabilities.
+
 ## 0.10.0-pre — 2026-11-06
 
 ### Added

@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
+from datetime import UTC, datetime
 from threading import Lock
 
 _ALLOWED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 _BUCKETS_SECONDS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, float("inf"))
+
+_ACCESS_LOGGER = logging.getLogger("sentinel.access")
+_ACCESS_LOGGER.setLevel(logging.INFO)
+if not _ACCESS_LOGGER.handlers:
+    _ACCESS_LOGGER.addHandler(logging.StreamHandler())
+_ACCESS_LOGGER.propagate = False
 
 
 def _escape_label(value: str) -> str:
@@ -108,3 +116,28 @@ class RequestMetrics:
 
 
 HTTP_METRICS = RequestMetrics()
+
+
+def log_http_request(
+    request_id: str,
+    method: str,
+    route_template: str,
+    status_code: int,
+    duration_seconds: float,
+) -> None:
+    """Emit a minimal JSON request event using only bounded, non-sensitive fields."""
+    normalized_method, normalized_route, normalized_status = RequestMetrics._labels(
+        method, route_template, status_code
+    )
+    event = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "event": "http_request",
+        "request_id": request_id,
+        "method": normalized_method,
+        "route": normalized_route,
+        "status_code": normalized_status,
+        "duration_ms": round(max(0.0, float(duration_seconds)) * 1000, 3),
+    }
+    _ACCESS_LOGGER.info(
+        json.dumps(event, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    )

@@ -52,7 +52,8 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [x] Operator-controlled offline signed audit checkpoints (0.9 branch)
 - [x] Opt-in process-local HTTP counters and duration histograms with bounded Prometheus labels (0.10 branch)
 - [ ] Independent append-only audit export with automated signed-checkpoint retention
-- [ ] Distributed metrics, tracing, structured logs, dashboards and alert rules
+- [x] Privacy-safe structured JSON request logs correlated with response request IDs (0.11 branch)
+- [ ] Distributed metrics and tracing, dashboards and alert rules
 - Backup/restore automation, RPO/RTO targets and recovery drills
 - Security event integrations and incident-response workflow
 - Service-level objectives and dependency supply-chain controls
