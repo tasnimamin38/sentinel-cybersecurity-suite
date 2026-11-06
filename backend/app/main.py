@@ -125,16 +125,21 @@ def create_api_credential(
             text("SELECT pg_advisory_xact_lock(:lock_key)"),
             {"lock_key": 7812340912346},
         )
-    active_count = db.scalar(
-        select(func.count())
-        .select_from(ApiCredential)
-        .where(
-            ApiCredential.revoked_at.is_(None),
-            (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+    active_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ApiCredential)
+            .where(
+                ApiCredential.revoked_at.is_(None),
+                (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+            )
         )
-    ) or 0
+        or 0
+    )
     if active_count >= 250:
-        raise HTTPException(status_code=409, detail="The active API credential limit has been reached.")
+        raise HTTPException(
+            status_code=409, detail="The active API credential limit has been reached."
+        )
 
     secret = secrets.token_urlsafe(48)
     item = ApiCredential(
