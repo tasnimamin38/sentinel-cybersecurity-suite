@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -133,23 +133,27 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertEqual(settings.process_role, "api")
 
     def test_production_worker_does_not_receive_api_credentials(self):
-        settings = Settings(
-            environment="production",
-            process_role="worker",
-            allowed_domains="example.com",
-            database_url="postgresql+psycopg://user:pass@db/sentinel",
-            cors_origins="https://console.example.com",
-        )
-        self.assertEqual(settings.process_role, "worker")
-        self.assertEqual(settings.configured_api_keys, [])
-        with self.assertRaises(ValidationError):
-            Settings(
+        with patch.dict(os.environ, {}, clear=True):
+            settings = Settings(
+                _env_file=None,
                 environment="production",
                 process_role="worker",
-                api_credentials_json=json.dumps([{"id": "worker-key", "key": "W" * 40, "role": "admin"}]),
                 allowed_domains="example.com",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
+                cors_origins="https://console.example.com",
             )
+        self.assertEqual(settings.process_role, "worker")
+        self.assertEqual(settings.configured_api_keys, [])
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(ValidationError):
+                Settings(
+                    _env_file=None,
+                    environment="production",
+                    process_role="worker",
+                    api_credentials_json=json.dumps([{"id": "worker-key", "key": "W" * 40, "role": "admin"}]),
+                    allowed_domains="example.com",
+                    database_url="postgresql+psycopg://user:pass@db/sentinel",
+                )
 
 
 if __name__ == "__main__":
