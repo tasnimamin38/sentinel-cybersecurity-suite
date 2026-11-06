@@ -71,9 +71,15 @@ def _open_private_temp(destination: Path) -> tuple[int, Path]:
 
 
 def _publish_temp(temp_path: Path, destination: Path) -> None:
-    if destination.exists() or destination.is_symlink():
-        raise BackupCryptoError("Output appeared during the operation; refusing to overwrite it.")
-    os.replace(temp_path, destination)
+    # A hard-link publication is atomic and fails if destination already exists.
+    # Unlike check-then-os.replace, it cannot clobber a file created in the race window.
+    try:
+        os.link(temp_path, destination)
+    except FileExistsError as exc:
+        raise BackupCryptoError(
+            "Output appeared during the operation; refusing to overwrite it."
+        ) from exc
+    temp_path.unlink()
     try:
         os.chmod(destination, stat.S_IRUSR | stat.S_IWUSR)
     except OSError:
