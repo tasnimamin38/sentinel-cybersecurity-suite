@@ -69,8 +69,7 @@ class Settings(BaseSettings):
             if (
                 not isinstance(item, dict)
                 or not {"id", "key", "role"}.issubset(item)
-                or set(item)
-                - {"id", "key", "role", "rate_limit_per_minute", "daily_request_limit"}
+                or set(item) - {"id", "key", "role", "rate_limit_per_minute", "daily_request_limit"}
             ):
                 raise ValueError(
                     "Each role credential must contain id, key, role and optional request quota limits only."
