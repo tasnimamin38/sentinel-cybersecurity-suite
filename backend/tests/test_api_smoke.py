@@ -622,7 +622,7 @@ def test_managed_credential_expiry_blocks_authentication(client):
     created = client.post(
         "/api/v1/credentials",
         headers=API_HEADERS,
-        json={"label": "Short lived monitor", "role": "read_only"},
+        json={"label": "Short lived monitor", "role": "read_only", "asset_scope_mode": "all"},
     )
     assert created.status_code == 201
     payload = created.json()
@@ -648,6 +648,7 @@ def test_managed_credential_enforces_per_minute_quota_and_persists_usage(client)
         json={
             "label": "Rate-limited monitor",
             "role": "read_only",
+            "asset_scope_mode": "all",
             "rate_limit_per_minute": 2,
             "daily_request_limit": 10,
         },
@@ -681,6 +682,7 @@ def test_managed_credential_enforces_daily_quota(client):
         json={
             "label": "Daily-limited monitor",
             "role": "read_only",
+            "asset_scope_mode": "all",
             "rate_limit_per_minute": 10,
             "daily_request_limit": 1,
         },
@@ -701,6 +703,7 @@ def test_managed_credential_rotation_preserves_grace_and_expires_old_key(client)
         json={
             "label": "Rotating integration",
             "role": "read_only",
+            "asset_scope_mode": "all",
             "rate_limit_per_minute": 20,
             "daily_request_limit": 100,
         },
@@ -764,7 +767,7 @@ def test_rotation_enforces_global_active_credential_cap_during_grace(client):
     created = client.post(
         "/api/v1/credentials",
         headers=API_HEADERS,
-        json={"label": "Capacity-bound integration", "role": "read_only"},
+        json={"label": "Capacity-bound integration", "role": "read_only", "asset_scope_mode": "all"},
     )
     assert created.status_code == 201
     prior = created.json()["credential"]
