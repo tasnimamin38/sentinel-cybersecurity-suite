@@ -14,9 +14,10 @@ import re
 import stat
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
-ARCHIVE_NAME = re.compile(r"^sentinel-\d{8}T\d{6}Z\.dump\.enc$")
+ARCHIVE_NAME = re.compile(r"^sentinel-(?P<timestamp>\d{8}T\d{6}Z)\.dump\.enc$")
 CHUNK_BYTES = 1024 * 1024
 SIDECAR_MAX_BYTES = 256
 
@@ -28,7 +29,7 @@ class RetentionError(ValueError):
 @dataclass(frozen=True)
 class BackupRecord:
     name: str
-    mtime_ns: int
+    timestamp: str
     device: int
     inode: int
     sidecar_device: int
@@ -44,6 +45,12 @@ def _open_regular_at(directory_fd: int, name: str) -> tuple[int, os.stat_result]
     except OSError:
         raise
     metadata = os.fstat(fd)
+    if metadata.st_uid != os.geteuid():
+        os.close(fd)
+        raise RetentionError(f"{name}: must be owned by the invoking user.")
+    if metadata.st_nlink != 1:
+        os.close(fd)
+        raise RetentionError(f"{name}: hard-linked files are not eligible for retention.")
     if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077:
         os.close(fd)
         raise RetentionError(f"{name}: must be a private regular file (0600 or stricter).")
@@ -69,8 +76,14 @@ def _digest_file(fd: int) -> str:
 
 
 def _verify_archive(directory_fd: int, name: str) -> BackupRecord:
-    if not ARCHIVE_NAME.fullmatch(name):
+    match = ARCHIVE_NAME.fullmatch(name)
+    if match is None:
         raise RetentionError(f"{name}: unexpected archive name.")
+    timestamp = match.group("timestamp")
+    try:
+        datetime.strptime(timestamp, "%Y%m%dT%H%M%SZ")
+    except ValueError as exc:
+        raise RetentionError(f"{name}: archive timestamp is not a valid UTC date/time.") from exc
     archive_fd, archive_stat = _open_regular_at(directory_fd, name)
     if archive_stat.st_size == 0:
         os.close(archive_fd)
@@ -94,7 +107,7 @@ def _verify_archive(directory_fd: int, name: str) -> BackupRecord:
 
     return BackupRecord(
         name=name,
-        mtime_ns=archive_stat.st_mtime_ns,
+        timestamp=timestamp,
         device=archive_stat.st_dev,
         inode=archive_stat.st_ino,
         sidecar_device=sidecar_stat.st_dev,
@@ -122,6 +135,7 @@ def _open_private_directory(path: Path) -> int:
     if (
         not hasattr(os, "O_NOFOLLOW")
         or not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "geteuid")
         or os.open not in os.supports_dir_fd
         or os.stat not in os.supports_dir_fd
         or os.unlink not in os.supports_dir_fd
@@ -133,6 +147,9 @@ def _open_private_directory(path: Path) -> int:
     if not stat.S_ISDIR(metadata.st_mode):
         os.close(directory_fd)
         raise RetentionError("Backup path is not a directory.")
+    if metadata.st_uid != os.geteuid():
+        os.close(directory_fd)
+        raise RetentionError("Backup directory must be owned by the invoking user.")
     if metadata.st_mode & 0o077:
         os.close(directory_fd)
         raise RetentionError("Backup directory permissions must be private (0700 or stricter).")
@@ -154,7 +171,7 @@ def prune_backups(directory: Path, keep_last: int = 7, apply: bool = False) -> t
             except (OSError, RetentionError) as exc:
                 print(f"SKIP {name}: {exc}", file=sys.stderr)
 
-        verified.sort(key=lambda item: (item.mtime_ns, item.name), reverse=True)
+        verified.sort(key=lambda item: item.timestamp, reverse=True)
         retained = verified[:keep_last]
         candidates = verified[keep_last:]
         for record in retained:
