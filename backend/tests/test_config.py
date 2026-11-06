@@ -61,7 +61,6 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)
 
-
     def test_production_worker_role_does_not_require_an_api_key(self):
         settings = Settings(
             environment="production",
