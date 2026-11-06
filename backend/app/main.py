@@ -66,7 +66,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.16.0-pre",
+    version="0.18.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",

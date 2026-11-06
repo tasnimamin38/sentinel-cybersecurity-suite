@@ -2,6 +2,33 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.18.0-pre — 2026-11-06
+
+### Added
+- Streaming AES-256-GCM encryption for PostgreSQL custom-format backups before publication.
+- `pg_dump` output is streamed directly into the encryptor; the backup script does not create a plaintext staging archive.
+- Versioned authenticated backup envelope with a fresh 96-bit nonce, authenticated header, non-secret key ID and a 128-bit GCM tag.
+- Restore verification authenticates/decrypts into a private temporary file before restoring into a network-isolated, resource-limited PostgreSQL container.
+- Operator-managed Base64 32-byte encryption key and key-version identifier; key material is never embedded in the archive or repository.
+- Regression tests for multi-chunk round trips, stdin streaming, tamper rejection, wrong-key rejection, key-ID mismatch, malformed archives and refuse-to-overwrite behavior.
+
+### Security and operational boundaries
+- SHA-256 remains an early corruption check; AES-256-GCM provides ciphertext authenticity and integrity.
+- Key material and key-ID mapping must be retained separately in an approved secret manager. Losing the key makes the backup unrecoverable.
+- Restore requires an authenticated tag before PostgreSQL receives plaintext. The private restore temporary file is removed on exit, but deletion is not certified secure erasure; use an approved encrypted or memory-backed temporary filesystem when required.
+- KMS/HSM integration, off-site replication, automated rotation, scheduled retention, RPO/RTO targets and recurring recovery drills remain operator/deployment responsibilities.
+- No merge, release, tag or production deployment is implied by this pre-release branch.
+
+## 0.17.0-pre — 2026-11-06
+
+### Added
+- Filterable incident audit timeline in the operator console, backed by finding-linked incident audit events.
+- Chronological event metadata, changed-field names and timestamps for identities authorized to read audit history.
+- Read-only audit timeline behavior; response-note content is not copied into audit metadata.
+
+### Boundaries
+- The timeline surfaces the existing hash-linked database audit journal; it does not claim external immutable retention, SIEM delivery or alerting.
+
 ## 0.16.0-pre — 2026-11-06
 
 ### Added

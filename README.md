@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.16.0--pre-3977a7.svg" alt="Version 0.16.0-pre" />
+    <img src="https://img.shields.io/badge/Release-0.18.0--pre-3977a7.svg" alt="Version 0.18.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -40,6 +40,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Overlapping API-key rotation | Implemented |
 | Audited CSV exports (assets, assessments, findings, remediation, incidents and audit) with formula-injection defense | Implemented |
 | PostgreSQL durable assessment queue, idempotency and cancellation | Implemented in 0.6 branch |
+| AES-256-GCM encrypted PostgreSQL backups with authenticated isolated restore | In 0.18.0-pre branch; exact-head CI pending |
 | Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
 | RBAC and role-scoped service API credentials | Implemented in 0.7 branch |
 | Per-service request quotas, atomic rate limiting and controlled key rotation | Implemented in 0.8 branch |
@@ -329,3 +330,4 @@ SENTINEL is licensed under the <strong>Apache License, Version 2.0</strong>. See
 <div align="center">
   <sub>SENTINEL · Defensive Security Operations · Authorization First</sub>
 </div>
+\n\n## Encrypted backup operations (0.18.0-pre)\n\nThe 0.18 development branch documents operator-managed AES-256-GCM backup encryption and isolated restore verification in [docs/backup-restore.md](docs/backup-restore.md). Do not treat this pre-release branch as production-ready until its exact-head CI and the organization's key-custody/recovery gates pass.\n

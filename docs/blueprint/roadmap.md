@@ -93,7 +93,8 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [x] Operator-run PostgreSQL custom-format backup from the Compose database service
 - [x] Timestamped no-overwrite archive, restrictive backup directory permissions and SHA-256 sidecar
 - [x] Disposable PostgreSQL restore verification with networking disabled, resource limits, Alembic revision check and core-table check
-- [ ] Automated backup scheduling, encryption/key management and off-site retention
+- [x] Streaming AES-256-GCM encryption for PostgreSQL backups with authenticated restore verification and a non-secret key ID
+- [ ] KMS/HSM integration, automated backup scheduling, off-site replication and key-retention automation
 - [ ] Retention policy, RPO/RTO targets and recurring recovery drills
 
 **Exit gate:** encrypted off-host copies, documented retention, successful scheduled restore drills and independently reviewed recovery objectives.
@@ -108,6 +109,17 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - [ ] SIEM ingestion, alert correlation and automated incident creation
 
 **Exit gate:** incident list and transitions surfaced in the console, notification ownership defined, and end-to-end operational drill completed.
+
+## 0.18.0-pre — Authenticated PostgreSQL backup encryption
+
+- [x] Stream `pg_dump` output directly into AES-256-GCM encryption without a plaintext staging archive.
+- [x] Versioned envelope with fresh random nonce, authenticated header and non-secret key ID.
+- [x] Refuse restore on checksum mismatch, unknown key ID, wrong key or authentication-tag failure.
+- [x] Restore only after full GCM authentication into a resource-limited PostgreSQL container with networking disabled.
+- [x] Remove the private plaintext restore file and disposable database on exit.
+- [ ] KMS/HSM key custody, independent off-site retention, automated rotation and recurring recovery drills.
+
+**Exit gate:** exact-head CI verifies multi-chunk and stdin encryption, wrong-key and tamper rejection, successful isolated restore, no plaintext staging archive, key custody documentation and cleanup.
 
 ## 1.0 — Production readiness
 
