@@ -523,15 +523,11 @@ def overview(
     return OverviewResponse(
         assessment_count=len(assessments),
         findings_count=sum(len(item.findings or []) for item in assessments),
-        high_risk_count=sum(
-            item.risk_level in {"high", "critical"} for item in assessments
-        ),
+        high_risk_count=sum(item.risk_level in {"high", "critical"} for item in assessments),
         authorized_domains=authorized_domains,
         asset_count=len(assets),
         active_asset_count=sum(item.status == "active" for item in assets),
-        open_remediation_count=sum(
-            item.status in {"open", "in_progress"} for item in remediations
-        ),
+        open_remediation_count=sum(item.status in {"open", "in_progress"} for item in remediations),
     )
 
 
@@ -877,9 +873,7 @@ def read_control_catalog(
     db: Session = Depends(get_db),
 ):
     query = apply_asset_scope(select(Assessment), principal, Assessment.asset_id)
-    assessments = db.scalars(
-        query.order_by(desc(Assessment.created_at)).limit(100)
-    ).all()
+    assessments = db.scalars(query.order_by(desc(Assessment.created_at)).limit(100)).all()
     findings = [finding for assessment in assessments for finding in (assessment.findings or [])]
     return {
         "catalog": CONTROL_CATALOG,
