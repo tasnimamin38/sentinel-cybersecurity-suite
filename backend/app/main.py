@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -350,9 +351,13 @@ def _persist_assessment(
 
 
 @app.get("/metrics", include_in_schema=False)
-def metrics():
+def metrics(
+    x_metrics_token: str | None = Header(default=None, alias="X-Metrics-Token"),
+):
     if not settings.metrics_enabled:
         raise HTTPException(status_code=404, detail="Not found.")
+    if not hmac.compare_digest(x_metrics_token or "", settings.metrics_token):
+        raise HTTPException(status_code=401, detail="Invalid metrics token.")
     return Response(
         content=HTTP_METRICS.render(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
