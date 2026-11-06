@@ -1,0 +1,58 @@
+/* SENTINEL motion layer — restrained telemetry feedback, never simulated scan results. */
+.live-dot,
+.connection-pill span,
+.security-card-top i {
+  animation: sentinel-status-pulse 2.8s ease-in-out infinite;
+}
+
+.brand-emblem {
+  animation: sentinel-emblem-aura 5.5s ease-in-out infinite;
+}
+
+.metric-card,
+.panel {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .metric-card:hover {
+    transform: translateY(-3px);
+    border-color: #2d6870;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .22), 0 0 20px rgba(67, 207, 194, .055);
+  }
+
+  .panel:hover {
+    border-color: #2a4a5d;
+  }
+
+  .nav-item.active {
+    background-size: 180% 100%;
+    animation: sentinel-nav-flow 8s linear infinite;
+  }
+}
+
+@keyframes sentinel-status-pulse {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(85, 215, 169, .24)); }
+  50% { opacity: .62; filter: drop-shadow(0 0 8px rgba(85, 215, 169, .52)); }
+}
+
+@keyframes sentinel-emblem-aura {
+  0%, 100% { box-shadow: inset 0 0 17px rgba(59, 227, 203, .08), 0 0 18px rgba(33, 199, 184, .055); }
+  50% { box-shadow: inset 0 0 21px rgba(59, 227, 203, .16), 0 0 30px rgba(33, 199, 184, .12); }
+}
+
+@keyframes sentinel-nav-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 180% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
