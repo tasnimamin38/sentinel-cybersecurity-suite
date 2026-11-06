@@ -1071,6 +1071,11 @@ def test_selected_asset_scope_is_enforced_across_api_data_surfaces_and_rotation(
     assert identity.status_code == 200
     assert identity.json()["asset_scope_mode"] == "selected"
     assert identity.json()["asset_scope_ids"] == [allowed_asset_id]
+    assert client.get("/api/v1/credentials", headers=limited_headers).status_code == 403
+
+    scoped_config = client.get("/api/v1/config", headers=limited_headers)
+    assert scoped_config.status_code == 200
+    assert scoped_config.json()["authorized_domains"] == [first.json()["hostname"]]
 
     assets = client.get("/api/v1/assets", headers=limited_headers)
     assert assets.status_code == 200
