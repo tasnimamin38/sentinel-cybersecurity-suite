@@ -13,7 +13,14 @@ from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
+from app.auth import (
+    ROLE_PERMISSIONS,
+    ApiPrincipal,
+    apply_asset_scope,
+    ensure_asset_access,
+    require_api_key,
+    require_global_asset_scope,
+)
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import (
@@ -123,11 +130,27 @@ app.include_router(assessment_evidence_router)
 @app.get("/api/v1/me", dependencies=[Depends(require_api_key)])
 def read_api_identity(principal: ApiPrincipal = Depends(require_api_key)):
     permissions = ROLE_PERMISSIONS.get(principal.role, frozenset())
+    if principal.asset_scope_mode == "selected":
+        permissions = frozenset(
+            permission
+            for permission in (
+                {item for item in ROLE_PERMISSIONS.get(principal.role, frozenset())}
+                if "*" not in ROLE_PERMISSIONS.get(principal.role, frozenset())
+                else {
+                    permission
+                    for _, permission in ROUTE_PERMISSIONS.items()
+                    if permission != "credential.manage"
+                }
+            )
+            if permission not in {"credential.manage", "audit.read"}
+        )
     return {
         "credential_id": principal.credential_id,
         "role": principal.role,
         "credential_source": principal.credential_source,
         "permissions": sorted(permissions),
+        "asset_scope_mode": principal.asset_scope_mode,
+        "asset_scope_ids": sorted(principal.asset_scope_ids),
     }
 
 
@@ -176,6 +199,16 @@ def create_api_credential(
             status_code=409, detail="The active API credential limit has been reached."
         )
 
+    if payload.asset_scope_mode == "selected":
+        found_asset_ids = set(
+            db.scalars(select(Asset.id).where(Asset.id.in_(payload.asset_scope_ids))).all()
+        )
+        if found_asset_ids != set(payload.asset_scope_ids):
+            raise HTTPException(
+                status_code=404,
+                detail="One or more selected assets do not exist.",
+            )
+
     secret = secrets.token_urlsafe(48)
     item = ApiCredential(
         label=payload.label,
@@ -187,6 +220,8 @@ def create_api_credential(
         created_at=now,
         rate_limit_per_minute=payload.rate_limit_per_minute,
         daily_request_limit=payload.daily_request_limit,
+        asset_scope_mode=payload.asset_scope_mode,
+        asset_scope_ids=payload.asset_scope_ids,
     )
     db.add(item)
     db.flush()
@@ -308,6 +343,8 @@ def rotate_api_credential(
         created_at=now,
         rate_limit_per_minute=item.rate_limit_per_minute,
         daily_request_limit=item.daily_request_limit,
+        asset_scope_mode=item.asset_scope_mode,
+        asset_scope_ids=list(item.asset_scope_ids or []),
     )
     db.add(replacement)
     db.flush()
@@ -465,37 +502,32 @@ def read_config():
 @app.get(
     "/api/v1/overview", response_model=OverviewResponse, dependencies=[Depends(require_api_key)]
 )
-def overview(db: Session = Depends(get_db)):
-    assessment_count = db.scalar(select(func.count()).select_from(Assessment)) or 0
-    findings_count = sum(len(item.findings or []) for item in db.scalars(select(Assessment)).all())
-    high_risk_count = (
-        db.scalar(
-            select(func.count())
-            .select_from(Assessment)
-            .where(Assessment.risk_level.in_(["high", "critical"]))
-        )
-        or 0
-    )
-    asset_count = db.scalar(select(func.count()).select_from(Asset)) or 0
-    active_asset_count = (
-        db.scalar(select(func.count()).select_from(Asset).where(Asset.status == "active")) or 0
-    )
-    open_remediation_count = (
-        db.scalar(
-            select(func.count())
-            .select_from(RemediationTask)
-            .where(RemediationTask.status.in_(["open", "in_progress"]))
-        )
-        or 0
-    )
+def overview(
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    assets = db.scalars(apply_asset_scope(select(Asset), principal, Asset.id)).all()
+    assessments = db.scalars(
+        apply_asset_scope(select(Assessment), principal, Assessment.asset_id)
+    ).all()
+    remediations = db.scalars(
+        apply_asset_scope(select(RemediationTask), principal, RemediationTask.asset_id)
+    ).all()
+    authorized_domains = settings.allowed_domain_list
+    if principal.asset_scope_mode == "selected":
+        authorized_domains = sorted({asset.hostname for asset in assets})
     return OverviewResponse(
-        assessment_count=assessment_count,
-        findings_count=findings_count,
-        high_risk_count=high_risk_count,
-        authorized_domains=settings.allowed_domain_list,
-        asset_count=asset_count,
-        active_asset_count=active_asset_count,
-        open_remediation_count=open_remediation_count,
+        assessment_count=len(assessments),
+        findings_count=sum(len(item.findings or []) for item in assessments),
+        high_risk_count=sum(
+            item.risk_level in {"high", "critical"} for item in assessments
+        ),
+        authorized_domains=authorized_domains,
+        asset_count=len(assets),
+        active_asset_count=sum(item.status == "active" for item in assets),
+        open_remediation_count=sum(
+            item.status in {"open", "in_progress"} for item in remediations
+        ),
     )
 
 
@@ -507,9 +539,11 @@ def overview(db: Session = Depends(get_db)):
 def list_assets(
     active_only: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
-    query = select(Asset).order_by(desc(Asset.updated_at)).limit(limit)
+    query = apply_asset_scope(select(Asset), principal, Asset.id)
+    query = query.order_by(desc(Asset.updated_at)).limit(limit)
     if active_only:
         query = query.where(Asset.status == "active")
     return db.scalars(query).all()
@@ -521,7 +555,12 @@ def list_assets(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_api_key)],
 )
-def create_asset(payload: AssetCreate, db: Session = Depends(get_db)):
+def create_asset(
+    payload: AssetCreate,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    require_global_asset_scope(principal)
     try:
         hostname = authorize_domain(payload.hostname, settings.allowed_domain_list)
     except ScopeViolation as exc:
@@ -572,9 +611,14 @@ def create_asset(payload: AssetCreate, db: Session = Depends(get_db)):
     response_model=AssetResponse,
     dependencies=[Depends(require_api_key)],
 )
-def update_asset(asset_id: str, payload: AssetUpdate, db: Session = Depends(get_db)):
+def update_asset(
+    asset_id: str,
+    payload: AssetUpdate,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     item = db.get(Asset, asset_id)
-    if not item:
+    if not item or not principal.can_access_asset(item.id):
         raise HTTPException(status_code=404, detail="Asset not found.")
     changes = payload.model_dump(exclude_unset=True)
     for key, value in changes.items():
@@ -604,9 +648,13 @@ def update_asset(asset_id: str, payload: AssetUpdate, db: Session = Depends(get_
     response_model=AssessmentResponse,
     dependencies=[Depends(require_api_key)],
 )
-async def assess_registered_asset(asset_id: str, db: Session = Depends(get_db)):
+async def assess_registered_asset(
+    asset_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     asset = db.get(Asset, asset_id)
-    if not asset:
+    if not asset or not principal.can_access_asset(asset.id):
         raise HTTPException(status_code=404, detail="Asset not found.")
     _ensure_asset_authorization(asset)
     try:
@@ -635,9 +683,11 @@ async def assess_registered_asset(asset_id: str, db: Session = Depends(get_db)):
 def list_assessments(
     limit: int = Query(default=25, ge=1, le=100),
     asset_id: str | None = Query(default=None),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
-    query = select(Assessment).order_by(desc(Assessment.created_at)).limit(limit)
+    query = apply_asset_scope(select(Assessment), principal, Assessment.asset_id)
+    query = query.order_by(desc(Assessment.created_at)).limit(limit)
     if asset_id:
         query = query.where(Assessment.asset_id == asset_id)
     return db.scalars(query).all()
@@ -648,9 +698,13 @@ def list_assessments(
     response_model=AssessmentResponse,
     dependencies=[Depends(require_api_key)],
 )
-def get_assessment(assessment_id: str, db: Session = Depends(get_db)):
+def get_assessment(
+    assessment_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     item = db.get(Assessment, assessment_id)
-    if not item:
+    if not item or not principal.can_access_asset(item.asset_id):
         raise HTTPException(status_code=404, detail="Assessment not found.")
     return item
 
@@ -660,12 +714,41 @@ def get_assessment(assessment_id: str, db: Session = Depends(get_db)):
     response_model=AssessmentResponse,
     dependencies=[Depends(require_api_key)],
 )
-async def create_assessment(payload: AssessmentRequest, db: Session = Depends(get_db)):
+async def create_assessment(
+    payload: AssessmentRequest,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     try:
+        domain = authorize_domain(payload.domain, settings.allowed_domain_list)
+        asset = None
+        if principal.asset_scope_mode == "selected":
+            asset = db.scalar(
+                select(Asset).where(
+                    Asset.hostname == domain,
+                    Asset.id.in_(sorted(principal.asset_scope_ids)),
+                )
+            )
+            if asset is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Ad-hoc assessments are unavailable to selected-asset credentials; use a registered asset in scope.",
+                )
+            _ensure_asset_authorization(asset)
+        context = (
+            {
+                "asset_criticality": asset.criticality,
+                "asset_id": asset.id,
+                "asset_environment": asset.environment,
+            }
+            if asset is not None
+            else None
+        )
         result = await assess_domain(
-            payload.domain,
+            domain,
             settings.allowed_domain_list,
             timeout=settings.request_timeout_seconds,
+            context=context,
         )
     except ScopeViolation as exc:
         db.add(
@@ -681,7 +764,7 @@ async def create_assessment(payload: AssessmentRequest, db: Session = Depends(ge
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _persist_assessment(db, result)
+    return _persist_assessment(db, result, asset=asset)
 
 
 @app.get(
@@ -694,9 +777,11 @@ def list_remediations(
         default=None, alias="status", pattern="^(open|in_progress|resolved|accepted)$"
     ),
     limit: int = Query(default=100, ge=1, le=500),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
-    query = select(RemediationTask).order_by(desc(RemediationTask.updated_at)).limit(limit)
+    query = apply_asset_scope(select(RemediationTask), principal, RemediationTask.asset_id)
+    query = query.order_by(desc(RemediationTask.updated_at)).limit(limit)
     if state:
         query = query.where(RemediationTask.status == state)
     return db.scalars(query).all()
@@ -708,9 +793,13 @@ def list_remediations(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_api_key)],
 )
-def create_remediation(payload: RemediationCreate, db: Session = Depends(get_db)):
+def create_remediation(
+    payload: RemediationCreate,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     assessment = db.get(Assessment, payload.assessment_id)
-    if not assessment:
+    if not assessment or not principal.can_access_asset(assessment.asset_id):
         raise HTTPException(status_code=404, detail="Assessment not found.")
     finding = next(
         (item for item in (assessment.findings or []) if item.get("code") == payload.finding_code),
@@ -750,9 +839,14 @@ def create_remediation(payload: RemediationCreate, db: Session = Depends(get_db)
     response_model=RemediationResponse,
     dependencies=[Depends(require_api_key)],
 )
-def update_remediation(task_id: str, payload: RemediationUpdate, db: Session = Depends(get_db)):
+def update_remediation(
+    task_id: str,
+    payload: RemediationUpdate,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     item = db.get(RemediationTask, task_id)
-    if not item:
+    if not item or not principal.can_access_asset(item.asset_id):
         raise HTTPException(status_code=404, detail="Remediation task not found.")
     changes = payload.model_dump(exclude_unset=True)
     for key, value in changes.items():
@@ -774,9 +868,13 @@ def update_remediation(task_id: str, payload: RemediationUpdate, db: Session = D
 
 
 @app.get("/api/v1/controls", dependencies=[Depends(require_api_key)])
-def read_control_catalog(db: Session = Depends(get_db)):
+def read_control_catalog(
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    query = apply_asset_scope(select(Assessment), principal, Assessment.asset_id)
     assessments = db.scalars(
-        select(Assessment).order_by(desc(Assessment.created_at)).limit(100)
+        query.order_by(desc(Assessment.created_at)).limit(100)
     ).all()
     findings = [finding for assessment in assessments for finding in (assessment.findings or [])]
     return {
@@ -813,14 +911,21 @@ def scan_submitted_text(payload: SecretScanRequest, db: Session = Depends(get_db
 @app.get("/api/v1/audit/integrity", dependencies=[Depends(require_api_key)])
 def audit_integrity(
     through_sequence: int | None = Query(default=None, ge=1),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     """Verify the full journal or a historical prefix for offline checkpoint comparison."""
+    require_global_asset_scope(principal)
     return verify_audit_chain(db, through_sequence=through_sequence)
 
 
 @app.get("/api/v1/audit", dependencies=[Depends(require_api_key)])
-def list_audit_events(limit: int = Query(default=50, ge=1, le=200), db: Session = Depends(get_db)):
+def list_audit_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    require_global_asset_scope(principal)
     events = db.scalars(
         select(AuditEvent)
         .order_by(desc(AuditEvent.sequence_no), desc(AuditEvent.created_at))
@@ -843,7 +948,11 @@ def list_audit_events(limit: int = Query(default=50, ge=1, le=200), db: Session 
 
 
 @app.get("/api/v1/exports/{dataset}.csv", dependencies=[Depends(require_api_key)])
-def export_dataset(dataset: str, db: Session = Depends(get_db)):
+def export_dataset(
+    dataset: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
     """Export a bounded operational dataset; spreadsheet formula payloads are neutralized."""
     from fastapi.responses import Response
 
@@ -852,8 +961,12 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
     if dataset not in {"assets", "assessments", "findings", "remediations", "incidents", "audit"}:
         raise HTTPException(status_code=404, detail="Unknown export dataset.")
 
+    if dataset == "audit":
+        require_global_asset_scope(principal)
+
     if dataset == "assets":
-        items = db.scalars(select(Asset).order_by(Asset.hostname).limit(5000)).all()
+        query = apply_asset_scope(select(Asset), principal, Asset.id)
+        items = db.scalars(query.order_by(Asset.hostname).limit(5000)).all()
         headers = [
             "id",
             "hostname",
@@ -884,9 +997,8 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
             for item in items
         ]
     elif dataset == "assessments":
-        items = db.scalars(
-            select(Assessment).order_by(desc(Assessment.created_at)).limit(5000)
-        ).all()
+        query = apply_asset_scope(select(Assessment), principal, Assessment.asset_id)
+        items = db.scalars(query.order_by(desc(Assessment.created_at)).limit(5000)).all()
         headers = [
             "id",
             "asset_id",
@@ -911,9 +1023,8 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
             for item in items
         ]
     elif dataset == "findings":
-        items = db.scalars(
-            select(Assessment).order_by(desc(Assessment.created_at)).limit(1000)
-        ).all()
+        query = apply_asset_scope(select(Assessment), principal, Assessment.asset_id)
+        items = db.scalars(query.order_by(desc(Assessment.created_at)).limit(1000)).all()
         headers = [
             "assessment_id",
             "asset_id",
@@ -945,9 +1056,8 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
             for finding in (item.findings or [])
         ][:10000]
     elif dataset == "remediations":
-        items = db.scalars(
-            select(RemediationTask).order_by(desc(RemediationTask.updated_at)).limit(5000)
-        ).all()
+        query = apply_asset_scope(select(RemediationTask), principal, RemediationTask.asset_id)
+        items = db.scalars(query.order_by(desc(RemediationTask.updated_at)).limit(5000)).all()
         headers = [
             "id",
             "assessment_id",
@@ -980,9 +1090,8 @@ def export_dataset(dataset: str, db: Session = Depends(get_db)):
             for item in items
         ]
     elif dataset == "incidents":
-        items = db.scalars(
-            select(SecurityIncident).order_by(desc(SecurityIncident.updated_at)).limit(5000)
-        ).all()
+        query = apply_asset_scope(select(SecurityIncident), principal, SecurityIncident.asset_id)
+        items = db.scalars(query.order_by(desc(SecurityIncident.updated_at)).limit(5000)).all()
         headers = [
             "id",
             "assessment_id",
