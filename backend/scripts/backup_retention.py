@@ -2,7 +2,7 @@
 """Prune verified SENTINEL encrypted backups without unsafe implicit deletion.
 
 Dry-run is the default. Deletion requires the explicit --apply flag.
-The backup directory must be a private POSIX directory (mode 0700).
+The backup directory must be owned by the invoking user and be private (mode 0700 or stricter). Archive and checksum files must also be user-owned, private (mode 0600 or stricter), and single-linked.
 """
 
 from __future__ import annotations
