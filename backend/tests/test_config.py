@@ -60,6 +60,12 @@ class ProductionConfigTests(unittest.TestCase):
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
             )
 
+    def test_prometheus_metrics_are_disabled_by_default_and_opt_in(self):
+        defaults = Settings()
+        self.assertFalse(defaults.metrics_enabled)
+        enabled = Settings(metrics_enabled=True)
+        self.assertTrue(enabled.metrics_enabled)
+
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)
