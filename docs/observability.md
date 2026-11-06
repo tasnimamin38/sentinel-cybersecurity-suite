@@ -6,15 +6,17 @@ Metrics are disabled by default. To enable them, set:
 
 ```dotenv
 SENTINEL_METRICS_ENABLED=true
+SENTINEL_METRICS_TOKEN=<separate-random-secret-at-least-32-characters>
 ```
 
-Then recreate the API container. The endpoint is:
+Use a random token that is separate from every API key. Production startup rejects metrics-enabled configuration without a strong token. Then recreate the API container. The endpoint is:
 
 ```text
 GET /metrics
+X-Metrics-Token: <SENTINEL_METRICS_TOKEN>
 ```
 
-The supplied Docker Compose file binds the API only to `127.0.0.1:8000`. Preserve that boundary. Do not route `/metrics` through a public ingress, shared reverse proxy, or untrusted network. The endpoint is intentionally not an authenticated `/api/v1` route so a trusted scraper can read it without consuming service-key quota; that makes network placement a required control.
+The endpoint is not part of the API-key permission matrix and does not consume service-key quota, but it does require the separate `X-Metrics-Token` header. Token comparison is constant-time. The supplied Docker Compose file binds the API only to `127.0.0.1:8000`; preserve that boundary. Do not route `/metrics` through a public ingress, shared reverse proxy, or untrusted network.
 
 ## Exported metrics
 
@@ -29,6 +31,6 @@ The exporter never attaches raw URL paths, query parameters, client IPs, API-key
 
 ## Limitations
 
-Metrics are held in process memory. They reset on restart and are not shared between API replicas or worker processes. A scrape is a point-in-time view of one API process. This baseline is intended for local diagnostics and a trusted single-process scraper. It is not durable billing, distributed rate limiting, a centralized telemetry backend, tracing, alert delivery or an SLO guarantee.
+Metrics are held in process memory. They reset on restart and are not shared between API replicas or worker processes. A scrape is a point-in-time view of one API process. This baseline is intended for local diagnostics and a trusted single-process scraper. Protect the separate metrics token as a secret and rotate it through deployment configuration if exposed. It is not durable billing, distributed rate limiting, a centralized telemetry backend, tracing, alert delivery or an SLO guarantee.
 
 Before production use, validate network reachability from only the intended scraper, configure retention and dashboards outside SENTINEL, and define alert ownership. Keep metrics disabled when no trusted scraper is configured.
