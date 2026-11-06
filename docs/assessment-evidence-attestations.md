@@ -45,7 +45,7 @@ python -m scripts.audit_checkpoint generate-key \
   --public-key /secure/offline/sentinel-attestation-public.pem
 ```
 
-On POSIX systems, keep private-key permissions owner-only (for example `chmod 600`). Protect a recovery copy under your key-custody policy.
+On POSIX systems, keep private-key permissions owner-only (for example `chmod 600`). The loader rejects symlinks, non-regular files, empty files, and private-key files larger than 64 KiB; it opens the key without following symlinks where supported and rechecks file identity before parsing. Protect a recovery copy under your key-custody policy.
 
 ### 2. Export the current integrity response
 
