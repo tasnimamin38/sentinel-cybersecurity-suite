@@ -20,7 +20,8 @@ All notable changes to SENTINEL are documented here.
 - Quotas are per credential, not per tenant, user or client IP. Clients sharing a key share its quota.
 
 ### Validation
-- GitHub Actions CI and CodeQL are validating this branch. Final test, dependency audit, formatting, container and CodeQL results are recorded in PR #23 after completion.
+- GitHub Actions CI #192: 107 backend tests passed; no known dependency vulnerabilities; Ruff format passed for 52 Python files; Ruff lint passed; frontend dependency audit and production build passed; Compose validation and backend/frontend Docker image builds passed.
+- CodeQL #189: Python and JavaScript/TypeScript analyses both passed.
 ## 0.3.2 — 2026-11-06
 
 ### Added
