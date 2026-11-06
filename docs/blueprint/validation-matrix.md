@@ -16,7 +16,7 @@ This matrix records what the current automated checks exercise. A passing test i
 | Secret hygiene | Pattern detection, redaction, no source persistence and audit metadata |
 | CSV exports | Dataset allowlist, authentication, row caps, audit event and formula-injection neutralization |
 | Audit journal | Sequence continuity, hash verification, legacy-unsealed state and event tampering detection |
-| Database migration | Upgrade path from legacy schema while preserving existing records |
+| Database migration | Upgrade path from legacy schema while preserving existing records |\n| Encrypted backup | AES-256-GCM multi-chunk/stdin round trip, fresh nonce, authenticated header, key-ID binding, wrong-key/tamper/malformed rejection and no-overwrite behavior |
 
 ## Local verification record
 
@@ -35,3 +35,14 @@ This matrix records what the current automated checks exercise. A passing test i
 - Multi-user SSO/MFA/RBAC, multi-tenant isolation or distributed rate limiting.
 - Durable worker/queue recovery, load testing and high-concurrency performance.
 - Independent penetration test, backup/restore drill, disaster recovery objectives or regulatory certification.
+
+
+## 0.18 encrypted backup checks
+
+The 0.18 branch adds automated tests for streaming encryption, no plaintext staging during the `pg_dump` pipeline, authentication-tag verification before a restore file is published, strict key-ID matching, wrong-key rejection, tampering and cleanup. The branch's GitHub Actions run is the authority for pass/fail status; these checks are not yet represented as a released production certification.
+
+## Operational limitations
+
+- The restore verifier requires an operator to retain the exact encryption key and key ID separately from the archive.
+- Temporary plaintext used by the restore verifier is mode-restricted and removed on exit; use a protected tmpfs or encrypted temporary filesystem for stricter at-rest requirements.
+- KMS/HSM, off-site copies, scheduled backup, automated key rotation, retention policy and tested RPO/RTO remain deployment responsibilities.
