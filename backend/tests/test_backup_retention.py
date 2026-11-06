@@ -100,7 +100,7 @@ def test_hard_linked_archive_is_never_deleted(tmp_path, capsys):
     os.link(target, archive)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     sidecar = directory / f"{archive.name}.sha256"
-    sidecar.write_text(f"{digest}  {archive.name}\\n", encoding="ascii")
+    sidecar.write_text(f"{digest}  {archive.name}" + chr(10), encoding="ascii")
     sidecar.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
     verified, retained, deleted = prune_backups(directory, keep_last=1, apply=True)
