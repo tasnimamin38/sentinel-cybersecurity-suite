@@ -233,6 +233,10 @@ def rotate_api_credential(
     if current_expiry <= now:
         raise HTTPException(status_code=409, detail="An expired credential cannot be rotated.")
 
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_key)"),
+        {"lock_key": 7812340912346},
+    )
     active_count = (
         db.scalar(
             select(func.count())
