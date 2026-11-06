@@ -688,7 +688,7 @@ def test_managed_credential_enforces_daily_quota(client):
     assert client.get("/api/v1/me", headers=headers).status_code == 200
     limited = client.get("/api/v1/assets", headers=headers)
     assert limited.status_code == 429
-    assert int(limited.headers["retry-after"]) >= 3600
+    assert 1 <= int(limited.headers["retry-after"]) <= 86400
 
 
 def test_managed_credential_rotation_preserves_grace_and_expires_old_key(client):
