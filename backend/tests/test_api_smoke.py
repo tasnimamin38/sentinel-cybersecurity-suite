@@ -929,7 +929,6 @@ def test_request_id_is_correlated_with_privacy_safe_json_access_log(client, capl
     assert "/healthz?access_token=" not in record.getMessage()
 
 
-
 def test_managed_credential_requires_an_explicit_nonempty_selected_asset_scope(client):
     invalid = client.post(
         "/api/v1/credentials",
@@ -1093,16 +1092,22 @@ def test_selected_asset_scope_is_enforced_across_api_data_surfaces_and_rotation(
     assets = client.get("/api/v1/assets", headers=limited_headers)
     assert assets.status_code == 200
     assert [item["id"] for item in assets.json()] == [allowed_asset_id]
-    assert client.post(
-        "/api/v1/assets",
-        headers=limited_headers,
-        json=_asset_payload(f"scope-new-{suffix}.example.com"),
-    ).status_code == 403
-    assert client.patch(
-        f"/api/v1/assets/{blocked_asset_id}",
-        headers=limited_headers,
-        json={"name": "Forbidden update"},
-    ).status_code == 404
+    assert (
+        client.post(
+            "/api/v1/assets",
+            headers=limited_headers,
+            json=_asset_payload(f"scope-new-{suffix}.example.com"),
+        ).status_code
+        == 403
+    )
+    assert (
+        client.patch(
+            f"/api/v1/assets/{blocked_asset_id}",
+            headers=limited_headers,
+            json={"name": "Forbidden update"},
+        ).status_code
+        == 404
+    )
 
     overview = client.get("/api/v1/overview", headers=limited_headers)
     assert overview.status_code == 200
@@ -1113,37 +1118,52 @@ def test_selected_asset_scope_is_enforced_across_api_data_surfaces_and_rotation(
     assessments = client.get("/api/v1/assessments", headers=limited_headers)
     assert assessments.status_code == 200
     assert [item["id"] for item in assessments.json()] == [allowed_assessment_id]
-    assert client.get(
-        f"/api/v1/assessments/{blocked_assessment_id}",
-        headers=limited_headers,
-    ).status_code == 404
-    assert client.post(
-        "/api/v1/assessments",
-        headers=limited_headers,
-        json={"domain": f"unregistered-{suffix}.example.com"},
-    ).status_code == 403
-    assert client.get(
-        f"/api/v1/assessments/{blocked_assessment_id}/evidence-integrity",
-        headers=limited_headers,
-    ).status_code == 404
+    assert (
+        client.get(
+            f"/api/v1/assessments/{blocked_assessment_id}",
+            headers=limited_headers,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/assessments",
+            headers=limited_headers,
+            json={"domain": f"unregistered-{suffix}.example.com"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            f"/api/v1/assessments/{blocked_assessment_id}/evidence-integrity",
+            headers=limited_headers,
+        ).status_code
+        == 404
+    )
 
     remediation_list = client.get("/api/v1/remediations", headers=limited_headers)
     assert remediation_list.status_code == 200
     assert all(item["asset_id"] == allowed_asset_id for item in remediation_list.json())
-    assert client.patch(
-        f"/api/v1/remediations/{blocked_remediation_id}",
-        headers=limited_headers,
-        json={"notes": "Forbidden"},
-    ).status_code == 404
+    assert (
+        client.patch(
+            f"/api/v1/remediations/{blocked_remediation_id}",
+            headers=limited_headers,
+            json={"notes": "Forbidden"},
+        ).status_code
+        == 404
+    )
 
     incident_list = client.get("/api/v1/incidents", headers=limited_headers)
     assert incident_list.status_code == 200
     assert all(item["asset_id"] == allowed_asset_id for item in incident_list.json())
-    assert client.patch(
-        f"/api/v1/incidents/{blocked_incident_id}",
-        headers=limited_headers,
-        json={"notes": "Forbidden"},
-    ).status_code == 404
+    assert (
+        client.patch(
+            f"/api/v1/incidents/{blocked_incident_id}",
+            headers=limited_headers,
+            json={"notes": "Forbidden"},
+        ).status_code
+        == 404
+    )
 
     for dataset, blocked_marker in (
         ("assets", second.json()["hostname"]),
@@ -1176,19 +1196,28 @@ def test_selected_asset_scope_is_enforced_across_api_data_surfaces_and_rotation(
     queued = client.get("/api/v1/assessment-jobs", headers=limited_headers)
     assert queued.status_code == 200
     assert [item["asset_id"] for item in queued.json()] == [allowed_asset_id]
-    assert client.get(
-        f"/api/v1/assessment-jobs/{blocked_job.json()['id']}",
-        headers=limited_headers,
-    ).status_code == 404
-    assert client.post(
-        f"/api/v1/assessment-jobs/{blocked_job.json()['id']}/cancel",
-        headers=limited_headers,
-    ).status_code == 404
-    assert client.post(
-        "/api/v1/assessment-jobs",
-        headers=limited_headers,
-        json={"asset_id": blocked_asset_id},
-    ).status_code == 404
+    assert (
+        client.get(
+            f"/api/v1/assessment-jobs/{blocked_job.json()['id']}",
+            headers=limited_headers,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/api/v1/assessment-jobs/{blocked_job.json()['id']}/cancel",
+            headers=limited_headers,
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/assessment-jobs",
+            headers=limited_headers,
+            json={"asset_id": blocked_asset_id},
+        ).status_code
+        == 404
+    )
 
     controls = client.get("/api/v1/controls", headers=limited_headers)
     assert controls.status_code == 200
