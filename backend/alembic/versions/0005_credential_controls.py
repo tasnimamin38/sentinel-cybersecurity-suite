@@ -34,7 +34,7 @@ def upgrade():
                     sa.Column(
                         name,
                         column_type,
-                        nullable=name in {"rate_limit_per_minute", "daily_request_limit"},
+                        nullable=name not in {"rate_limit_per_minute", "daily_request_limit"},
                         server_default=server_default,
                     ),
                 )
