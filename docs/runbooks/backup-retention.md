@@ -6,10 +6,13 @@ The retention utility only considers archives named `sentinel-YYYYMMDDTHHMMSSZ.d
 with a matching SHA-256 sidecar. A missing, malformed, mismatched or symlinked archive/sidecar
 is skipped and never deleted.
 
-The backup directory must be a private POSIX directory with mode `0700` or stricter. Candidate
-files must be private regular files with mode `0600` or stricter. The utility opens the directory
-without following symlinks, opens candidate files with `O_NOFOLLOW`, verifies the checksum, and
-re-checks file identity immediately before deletion.
+The backup directory must be owned by the invoking POSIX user and be private with mode `0700` or
+stricter. Candidate files must be owned by that user, be private regular files with mode `0600` or
+stricter, and have exactly one hard link. The utility rejects symlinks and hard links, validates
+the UTC timestamp embedded in each archive name, opens the directory without following symlinks,
+opens candidate files with `O_NOFOLLOW`, verifies the checksum, and re-checks file identity
+immediately before deletion. Retention ordering uses the UTC timestamp in the archive name, not
+mutable filesystem modification times.
 
 ## Dry-run first
 
