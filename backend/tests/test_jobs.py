@@ -235,3 +235,37 @@ def test_expired_lease_owner_cannot_heartbeat_or_complete(tmp_path):
         db.refresh(job)
         assert job.status == "running"
     engine.dispose()
+
+
+def test_worker_can_finalize_cancellation_and_permanent_failures(tmp_path):
+    service = queue_service()
+    engine = create_engine(f"sqlite:///{tmp_path / 'terminal-jobs.sqlite'}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
+    with Session() as db:
+        cancelled_asset = make_asset(db, "cooperative-cancel.example.com")
+        cancelled_job = service.enqueue_assessment_job(db, cancelled_asset)
+        claimed = service.claim_next_job(db, "worker-a", now=now)
+        service.request_job_cancel(db, claimed, now=now)
+        assert service.finish_cancelled_job(
+            db, cancelled_job.id, "worker-a", now=now + timedelta(seconds=1)
+        ) is True
+        db.refresh(cancelled_job)
+        assert cancelled_job.status == "cancelled"
+        assert cancelled_job.worker_id is None
+
+        failed_asset = make_asset(db, "permanent-failure.example.com")
+        failed_job = service.enqueue_assessment_job(db, failed_asset)
+        service.claim_next_job(db, "worker-b", now=now)
+        failed = service.fail_job_permanently(
+            db, failed_job.id, "worker-b", "authorization expired", now=now
+        )
+        assert failed.status == "failed"
+        assert failed.last_error == "authorization expired"
+
+        retried = service.retry_job(db, failed, now=now + timedelta(minutes=1))
+        assert retried.status == "queued"
+        assert retried.manual_retries == 1
+        assert retried.attempts == 0
+    engine.dispose()

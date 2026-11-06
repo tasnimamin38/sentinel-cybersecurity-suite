@@ -261,6 +261,68 @@ def fail_job_attempt(
     return job
 
 
+def finish_cancelled_job(
+    db: Session,
+    job_id: str,
+    worker_id: str,
+    now: datetime | None = None,
+) -> bool:
+    current = _now(now)
+    job = db.scalar(
+        select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update()
+    )
+    if (
+        job is None
+        or job.worker_id != worker_id
+        or job.status != "cancel_requested"
+        or job.lease_expires_at is None
+        or _as_utc(job.lease_expires_at) <= current
+    ):
+        return False
+    job.status = "cancelled"
+    job.completed_at = current
+    job.worker_id = None
+    job.lease_expires_at = None
+    job.heartbeat_at = None
+    job.updated_at = current
+    db.flush()
+    return True
+
+
+def fail_job_permanently(
+    db: Session,
+    job_id: str,
+    worker_id: str,
+    error_summary: str,
+    now: datetime | None = None,
+) -> AssessmentJob | None:
+    current = _now(now)
+    job = db.scalar(
+        select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update()
+    )
+    if (
+        job is None
+        or job.worker_id != worker_id
+        or job.lease_expires_at is None
+        or _as_utc(job.lease_expires_at) <= current
+    ):
+        return None
+    if job.status == "cancel_requested":
+        job.status = "cancelled"
+    elif job.status == "running":
+        job.status = "failed"
+        job.last_error = _safe_error_summary(error_summary)
+    else:
+        return None
+    job.completed_at = current
+    job.worker_id = None
+    job.lease_expires_at = None
+    job.heartbeat_at = None
+    job.updated_at = current
+    db.flush()
+    return job
+
+
 def retry_job(
     db: Session,
     job: AssessmentJob,

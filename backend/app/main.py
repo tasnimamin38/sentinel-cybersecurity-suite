@@ -13,6 +13,7 @@ from app.auth import require_api_key
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import Assessment, Asset, AuditEvent, RemediationTask
+from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
     AssessmentRequest,
     AssessmentResponse,
@@ -26,11 +27,11 @@ from app.schemas import (
     SecretScanRequest,
 )
 from app.services.audit import record_audit_event, verify_audit_chain
+from app.services.assessment_store import add_assessment_result
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
 from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
-from app.routes.jobs import router as assessment_jobs_router
 
 
 @asynccontextmanager
@@ -100,39 +101,12 @@ def _persist_assessment(
     result: dict,
     asset: Asset | None = None,
 ) -> Assessment:
-    item = Assessment(
-        asset_id=asset.id if asset else None,
-        target=result["target"],
-        status=result["status"],
-        score=result["score"],
-        risk_level=result["risk_level"],
-        findings=result["findings"],
-        evidence={
-            **result["evidence"],
-            "risk_explanation": result["risk_explanation"],
-        },
+    item = add_assessment_result(
+        db,
+        result,
+        asset,
+        max_records=settings.max_assessment_records,
     )
-    db.add(item)
-    db.flush()
-    db.add(
-        record_audit_event(
-            db,
-            event_type="assessment.completed",
-            subject=result["target"],
-            details=f"assessment_id={item.id}; asset_id={item.asset_id or 'unregistered'}; score={result['score']}; findings={len(result['findings'])}",
-        )
-    )
-    excess_ids = db.scalars(
-        select(Assessment.id)
-        .where(
-            Assessment.id != item.id,
-            Assessment.id.not_in(select(RemediationTask.assessment_id)),
-        )
-        .order_by(desc(Assessment.created_at), desc(Assessment.id))
-        .offset(settings.max_assessment_records - 1)
-    ).all()
-    if excess_ids:
-        db.execute(delete(Assessment).where(Assessment.id.in_(excess_ids)))
     db.commit()
     db.refresh(item)
     return item
