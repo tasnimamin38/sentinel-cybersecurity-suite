@@ -6,7 +6,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import require_api_key
+from app.auth import ApiPrincipal, apply_asset_scope, require_api_key
 from app.database import get_db
 from app.models import Assessment, SecurityIncident
 from app.schemas import (
@@ -66,7 +66,8 @@ def list_security_incidents(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    query = select(SecurityIncident).order_by(desc(SecurityIncident.updated_at)).limit(limit)
+    query = apply_asset_scope(select(SecurityIncident), principal, SecurityIncident.asset_id)
+    query = query.order_by(desc(SecurityIncident.updated_at)).limit(limit)
     if state:
         query = query.where(SecurityIncident.status == state)
     if severity:
@@ -85,7 +86,7 @@ def create_security_incident(
     db: Session = Depends(get_db),
 ):
     assessment = db.get(Assessment, payload.assessment_id)
-    if assessment is None:
+    if assessment is None or not principal.can_access_asset(assessment.asset_id):
         raise HTTPException(status_code=404, detail="Source assessment not found.")
     if assessment.status != "completed":
         raise HTTPException(
@@ -154,6 +155,8 @@ def update_security_incident(
     db: Session = Depends(get_db),
 ):
     incident = _get_incident_for_update(db, incident_id)
+    if not principal.can_access_asset(incident.asset_id):
+        raise HTTPException(status_code=404, detail="Security incident not found.")
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         return incident
