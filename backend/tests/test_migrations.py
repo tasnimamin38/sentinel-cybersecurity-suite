@@ -99,7 +99,7 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIsNone(audit[1])
             self.assertEqual(audit[2], 1)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0002_audit_sequence_numbers")
+            self.assertEqual(revision[0], "0003_assessment_jobs")
             connection.close()
 
 

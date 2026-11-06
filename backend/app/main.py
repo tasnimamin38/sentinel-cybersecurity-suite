@@ -30,6 +30,7 @@ from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
 from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
+from app.routes.jobs import router as assessment_jobs_router
 
 
 @asynccontextmanager
@@ -74,6 +75,9 @@ async def security_response_headers(request, call_next):
     response.headers.setdefault("Cache-Control", "no-store")
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
     return response
+
+
+app.include_router(assessment_jobs_router)
 
 
 def _aware_utc(value: datetime) -> datetime:

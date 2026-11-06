@@ -144,6 +144,8 @@ def heartbeat_job(
         job is None
         or job.worker_id != worker_id
         or job.status not in ("running", "cancel_requested")
+        or job.lease_expires_at is None
+        or _as_utc(job.lease_expires_at) <= current
     ):
         return False
     job.heartbeat_at = current
@@ -184,7 +186,12 @@ def complete_job(
         .where(AssessmentJob.id == job_id)
         .with_for_update()
     )
-    if job is None or job.worker_id != worker_id:
+    if (
+        job is None
+        or job.worker_id != worker_id
+        or job.lease_expires_at is None
+        or _as_utc(job.lease_expires_at) <= current
+    ):
         return False
     if job.status == "cancel_requested":
         job.status = "cancelled"
@@ -223,7 +230,12 @@ def fail_job_attempt(
         .where(AssessmentJob.id == job_id)
         .with_for_update()
     )
-    if job is None or job.worker_id != worker_id:
+    if (
+        job is None
+        or job.worker_id != worker_id
+        or job.lease_expires_at is None
+        or _as_utc(job.lease_expires_at) <= current
+    ):
         return None
 
     if job.status == "cancel_requested":

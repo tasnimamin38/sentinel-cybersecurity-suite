@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -19,6 +19,48 @@ class AssessmentResponse(BaseModel):
     findings: list[dict]
     evidence: dict
     created_at: datetime
+
+
+class AssessmentJobCreate(BaseModel):
+    asset_id: str = Field(min_length=36, max_length=36)
+    scheduled_for: datetime | None = None
+
+    @field_validator("scheduled_for")
+    @classmethod
+    def validate_schedule(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Scheduled time must include a timezone.")
+        current = datetime.now(UTC)
+        if value <= current:
+            raise ValueError("Scheduled time must be in the future.")
+        if value > current + timedelta(days=30):
+            raise ValueError("Scheduled time cannot be more than 30 days ahead.")
+        return value
+
+
+class AssessmentJobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    asset_id: str | None
+    target: str
+    status: str
+    available_at: datetime
+    attempts: int
+    max_attempts: int
+    manual_retries: int
+    worker_id: str | None
+    lease_expires_at: datetime | None
+    heartbeat_at: datetime | None
+    cancel_requested_at: datetime | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    assessment_id: str | None
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class OverviewResponse(BaseModel):

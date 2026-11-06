@@ -208,9 +208,30 @@ def test_complete_job_requires_current_lease_owner(tmp_path):
         claimed = service.claim_next_job(db, "worker-a", now=now)
 
         assert service.complete_job(db, claimed.id, "worker-b", "assessment-1") is False
-        assert service.complete_job(db, claimed.id, "worker-a", "assessment-1") is True
+        assert service.complete_job(db, claimed.id, "worker-a", "assessment-1", now=now) is True
         db.refresh(job)
         assert job.status == "succeeded"
         assert job.assessment_id == "assessment-1"
         assert job.completed_at == now
+    engine.dispose()
+
+
+def test_expired_lease_owner_cannot_heartbeat_or_complete(tmp_path):
+    service = queue_service()
+    engine = create_engine(f"sqlite:///{tmp_path / 'expired-owner.sqlite'}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    now = datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
+    with Session() as db:
+        asset = make_asset(db)
+        job = service.enqueue_assessment_job(db, asset)
+        claimed = service.claim_next_job(db, "worker-a", now=now)
+
+        expired = now + timedelta(seconds=61)
+        assert service.heartbeat_job(db, claimed.id, "worker-a", now=expired) is False
+        assert service.complete_job(
+            db, claimed.id, "worker-a", "assessment-1", now=expired
+        ) is False
+        db.refresh(job)
+        assert job.status == "running"
     engine.dispose()
