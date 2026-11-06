@@ -127,11 +127,12 @@ def test_malformed_or_truncated_archive_is_rejected(tmp_path, monkeypatch):
     assert not restored.exists()
 
 
-
-def test_stdin_stream_is_encrypted_without_creating_plaintext_staging_file(tmp_path, monkeypatch):
+def test_stdin_stream_is_encrypted_without_creating_plaintext_staging_file(
+    tmp_path, monkeypatch
+):
     import io
 
-    original = (b"postgres-stream\\x00" * 100_000) + os.urandom(2048)
+    original = (b"postgres-stream\x00" * 100_000) + os.urandom(2048)
     encrypted = tmp_path / "stdin.dump.enc"
     set_backup_key(monkeypatch, os.urandom(32))
 
