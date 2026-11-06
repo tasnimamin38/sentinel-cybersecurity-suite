@@ -852,6 +852,8 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
 
     unauthorized = client.get("/metrics")
     assert unauthorized.status_code == 401
+    wrong_token = client.get("/metrics", headers={"X-Metrics-Token": "W" * 40})
+    assert wrong_token.status_code == 401
 
     health = client.get("/healthz")
     assert health.status_code == 200
@@ -872,5 +874,6 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
     assert "sentinel_http_request_duration_seconds_bucket" in payload
     assert "sentinel_http_request_duration_seconds_count" in payload
     assert private_path_id not in payload
+    assert metrics_token not in payload
     assert "X-API-Key" not in payload
 
