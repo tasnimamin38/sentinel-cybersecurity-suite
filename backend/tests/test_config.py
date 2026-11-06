@@ -85,6 +85,8 @@ class ProductionConfigTests(unittest.TestCase):
         configured = Settings(**baseline, metrics_token="M" * 40)
         self.assertTrue(configured.metrics_enabled)
         self.assertEqual(configured.metrics_token, "M" * 40)
+        with self.assertRaises(ValidationError):
+            Settings(metrics_enabled=True, api_key="A" * 40, metrics_token="A" * 40)
 
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValidationError):
