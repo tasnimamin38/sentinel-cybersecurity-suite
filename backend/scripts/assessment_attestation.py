@@ -15,17 +15,34 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 try:
-    from .audit_checkpoint import _prompt_passphrase, load_json, load_private_key, load_public_key, write_json_new
+    from .audit_checkpoint import (
+        _prompt_passphrase,
+        load_json,
+        load_private_key,
+        load_public_key,
+        write_json_new,
+    )
 except ImportError:  # Executed directly as a script from backend/scripts.
-    from audit_checkpoint import _prompt_passphrase, load_json, load_private_key, load_public_key, write_json_new
+    from audit_checkpoint import (
+        _prompt_passphrase,
+        load_json,
+        load_private_key,
+        load_public_key,
+        write_json_new,
+    )
 
 ATTESTATION_FORMAT = "sentinel.assessment.evidence-attestation.v1"
 SIGNED_FORMAT = "sentinel.assessment.signed-attestation.v1"
 ALGORITHM = "Ed25519"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _PAYLOAD_FIELDS = {
-    "format", "assessment_id", "evidence_sha256", "audit_event_id",
-    "audit_sequence_no", "audit_event_hash", "signed_at",
+    "format",
+    "assessment_id",
+    "evidence_sha256",
+    "audit_event_id",
+    "audit_sequence_no",
+    "audit_event_hash",
+    "signed_at",
 }
 _ENVELOPE_FIELDS = {"format", "algorithm", "key_id", "payload", "signature"}
 
@@ -48,7 +65,9 @@ def _verified_anchor(response: Any) -> dict[str, Any]:
         and response.get("audit_chain_valid") is True
         and response.get("audit_chain_status") == "verified"
     ):
-        raise ValueError("Refusing to sign: assessment evidence and audit chain must both be verified.")
+        raise ValueError(
+            "Refusing to sign: assessment evidence and audit chain must both be verified."
+        )
 
     assessment_id = response.get("assessment_id")
     event_id = response.get("audit_event_id")
@@ -80,13 +99,21 @@ def _validate_payload(payload: Any) -> dict[str, Any]:
     if payload.get("format") != ATTESTATION_FORMAT:
         raise ValueError("Unsupported assessment attestation format.")
     anchor = {
-        "integrity_valid": True, "verification_status": "verified",
-        "payload_digest_matches": True, "audit_chain_valid": True,
+        "integrity_valid": True,
+        "verification_status": "verified",
+        "payload_digest_matches": True,
+        "audit_chain_valid": True,
         "audit_chain_status": "verified",
-        **{key: payload[key] for key in (
-            "assessment_id", "evidence_sha256", "audit_event_id",
-            "audit_sequence_no", "audit_event_hash",
-        )},
+        **{
+            key: payload[key]
+            for key in (
+                "assessment_id",
+                "evidence_sha256",
+                "audit_event_id",
+                "audit_sequence_no",
+                "audit_event_hash",
+            )
+        },
     }
     _verified_anchor(anchor)
     signed_at = payload.get("signed_at")
@@ -157,7 +184,9 @@ def verify_signed_attestation(
         current = _verified_anchor(current_integrity_response)
         signed = {key: payload[key] for key in current}
         if canonical_json(current) != canonical_json(signed):
-            raise ValueError("Current verified assessment does not match the signed evidence/audit anchor.")
+            raise ValueError(
+                "Current verified assessment does not match the signed evidence/audit anchor."
+            )
     return payload
 
 
@@ -170,7 +199,9 @@ def _parser() -> argparse.ArgumentParser:
     sign.add_argument("--input", required=True, type=Path)
     sign.add_argument("--private-key", required=True, type=Path)
     sign.add_argument("--output", required=True, type=Path)
-    verify = commands.add_parser("verify", help="Verify an attestation and optional current anchor.")
+    verify = commands.add_parser(
+        "verify", help="Verify an attestation and optional current anchor."
+    )
     verify.add_argument("--input", required=True, type=Path)
     verify.add_argument("--public-key", required=True, type=Path)
     verify.add_argument("--current", type=Path)
