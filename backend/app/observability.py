@@ -35,9 +35,7 @@ class RequestMetrics:
             else "unmatched"
         )
         normalized_status = (
-            status_code
-            if type(status_code) is int and 100 <= status_code <= 599
-            else 500
+            status_code if type(status_code) is int and 100 <= status_code <= 599 else 500
         )
         return normalized_method, normalized_route, normalized_status
 
@@ -57,15 +55,11 @@ class RequestMetrics:
 
         with self._lock:
             self._requests[request_key] = self._requests.get(request_key, 0) + 1
-            buckets = self._duration_buckets.setdefault(
-                duration_key, [0 for _ in _BUCKETS_SECONDS]
-            )
+            buckets = self._duration_buckets.setdefault(duration_key, [0 for _ in _BUCKETS_SECONDS])
             for index, boundary in enumerate(_BUCKETS_SECONDS):
                 if duration <= boundary:
                     buckets[index] += 1
-            self._duration_sum[duration_key] = (
-                self._duration_sum.get(duration_key, 0.0) + duration
-            )
+            self._duration_sum[duration_key] = self._duration_sum.get(duration_key, 0.0) + duration
             self._duration_count[duration_key] = self._duration_count.get(duration_key, 0) + 1
 
     def render(self) -> str:
@@ -97,8 +91,7 @@ class RequestMetrics:
             for boundary, count in zip(_BUCKETS_SECONDS, counts, strict=True):
                 label = "+Inf" if boundary == float("inf") else f"{boundary:g}"
                 labels = (
-                    f'method="{_escape_label(method)}",'
-                    f'route="{_escape_label(route)}",le="{label}"'
+                    f'method="{_escape_label(method)}",route="{_escape_label(route)}",le="{label}"'
                 )
                 lines.append(f"sentinel_http_request_duration_seconds_bucket{{{labels}}} {count}")
             lines.append(
