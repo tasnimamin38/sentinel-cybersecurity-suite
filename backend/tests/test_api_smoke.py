@@ -308,3 +308,149 @@ def test_assessment_retention_preserves_records_referenced_by_remediation(client
         assert db.get(RemediationTask, task_id) is not None
     finally:
         db.close()
+
+
+def test_assessment_job_api_is_idempotent_and_exposes_lifecycle(client):
+    asset_response = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload("jobs.example.com"),
+    )
+    assert asset_response.status_code == 201
+    asset_id = asset_response.json()["id"]
+    headers = {**API_HEADERS, "Idempotency-Key": "job-request-2026-0001"}
+
+    created = client.post(
+        "/api/v1/assessment-jobs",
+        headers=headers,
+        json={"asset_id": asset_id},
+    )
+    assert created.status_code == 202
+    job = created.json()
+    assert job["status"] == "queued"
+    assert job["asset_id"] == asset_id
+    assert job["target"] == "jobs.example.com"
+    assert job["attempts"] == 0
+    assert "idempotency_key_hash" not in job
+
+    repeated = client.post(
+        "/api/v1/assessment-jobs",
+        headers=headers,
+        json={"asset_id": asset_id},
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["id"] == job["id"]
+
+    listed = client.get("/api/v1/assessment-jobs?status=queued", headers=API_HEADERS)
+    assert listed.status_code == 200
+    assert sum(item["id"] == job["id"] for item in listed.json()) == 1
+
+    detail = client.get(f"/api/v1/assessment-jobs/{job['id']}", headers=API_HEADERS)
+    assert detail.status_code == 200
+    assert detail.json()["target"] == "jobs.example.com"
+
+    events = client.get("/api/v1/audit?limit=50", headers=API_HEADERS).json()
+    matching = [
+        item for item in events
+        if item["event_type"] == "assessment.job.queued"
+        and f"job_id={job['id']}" in item["details"]
+    ]
+    assert len(matching) == 1
+
+
+def test_assessment_job_api_rejects_unknown_and_unauthorized_assets(client):
+    missing = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert missing.status_code == 404
+
+    created = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload("paused-jobs.example.com"),
+    )
+    assert created.status_code == 201
+    asset_id = created.json()["id"]
+    paused = client.patch(
+        f"/api/v1/assets/{asset_id}",
+        headers=API_HEADERS,
+        json={"status": "paused"},
+    )
+    assert paused.status_code == 200
+
+    rejected = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": asset_id},
+    )
+    assert rejected.status_code == 409
+
+    denied = client.post(
+        "/api/v1/assessment-jobs",
+        json={"asset_id": asset_id},
+    )
+    assert denied.status_code == 401
+
+
+def test_assessment_job_api_validates_schedule_and_idempotency_header(client):
+    created = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload("scheduled-jobs.example.com"),
+    )
+    assert created.status_code == 201
+    asset_id = created.json()["id"]
+
+    naive = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": asset_id, "scheduled_for": "2026-11-07T12:00:00"},
+    )
+    assert naive.status_code == 422
+
+    too_far = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={
+            "asset_id": asset_id,
+            "scheduled_for": (datetime.now(UTC) + timedelta(days=31)).isoformat(),
+        },
+    )
+    assert too_far.status_code == 422
+
+    invalid_key = client.post(
+        "/api/v1/assessment-jobs",
+        headers={**API_HEADERS, "Idempotency-Key": "bad"},
+        json={"asset_id": asset_id},
+    )
+    assert invalid_key.status_code == 422
+
+
+def test_assessment_job_api_cancels_queued_job_and_rejects_retry(client):
+    created = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload("cancel-jobs.example.com"),
+    )
+    assert created.status_code == 201
+    job = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": created.json()["id"]},
+    )
+    assert job.status_code == 202
+
+    cancelled = client.post(
+        f"/api/v1/assessment-jobs/{job.json()['id']}/cancel",
+        headers=API_HEADERS,
+    )
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+
+    retry = client.post(
+        f"/api/v1/assessment-jobs/{job.json()['id']}/retry",
+        headers=API_HEADERS,
+    )
+    assert retry.status_code == 409
