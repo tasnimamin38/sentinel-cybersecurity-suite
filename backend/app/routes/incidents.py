@@ -64,6 +64,7 @@ def list_security_incidents(
     | None = Query(default=None, alias="status"),
     severity: Literal["critical", "high", "medium", "low", "informational"] | None = None,
     limit: int = Query(default=50, ge=1, le=200),
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     query = apply_asset_scope(select(SecurityIncident), principal, SecurityIncident.asset_id)
@@ -83,6 +84,7 @@ def list_security_incidents(
 )
 def create_security_incident(
     payload: SecurityIncidentCreate,
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     assessment = db.get(Assessment, payload.assessment_id)
@@ -152,6 +154,7 @@ def create_security_incident(
 def update_security_incident(
     incident_id: str,
     payload: SecurityIncidentUpdate,
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     incident = _get_incident_for_update(db, incident_id)
