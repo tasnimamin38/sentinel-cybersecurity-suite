@@ -134,6 +134,11 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SENTINEL_METRICS_TOKEN must not contain a sample or placeholder value"
                 )
+            configured_service_keys = self.configured_api_keys + [
+                item["key"] for item in self.configured_role_credentials
+            ]
+            if self.metrics_token in configured_service_keys:
+                raise ValueError("SENTINEL_METRICS_TOKEN must not reuse an API credential")
 
         if self.environment == "production":
             errors = []
