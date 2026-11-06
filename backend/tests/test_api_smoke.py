@@ -1082,10 +1082,7 @@ def test_incident_csv_export_is_formula_safe_and_audited(client):
     response = client.get("/api/v1/exports/incidents.csv", headers=API_HEADERS)
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
-    assert (
-        'attachment; filename="sentinel-incidents.csv"'
-        in response.headers["content-disposition"]
-    )
+    assert 'attachment; filename="sentinel-incidents.csv"' in response.headers["content-disposition"]
     assert "finding_code" in response.text
     assert "TLS_CERT_EXPIRY_WINDOW" in response.text
     assert "'=HYPERLINK" in response.text
