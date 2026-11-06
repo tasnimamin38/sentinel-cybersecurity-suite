@@ -41,9 +41,7 @@ def enqueue_assessment_job(
 
     if idempotency_digest:
         existing = db.scalar(
-            select(AssessmentJob).where(
-                AssessmentJob.idempotency_key_hash == idempotency_digest
-            )
+            select(AssessmentJob).where(AssessmentJob.idempotency_key_hash == idempotency_digest)
         )
         if existing is not None:
             return existing
@@ -135,11 +133,7 @@ def heartbeat_job(
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
 ) -> bool:
     current = _now(now)
-    job = db.scalar(
-        select(AssessmentJob)
-        .where(AssessmentJob.id == job_id)
-        .with_for_update()
-    )
+    job = db.scalar(select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update())
     if (
         job is None
         or job.worker_id != worker_id
@@ -181,11 +175,7 @@ def complete_job(
     now: datetime | None = None,
 ) -> bool:
     current = _now(now)
-    job = db.scalar(
-        select(AssessmentJob)
-        .where(AssessmentJob.id == job_id)
-        .with_for_update()
-    )
+    job = db.scalar(select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update())
     if (
         job is None
         or job.worker_id != worker_id
@@ -225,11 +215,7 @@ def fail_job_attempt(
     now: datetime | None = None,
 ) -> AssessmentJob | None:
     current = _now(now)
-    job = db.scalar(
-        select(AssessmentJob)
-        .where(AssessmentJob.id == job_id)
-        .with_for_update()
-    )
+    job = db.scalar(select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update())
     if (
         job is None
         or job.worker_id != worker_id

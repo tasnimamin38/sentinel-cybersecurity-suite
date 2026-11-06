@@ -59,7 +59,9 @@ def validate_job_asset(
     try:
         authorize_domain(job.target, allowed_domains)
     except (ScopeViolation, ValueError) as exc:
-        raise PermanentJobError("The job target is no longer in the authorized domain scope.") from exc
+        raise PermanentJobError(
+            "The job target is no longer in the authorized domain scope."
+        ) from exc
     return asset
 
 
@@ -74,9 +76,7 @@ def persist_job_result(
     max_records: int = 250,
 ) -> bool:
     current = _utc(now or datetime.now(UTC))
-    job = db.scalar(
-        select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update()
-    )
+    job = db.scalar(select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update())
     if (
         job is None
         or job.worker_id != worker_id
@@ -106,9 +106,7 @@ def persist_job_result(
     if job.status != "running":
         return False
 
-    locked_asset = db.scalar(
-        select(Asset).where(Asset.id == job.asset_id).with_for_update()
-    )
+    locked_asset = db.scalar(select(Asset).where(Asset.id == job.asset_id).with_for_update())
     validate_job_asset(
         db,
         job,
@@ -256,9 +254,7 @@ async def _assess_with_lease(
             await asyncio.wait({assessment_task}, timeout=1.0)
             if assessment_task.done():
                 break
-            state, last_heartbeat = await _observe_worker_lease(
-                job_id, worker_id, last_heartbeat
-            )
+            state, last_heartbeat = await _observe_worker_lease(job_id, worker_id, last_heartbeat)
             if state in ("cancelled", "lost"):
                 assessment_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -294,11 +290,7 @@ async def process_job(job_id: str, worker_id: str) -> None:
     settings = get_settings()
     with SessionLocal() as db:
         job = db.get(AssessmentJob, job_id)
-        if (
-            job is None
-            or job.worker_id != worker_id
-            or job.status != "running"
-        ):
+        if job is None or job.worker_id != worker_id or job.status != "running":
             return
         try:
             asset = validate_job_asset(db, job, settings.allowed_domain_list)
@@ -331,7 +323,9 @@ async def process_job(job_id: str, worker_id: str) -> None:
             _fail_permanently(job_id, worker_id, str(exc))
             return
         if not saved:
-            LOGGER.warning("Worker discarded result after lease loss or state change: job_id=%s", job_id)
+            LOGGER.warning(
+                "Worker discarded result after lease loss or state change: job_id=%s", job_id
+            )
     except asyncio.CancelledError:
         raise
     except (PermanentJobError, ScopeViolation, ValueError) as exc:

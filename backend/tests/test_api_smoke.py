@@ -351,7 +351,8 @@ def test_assessment_job_api_is_idempotent_and_exposes_lifecycle(client):
 
     events = client.get("/api/v1/audit?limit=50", headers=API_HEADERS).json()
     matching = [
-        item for item in events
+        item
+        for item in events
         if item["event_type"] == "assessment.job.queued"
         and f"job_id={job['id']}" in item["details"]
     ]

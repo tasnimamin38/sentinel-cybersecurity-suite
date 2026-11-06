@@ -128,7 +128,9 @@ def create_assessment_job(
                     ) from exc
                 response.status_code = status.HTTP_200_OK
                 return existing
-        raise HTTPException(status_code=409, detail="Assessment job could not be enqueued.") from exc
+        raise HTTPException(
+            status_code=409, detail="Assessment job could not be enqueued."
+        ) from exc
 
 
 @router.get(
@@ -170,7 +172,9 @@ def get_assessment_job(job_id: str, db: Session = Depends(get_db)):
 def cancel_assessment_job(job_id: str, db: Session = Depends(get_db)):
     item = _get_job_for_update(db, job_id)
     if item.status in ("succeeded", "failed", "dead_letter"):
-        raise HTTPException(status_code=409, detail="A terminal assessment job cannot be cancelled.")
+        raise HTTPException(
+            status_code=409, detail="A terminal assessment job cannot be cancelled."
+        )
     previous = item.status
     request_job_cancel(db, item)
     if item.status != previous:

@@ -118,17 +118,19 @@ class AssessmentJob(Base):
     max_attempts: Mapped[int] = mapped_column(Integer, default=3)
     manual_retries: Mapped[int] = mapped_column(Integer, default=0)
     worker_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     assessment_id: Mapped[str | None] = mapped_column(
         ForeignKey("assessments.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    idempotency_key_hash: Mapped[str | None] = mapped_column(
-        String(64), unique=True, nullable=True
-    )
+    idempotency_key_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
