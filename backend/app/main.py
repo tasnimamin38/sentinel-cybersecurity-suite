@@ -460,9 +460,7 @@ def read_config(
     authorized_domains = settings.allowed_domain_list
     if principal.asset_scope_mode == "selected":
         authorized_domains = sorted(
-            db.scalars(
-                apply_asset_scope(select(Asset.hostname), principal, Asset.id)
-            ).all()
+            db.scalars(apply_asset_scope(select(Asset.hostname), principal, Asset.id)).all()
         )
     return {
         "version": "0.16.0-pre",
