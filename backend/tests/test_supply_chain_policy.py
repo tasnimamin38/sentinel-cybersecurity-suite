@@ -74,8 +74,9 @@ def test_dependabot_updates_all_manifest_ecosystems():
     assert docker_directories == {"/backend", "/frontend", "/"}
 
 
-
 def test_backend_image_removes_vulnerable_system_setuptools_and_sets_safe_floor():
     dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
-    assert "python3-setuptools" in dockerfile
-    assert 'setuptools>=78.1.1' in dockerfile
+    assert "setuptools>=78.1.1" in dockerfile
+    assert "ensurepip" in dockerfile
+    assert "setuptools-*.whl" in dockerfile
+    assert "apt-get update" not in dockerfile
