@@ -19,10 +19,10 @@ This matrix links security claims to repeatable checks. A skipped check, unavail
 | Secret hygiene | Pattern tests, redaction, no source persistence | Limited pattern set; not a secret manager |
 | CSV exports | Dataset allowlist, authentication, row caps, audit event and formula-injection neutralization | Exports still require operator data-handling controls |
 | GitHub Action integrity | Regression test requires a 40-character commit SHA for each workflow action | SHA pinning does not prove upstream code is benign |
-| Dependency changes | Dependency Review on pull requests, pip-audit and npm audit | Advisory databases and metadata have coverage/freshness limits |
+| Dependency changes | pip-audit, npm audit and Dependency Review configuration | Dependency Review is blocked until repository Dependency Graph is enabled; advisory databases and metadata have coverage/freshness limits |
 | Secret exposure | Gitleaks scans repository history | False positives require documented, reviewed exceptions |
-| Filesystem configuration | Trivy vulnerability/misconfiguration/secret/license scan, HIGH/CRITICAL gate | Fork PR SARIF upload is skipped by GitHub permission restrictions |
-| Container images | Trivy scans built backend/frontend images for HIGH/CRITICAL OS/library vulnerabilities | Unfixed vulnerabilities are reported separately from the gate |
+| Filesystem configuration | Trivy vulnerability/misconfiguration/secret/license SARIF plus readable HIGH/CRITICAL gate | Fork PR SARIF upload is skipped by GitHub permission restrictions; raw SARIF retained 14 days |
+| Container images | Trivy scans built backend/frontend images for HIGH/CRITICAL OS/library vulnerabilities | First 0.15 scan found setuptools 70.3.0 (CVE-2025-47273); Dockerfile remediation is pending exact-head rescan |
 | Static analysis | CodeQL Python and JavaScript/TypeScript | SAST cannot prove absence of vulnerabilities |
 | SBOM | SPDX JSON generated from repository workspace and stored as a 14-day artifact | Not yet signed; artifact is not an immutable long-term evidence store |
 | Database migrations | PostgreSQL upgrade → downgrade → re-upgrade in CI | Does not prove production recovery objectives |

@@ -72,4 +72,4 @@
 
 This phase does not change the database schema or production service runtime. Rollback is a reviewable revert of the 0.15 feature-branch commit; no migration rollback is required. Scanner findings must be triaged before merge. A green workflow on an older SHA is not evidence for a newer head.
 
-The red phase of the test-first cycle was not separately recorded in this GitHub-only execution; the new policy tests are included for the exact PR CI run. Treat those tests and all scanner results as pending until the new commit's workflows finish.
+The initial exact-head CI observed 130 passing backend tests, but Ruff formatting failed on the new policy test; this patch formats it to Ruff's emitted diff. The initial image scan found CVE-2025-47273 in setuptools 70.3.0; remediation is included and must be revalidated. The Dependency Review action is blocked until the repository Dependency Graph is enabled. Treat the new head's checks as pending until they finish.

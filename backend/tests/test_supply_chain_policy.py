@@ -9,9 +9,7 @@ IMMUTABLE_ACTION_REF = re.compile(r"^[^@]+@[0-9a-f]{40}$")
 
 
 def test_every_workflow_action_uses_an_immutable_commit_sha():
-    workflow_files = sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(
-        WORKFLOW_ROOT.glob("*.yaml")
-    )
+    workflow_files = sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(WORKFLOW_ROOT.glob("*.yaml"))
     assert workflow_files, "GitHub Actions workflows must be present."
 
     unpinned = []
@@ -40,6 +38,9 @@ def test_supply_chain_workflow_enforces_security_gates():
         "security-events: write",
         "GITLEAKS_ENABLE_COMMENTS: 'false'",
         "upload-release-assets: false",
+        "trivy-results.sarif",
+        "sentinel-trivy-filesystem-sarif",
+        "actions/upload-artifact@",
     )
     for control in required_controls:
         assert control in workflow, f"Required supply-chain control missing: {control}"
@@ -55,7 +56,11 @@ def test_container_images_are_scanned_after_build():
 
 def test_dependabot_updates_all_manifest_ecosystems():
     config = (REPOSITORY_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
-    for ecosystem, directory in (("pip", "/backend"), ("npm", "/frontend"), ("github-actions", "/")):
+    for ecosystem, directory in (
+        ("pip", "/backend"),
+        ("npm", "/frontend"),
+        ("github-actions", "/"),
+    ):
         assert f"package-ecosystem: {ecosystem}" in config
         assert f"directory: {directory}" in config
 
@@ -67,3 +72,10 @@ def test_dependabot_updates_all_manifest_ecosystems():
         if "directory:" in section
     }
     assert docker_directories == {"/backend", "/frontend", "/"}
+
+
+
+def test_backend_image_removes_vulnerable_system_setuptools_and_sets_safe_floor():
+    dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "python3-setuptools" in dockerfile
+    assert 'setuptools>=78.1.1' in dockerfile

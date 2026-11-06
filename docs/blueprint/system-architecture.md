@@ -103,7 +103,7 @@ Production Compose separates PostgreSQL data, console web and API/worker egress 
 
 The 0.15 branch adds:
 - Full commit-SHA references for GitHub Actions used by CI and CodeQL.
-- Pull request dependency review for newly introduced high/critical runtime and development vulnerabilities.
+- Pull request dependency review for newly introduced high/critical runtime and development vulnerabilities; the action is currently blocked because repository Dependency Graph is disabled and requires an owner setting change.
 - Gitleaks repository-history scanning; PR comments are disabled.
 - Trivy filesystem scans for vulnerabilities, misconfiguration, secrets and licenses.
 - Trivy scans of built backend and frontend images for high/critical OS/library vulnerabilities.

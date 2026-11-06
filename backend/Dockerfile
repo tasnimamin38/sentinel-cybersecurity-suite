@@ -2,7 +2,14 @@ FROM python:3.12.16-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/srv/backend PIP_NO_CACHE_DIR=1
 WORKDIR /srv/backend
 COPY backend/requirements.txt ./requirements.txt
-RUN python -m pip install --upgrade pip setuptools wheel && pip install -r requirements.txt
+RUN if dpkg-query -W -f='${db:Status-Status}' python3-setuptools 2>/dev/null | grep -qx installed; then \
+        apt-get update \
+        && apt-get purge -y python3-setuptools \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi \
+    && python -m pip install --upgrade pip "setuptools>=78.1.1" wheel \
+    && pip install -r requirements.txt \
+    && python -c 'import setuptools; v=tuple(int(x) for x in setuptools.__version__.split(".")[:3]); assert v >= (78, 1, 1), setuptools.__version__'
 COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./alembic.ini

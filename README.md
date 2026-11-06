@@ -273,6 +273,8 @@ GitHub Actions runs attached to the exact commit SHA are the source of truth. Do
 
 A green workflow validates only checks that actually ran on that SHA. It is not a penetration-test result, production deployment approval or certification. Fork-originated pull requests run the scanners but skip SARIF upload where GitHub restricts write permissions.
 
+**Repository prerequisite:** GitHub Dependency Review currently cannot run because the repository Dependency Graph is disabled. Enable it in repository Security settings before treating the dependency-review gate as available; pip-audit, npm audit and Trivy are separate checks.
+
 ## What is still required before multi-user industrial deployment?
 
 | Capability | Status | Why it matters |

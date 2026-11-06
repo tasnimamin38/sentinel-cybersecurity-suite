@@ -70,7 +70,7 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: '0'
           format: sarif
           output: trivy-results.sarif
           timeout: 10m
@@ -80,6 +80,28 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy-filesystem
+      - name: Retain raw Trivy filesystem SARIF
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sentinel-trivy-filesystem-sarif
+          path: trivy-results.sarif
+          if-no-files-found: error
+          retention-days: 14
+      - name: Enforce filesystem HIGH and CRITICAL gate with readable findings
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret,license
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 10m
+          skip-setup-trivy: true
 
   sbom:
     name: Generate SPDX software bill of materials
