@@ -71,7 +71,16 @@ class Settings(BaseSettings):
             if (
                 not isinstance(item, dict)
                 or not {"id", "key", "role"}.issubset(item)
-                or set(item) - {"id", "key", "role", "rate_limit_per_minute", "daily_request_limit"}
+                or set(item)
+                - {
+                    "id",
+                    "key",
+                    "role",
+                    "rate_limit_per_minute",
+                    "daily_request_limit",
+                    "asset_scope_mode",
+                    "asset_scope_ids",
+                }
             ):
                 raise ValueError(
                     "Each role credential must contain id, key, role and optional request quota limits only."
@@ -107,6 +116,20 @@ class Settings(BaseSettings):
                 )
             if credential_id in seen_ids or key in seen_keys:
                 raise ValueError("Static credential IDs and key material must be unique.")
+            scope_mode = item.get("asset_scope_mode", "all")
+            scope_ids = item.get("asset_scope_ids", [])
+            if scope_mode not in {"all", "selected"}:
+                raise ValueError("Static credential asset_scope_mode must be all or selected.")
+            if (
+                not isinstance(scope_ids, list)
+                or any(not isinstance(asset_id, str) or len(asset_id) != 36 for asset_id in scope_ids)
+                or len(scope_ids) != len(set(scope_ids))
+            ):
+                raise ValueError("Static credential asset_scope_ids must be a unique list of UUID strings.")
+            if scope_mode == "selected" and not scope_ids:
+                raise ValueError("Selected static credentials require at least one asset ID.")
+            if scope_mode == "all" and scope_ids:
+                raise ValueError("All-assets static credentials must not include asset IDs.")
             seen_ids.add(credential_id)
             seen_keys.add(key)
 
