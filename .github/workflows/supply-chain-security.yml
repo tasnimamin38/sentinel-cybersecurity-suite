@@ -18,21 +18,36 @@ concurrency:
 
 jobs:
   dependency-review:
-    name: Review pull request dependency changes
+    name: Audit dependency manifests (Dependency Graph-independent)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
     steps:
-      - name: Reject newly introduced high or critical dependency vulnerabilities
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      - name: Checkout dependency manifests and lockfiles
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The GitHub Dependency Review API requires the repository Dependency Graph.
+      # Until that feature is enabled, audit the complete checked-in dependency sets.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          fail-on-severity: high
-          fail-on-scopes: runtime,development
-          license-check: true
-          vulnerability-check: true
-          comment-summary-in-pr: never
+          python-version: "3.13"
+      - name: Install Python dependency auditor
+        run: python -m pip install --disable-pip-version-check pip-audit
+      - name: Reject known backend dependency vulnerabilities
+        run: pip-audit -r backend/requirements.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install exact frontend dependency lock
+        working-directory: frontend
+        run: npm ci
+      - name: Reject high or critical frontend dependency vulnerabilities
+        working-directory: frontend
+        run: npm audit --audit-level=high
 
   secret-scan:
     name: Scan repository history for exposed secrets
