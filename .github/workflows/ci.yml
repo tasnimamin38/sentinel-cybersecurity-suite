@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, 'feat/sentinel-*']
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/sentinel-*']
   workflow_dispatch:
 
 permissions:
