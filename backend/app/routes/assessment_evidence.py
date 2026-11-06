@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/v1")
 )
 def read_assessment_evidence_integrity(
     assessment_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ):
     """Verify the persisted assessment snapshot against its audit-chain digest."""
