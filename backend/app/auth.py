@@ -219,7 +219,15 @@ def require_api_key(
             detail="API authentication is not securely configured. Static API keys must contain at least 32 characters.",
         )
     matches: list[tuple[str, str, str, int, int, str, frozenset[str]]] = []
-    for credential_id, candidate, role, rpm_limit, daily_limit, scope_mode, scope_ids in static_credentials:
+    for (
+        credential_id,
+        candidate,
+        role,
+        rpm_limit,
+        daily_limit,
+        scope_mode,
+        scope_ids,
+    ) in static_credentials:
         if hmac.compare_digest(supplied, candidate):
             matches.append(
                 (credential_id, role, "environment", rpm_limit, daily_limit, scope_mode, scope_ids)
@@ -261,7 +269,10 @@ def require_api_key(
                     not isinstance(scope_mode, str)
                     or scope_mode not in {"all", "selected"}
                     or not isinstance(raw_scope_ids, list)
-                    or any(not isinstance(asset_id, str) or len(asset_id) != 36 for asset_id in raw_scope_ids)
+                    or any(
+                        not isinstance(asset_id, str) or len(asset_id) != 36
+                        for asset_id in raw_scope_ids
+                    )
                     or len(raw_scope_ids) != len(set(raw_scope_ids))
                     or (scope_mode == "selected" and not raw_scope_ids)
                     or (scope_mode == "all" and raw_scope_ids)
