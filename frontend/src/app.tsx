@@ -401,7 +401,7 @@ export default function App() {
             <p>Assessments are restricted to explicitly allowlisted hostnames with active asset authorization.</p>
             <div className="security-card-state"><CheckCircle2 size={12} /> ENFORCED BY API</div>
           </div>
-          <div className="profile-row"><div className="profile-avatar">{(identity?.role ?? "SA").slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{identity ? identity.role.replace("_", " ").replace(/\\b\\w/g, (letter) => letter.toUpperCase()) : "Security Operator"}</b><span>{identity ? identity.credential_source + " credential · " + identity.credential_id.slice(0, 12) : "API identity not connected"}</span></div><Settings2 size={15} /></div>
+          <div className="profile-row"><div className="profile-avatar">{(identity?.role ?? "SA").slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{identity ? identity.role.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Security Operator"}</b><span>{identity ? identity.credential_source + " credential · " + identity.credential_id.slice(0, 12) : "API identity not connected"}</span></div><Settings2 size={15} /></div>
         </div>
       </aside>
 
@@ -477,7 +477,7 @@ export default function App() {
                   </section>
                   <section className="panel">
                     <div className="section-title-row"><PanelHeading eyebrow="ASSET GOVERNANCE" title="Recently registered assets" icon={<Server size={15} />} /><button className="link-button" onClick={() => setView("assets")}>VIEW INVENTORY <ArrowUpRight size={13} /></button></div>
-                    {assets.length ? <AssetTable rows={assets.slice(0, 5)} onAssess={assessAsset} busy={busy || !can("assessment.run")} /> : <EmptyState icon={<Database size={22} />} title="Your inventory is empty" text="Add an authorized domain with an owner and an expiry-dated authorization record." action={<button className="button-small" onClick={() => { setView("assets"); setShowAssetForm(true); }}><Plus size={13} /> REGISTER FIRST ASSET</button>} />}
+                    {assets.length ? <AssetTable rows={assets.slice(0, 5)} onAssess={assessAsset} busy={busy || !can("assessment.run")} /> : <EmptyState icon={<Database size={22} />} title="Your inventory is empty" text="Add an authorized domain with an owner and an expiry-dated authorization record." action={can("asset.write") ? <button className="button-small" onClick={() => { setView("assets"); setShowAssetForm(true); }}><Plus size={13} /> REGISTER FIRST ASSET</button> : undefined} />}
                   </section>
                   <section className="bottom-grid">
                     <div className="panel"><PanelHeading eyebrow="PRIORITY QUEUE" title="Open remediation" icon={<ClipboardCheck size={15} />} />{remediations.filter((task) => ["open", "in_progress"].includes(task.status)).slice(0, 4).map((task) => <RemediationMini key={task.id} task={task} />)}{!remediations.some((task) => ["open", "in_progress"].includes(task.status)) && <EmptyState title="No open tasks" text="Create a task from a security finding to start tracking remediation." />}</div>
@@ -488,7 +488,7 @@ export default function App() {
 
               {view === "assets" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="AUTHORIZED ASSET REGISTER" title="Inventory and authorization" icon={<Server size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("assets")} disabled={busy}><Download size={13} /> EXPORT CSV</button>{can("asset.write") && <button className="button-small" onClick={() => setShowAssetForm(!showAssetForm)}><Plus size={14} /> {showAssetForm ? "CLOSE FORM" : "REGISTER ASSET"}</button>}</div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="AUTHORIZED ASSET REGISTER" title="Inventory and authorization" icon={<Server size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("assets")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}{can("asset.write") && <button className="button-small" onClick={() => setShowAssetForm(!showAssetForm)}><Plus size={14} /> {showAssetForm ? "CLOSE FORM" : "REGISTER ASSET"}</button>}</div></div>
                   <div className="page-toolbar"><div className="search-box"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search hostname, owner or environment" /></div><span className="data-count">{visibleAssets.length} ASSETS</span></div>
                   {can("asset.write") && showAssetForm && <form className="asset-form" onSubmit={registerAsset}>
                     <div className="form-heading"><div><span>NEW AUTHORIZED ASSET</span><b>Register a managed hostname</b></div><span className="form-secure"><LockKeyhole size={12} /> SCOPE CHECKED</span></div>
