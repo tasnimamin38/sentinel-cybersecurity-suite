@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import os
 import re
 import secrets
@@ -14,6 +15,7 @@ import stat
 import sys
 import tempfile
 from pathlib import Path
+from typing import BinaryIO
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -42,7 +44,7 @@ def load_key_material() -> tuple[bytes, str]:
         )
     try:
         key = base64.b64decode(encoded, validate=True)
-    except (ValueError, base64.binascii.Error) as exc:
+    except (ValueError, binascii.Error) as exc:
         raise BackupCryptoError(
             "SENTINEL_BACKUP_ENCRYPTION_KEY must be standard Base64."
         ) from exc
@@ -51,13 +53,9 @@ def load_key_material() -> tuple[bytes, str]:
     return key, key_id
 
 
-def _validate_paths(source: Path, destination: Path) -> None:
-    if source.is_symlink() or not source.is_file():
-        raise BackupCryptoError("Input must be a regular, non-symlink file.")
+def _validate_destination(destination: Path) -> None:
     if destination.exists() or destination.is_symlink():
         raise BackupCryptoError("Refusing to overwrite an existing output file.")
-    if source.resolve() == destination.resolve():
-        raise BackupCryptoError("Input and output paths must be different.")
     if not destination.parent.is_dir():
         raise BackupCryptoError("Output directory must already exist.")
 
@@ -81,12 +79,8 @@ def _publish_temp(temp_path: Path, destination: Path) -> None:
         pass
 
 
-def encrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
-    key, key_id = load_key_material()
-    source = Path(source_path)
-    destination = Path(destination_path)
-    _validate_paths(source, destination)
-
+def _encrypt_stream(input_file: BinaryIO, destination: Path, key: bytes, key_id: str) -> str:
+    _validate_destination(destination)
     key_id_bytes = key_id.encode("ascii")
     nonce = secrets.token_bytes(NONCE_BYTES)
     header = MAGIC + nonce + bytes((len(key_id_bytes),)) + key_id_bytes
@@ -95,7 +89,7 @@ def encrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
 
     fd, temp_path = _open_private_temp(destination)
     try:
-        with source.open("rb") as input_file, os.fdopen(fd, "wb") as output_file:
+        with os.fdopen(fd, "wb") as output_file:
             output_file.write(header)
             while chunk := input_file.read(CHUNK_BYTES):
                 output_file.write(encryptor.update(chunk))
@@ -110,11 +104,33 @@ def encrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
     return key_id
 
 
+def encrypt_stream(input_file: BinaryIO, destination_path: str | Path) -> str:
+    """Encrypt an existing binary stream without staging plaintext on disk."""
+    key, key_id = load_key_material()
+    return _encrypt_stream(input_file, Path(destination_path), key, key_id)
+
+
+def encrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
+    source = Path(source_path)
+    if source.is_symlink() or not source.is_file():
+        raise BackupCryptoError("Input must be a regular, non-symlink file.")
+    destination = Path(destination_path)
+    if source.resolve() == destination.resolve():
+        raise BackupCryptoError("Input and output paths must be different.")
+    key, key_id = load_key_material()
+    with source.open("rb") as input_file:
+        return _encrypt_stream(input_file, destination, key, key_id)
+
+
 def decrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
     key, expected_key_id = load_key_material()
     source = Path(source_path)
     destination = Path(destination_path)
-    _validate_paths(source, destination)
+    if source.is_symlink() or not source.is_file():
+        raise BackupCryptoError("Input must be a regular, non-symlink file.")
+    if source.resolve() == destination.resolve():
+        raise BackupCryptoError("Input and output paths must be different.")
+    _validate_destination(destination)
 
     fd, temp_path = _open_private_temp(destination)
     try:
@@ -131,7 +147,9 @@ def decrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
             nonce = fixed_header[nonce_start : nonce_start + NONCE_BYTES]
             key_id_length = fixed_header[-1]
             if not 1 <= key_id_length <= 64:
-                raise BackupCryptoError("Encrypted backup contains an invalid key identifier length.")
+                raise BackupCryptoError(
+                    "Encrypted backup contains an invalid key identifier length."
+                )
             key_id_bytes = input_file.read(key_id_length)
             if len(key_id_bytes) != key_id_length:
                 raise BackupCryptoError("Encrypted backup header is truncated.")
@@ -183,15 +201,22 @@ def decrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Encrypt or authenticate/decrypt a SENTINEL backup.")
     subparsers = parser.add_subparsers(dest="operation", required=True)
-    for operation in ("encrypt", "decrypt"):
-        command = subparsers.add_parser(operation)
-        command.add_argument("source")
-        command.add_argument("destination")
+    encrypt = subparsers.add_parser("encrypt")
+    encrypt.add_argument("source")
+    encrypt.add_argument("destination")
+    encrypt_stdin = subparsers.add_parser("encrypt-stdin")
+    encrypt_stdin.add_argument("destination")
+    decrypt = subparsers.add_parser("decrypt")
+    decrypt.add_argument("source")
+    decrypt.add_argument("destination")
     args = parser.parse_args(argv)
     try:
         if args.operation == "encrypt":
             key_id = encrypt_file(args.source, args.destination)
             print(f"Backup encrypted with AES-256-GCM (key ID: {key_id}).")
+        elif args.operation == "encrypt-stdin":
+            key_id = encrypt_stream(sys.stdin.buffer, args.destination)
+            print(f"Backup encrypted from stdin with AES-256-GCM (key ID: {key_id}).")
         else:
             key_id = decrypt_file(args.source, args.destination)
             print(f"Backup authenticated and decrypted (key ID: {key_id}).")
