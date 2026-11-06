@@ -39,7 +39,12 @@ class BackupRecord:
 def _open_regular_at(directory_fd: int, name: str) -> tuple[int, os.stat_result]:
     if not hasattr(os, "O_NOFOLLOW"):
         raise RetentionError("This platform lacks O_NOFOLLOW; refusing unsafe retention.")
-    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    flags = (
+        os.O_RDONLY
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
     try:
         fd = os.open(name, flags, dir_fd=directory_fd)
     except OSError:
