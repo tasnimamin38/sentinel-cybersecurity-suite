@@ -134,7 +134,8 @@ def create_api_credential(
             .where(
                 ApiCredential.revoked_at.is_(None),
                 (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
-                (ApiCredential.rotated_to_id.is_(None)) | (ApiCredential.rotation_grace_expires_at > now),
+                (ApiCredential.rotated_to_id.is_(None))
+                | (ApiCredential.rotation_grace_expires_at > now),
             )
         )
         or 0
@@ -228,8 +229,12 @@ def rotate_api_credential(
     if item is None:
         raise HTTPException(status_code=404, detail="API credential not found.")
     if item.revoked_at is not None or item.rotated_to_id is not None:
-        raise HTTPException(status_code=409, detail="Only an active, unrotated credential can be rotated.")
-    current_expiry = _aware_utc(item.expires_at) if item.expires_at is not None else now + timedelta(days=90)
+        raise HTTPException(
+            status_code=409, detail="Only an active, unrotated credential can be rotated."
+        )
+    current_expiry = (
+        _aware_utc(item.expires_at) if item.expires_at is not None else now + timedelta(days=90)
+    )
     if current_expiry <= now:
         raise HTTPException(status_code=409, detail="An expired credential cannot be rotated.")
 
@@ -246,7 +251,8 @@ def rotate_api_credential(
                 ApiCredential.id != item.id,
                 ApiCredential.revoked_at.is_(None),
                 (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
-                (ApiCredential.rotated_to_id.is_(None)) | (ApiCredential.rotation_grace_expires_at > now),
+                (ApiCredential.rotated_to_id.is_(None))
+                | (ApiCredential.rotation_grace_expires_at > now),
             )
         )
         or 0
