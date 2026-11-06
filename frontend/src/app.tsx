@@ -224,7 +224,7 @@ export default function App() {
         api<Remediation[]>("/api/v1/remediations"),
         api<{ controls: Control[] }>("/api/v1/controls"),
       ]),
-      principal.role === "admin" || principal.permissions.includes("incident.read")
+      principal.permissions.includes("*") || principal.permissions.includes("incident.read")
         ? api<SecurityIncident[]>("/api/v1/incidents")
         : Promise.resolve([] as SecurityIncident[]),
     ]);
