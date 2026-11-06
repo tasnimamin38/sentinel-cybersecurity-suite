@@ -68,7 +68,7 @@ docker run --detach --rm \
 
 ready=0
 for ((attempt=0; attempt<45; attempt++)); do
-  if docker exec "$container_name" pg_isready --quiet --username=postgres --dbname=postgres; then
+  if docker exec "$container_name" pg_isready --quiet --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres; then
     ready=1
     break
   fi
