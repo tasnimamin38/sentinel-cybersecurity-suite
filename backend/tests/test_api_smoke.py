@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -44,7 +45,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.10.0-pre"
+    assert response.json()["version"] == "0.11.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -878,3 +879,28 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
     assert private_path_id not in payload
     assert metrics_token not in payload
     assert "X-API-Key" not in payload
+
+
+
+def test_request_id_is_correlated_with_privacy_safe_json_access_log(client, caplog):
+    secret_query = "QUERY_SECRET_MUST_NOT_BE_LOGGED"
+    secret_header = "HEADER_SECRET_MUST_NOT_BE_LOGGED"
+    with caplog.at_level(logging.INFO, logger="sentinel.access"):
+        response = client.get(
+            f"/healthz?access_token={secret_query}",
+            headers={"X-API-Key": secret_header},
+        )
+
+    assert response.status_code == 200
+    record = next(item for item in caplog.records if item.name == "sentinel.access")
+    event = json.loads(record.getMessage())
+
+    assert event["event"] == "http_request"
+    assert event["request_id"] == response.headers["x-request-id"]
+    assert event["method"] == "GET"
+    assert event["route"] == "/healthz"
+    assert event["status_code"] == 200
+    assert isinstance(event["duration_ms"], (int, float))
+    assert secret_query not in record.getMessage()
+    assert secret_header not in record.getMessage()
+    assert "/healthz?access_token=" not in record.getMessage()
