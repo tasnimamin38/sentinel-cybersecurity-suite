@@ -143,6 +143,36 @@ def test_assessment_persistence_anchors_digest_in_same_audit_transaction(db_sess
     assert verification["verification_status"] == "verified"
 
 
+def test_assessment_and_digest_event_roll_back_as_one_transaction(db_session):
+    result = {
+        "target": "rollback.example.com",
+        "status": "completed",
+        "score": 10,
+        "risk_level": "low",
+        "findings": [],
+        "evidence": {"web": {}},
+        "risk_explanation": {"model": "sentinel-exponential-v2", "drivers": []},
+    }
+
+    assessment = add_assessment_result(
+        db_session,
+        result,
+        asset=None,
+        max_records=100,
+    )
+    assessment_id = assessment.id
+    db_session.rollback()
+
+    assert db_session.get(Assessment, assessment_id) is None
+    events = db_session.scalars(
+        select(AuditEvent).where(
+            AuditEvent.event_type == "assessment.completed",
+            AuditEvent.subject == result["target"],
+        )
+    ).all()
+    assert events == []
+
+
 def test_valid_assessment_snapshot_and_audit_anchor_verify(db_session):
     assessment = _new_assessment(db_session)
     event = _add_completion_event(db_session, assessment)
