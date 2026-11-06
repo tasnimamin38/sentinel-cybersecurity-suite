@@ -1,75 +1,177 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="460" viewBox="0 0 1600 460" role="img" aria-labelledby="title desc">
-  <title id="title">SENTINEL Defensive Security Operations</title>
-  <desc id="desc">A dark cybersecurity operations banner with a geometric shield, network lines, scan rings and a technical grid.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">SENTINEL — Defensive Security Operations</title>
+  <desc id="desc">Animated cybersecurity command-center banner with a scanning radar, protected shield, telemetry traces, asset governance, evidence collection and audit workflow.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#091624"/>
-      <stop offset=".55" stop-color="#0b1b29"/>
-      <stop offset="1" stop-color="#07111b"/>
+      <stop offset="0" stop-color="#07111d"/>
+      <stop offset=".52" stop-color="#0b1d2b"/>
+      <stop offset="1" stop-color="#07121d"/>
     </linearGradient>
-    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3a9c9e" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#63e6cc" stop-opacity=".1"/>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#61f0d5"/>
+      <stop offset=".55" stop-color="#47c9d7"/>
+      <stop offset="1" stop-color="#6aabf0"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#58e0cf"/>
-      <stop offset="1" stop-color="#4da4d7"/>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#102b3b" stop-opacity=".96"/>
+      <stop offset="1" stop-color="#091724" stop-opacity=".96"/>
     </linearGradient>
-    <radialGradient id="glow">
-      <stop offset="0" stop-color="#25bcae" stop-opacity=".22"/>
-      <stop offset="1" stop-color="#25bcae" stop-opacity="0"/>
+    <radialGradient id="ambient">
+      <stop offset="0" stop-color="#21bcae" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#21bcae" stop-opacity="0"/>
     </radialGradient>
+    <radialGradient id="radarGlow">
+      <stop offset="0" stop-color="#55e7d1" stop-opacity=".19"/>
+      <stop offset="1" stop-color="#55e7d1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#62f2dc" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#62f2dc" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#62f2dc" stop-opacity="0"/>
+    </linearGradient>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-      <path d="M32 0H0V32" fill="none" stroke="#31516a" stroke-opacity=".19" stroke-width="1"/>
-      <circle cx="0" cy="0" r="1.2" fill="#64dacc" fill-opacity=".2"/>
+      <path d="M32 0H0V32" fill="none" stroke="#41647a" stroke-opacity=".17" stroke-width="1"/>
+      <circle cx="0" cy="0" r="1.1" fill="#67dfd0" fill-opacity=".18"/>
     </pattern>
-    <filter id="soft" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="12"/>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7"/>
     </filter>
+    <clipPath id="panelClip">
+      <rect x="886" y="64" width="630" height="390" rx="16"/>
+    </clipPath>
   </defs>
-  <rect width="1600" height="460" fill="url(#bg)"/>
-  <rect width="1600" height="460" fill="url(#grid)"/>
-  <ellipse cx="1290" cy="220" rx="430" ry="300" fill="url(#glow)"/>
-  <path d="M0 365H1600" stroke="#2f5666" stroke-opacity=".55"/>
-  <path d="M0 365H520" stroke="url(#accent)" stroke-width="2"/>
-  <g opacity=".38" fill="none" stroke="#4e94a0">
-    <path d="M1030 45L1210 130L1390 72L1540 155"/>
-    <path d="M1020 320L1170 245L1340 330L1510 270"/>
-    <path d="M1208 130L1170 245M1390 72L1340 330M1540 155L1510 270"/>
-    <path d="M950 210H1110L1210 130M1110 210L1170 245"/>
-  </g>
-  <g fill="#6de5d4">
-    <circle cx="1030" cy="45" r="3"/><circle cx="1210" cy="130" r="4"/><circle cx="1390" cy="72" r="3"/>
-    <circle cx="1540" cy="155" r="4"/><circle cx="1020" cy="320" r="3"/><circle cx="1170" cy="245" r="4"/>
-    <circle cx="1340" cy="330" r="3"/><circle cx="1510" cy="270" r="4"/>
-  </g>
-  <g transform="translate(1190 42)">
-    <circle cx="160" cy="170" r="150" fill="none" stroke="#387c87" stroke-opacity=".24"/>
-    <circle cx="160" cy="170" r="122" fill="none" stroke="#4cc9be" stroke-opacity=".23" stroke-dasharray="4 9"/>
-    <circle cx="160" cy="170" r="91" fill="none" stroke="#4cc9be" stroke-opacity=".4"/>
-    <circle cx="160" cy="170" r="68" fill="url(#glow)"/>
-    <path d="M160 59L248 92V165C248 221 211 270 160 293C109 270 72 221 72 165V92Z" fill="#0d2633" stroke="url(#accent)" stroke-width="2.2"/>
-    <path d="M160 75L232 102V165C232 210 203 250 160 271C117 250 88 210 88 165V102Z" fill="none" stroke="#62dbc9" stroke-opacity=".28"/>
-    <path d="M124 169L150 195L201 137" fill="none" stroke="#72ead6" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M160 20V38M160 302V320M10 170H28M292 170H310" stroke="#6ae0d1" stroke-width="2" stroke-opacity=".65"/>
-  </g>
-  <g transform="translate(86 92)">
-    <rect x="0" y="0" width="5" height="150" rx="2.5" fill="url(#accent)"/>
-    <text x="34" y="72" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700" letter-spacing="7" fill="#ecf7f7">SENTINEL</text>
-    <text x="37" y="119" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="600" letter-spacing="5" fill="#69dcca">DEFENSIVE SECURITY OPERATIONS</text>
-    <text x="38" y="165" font-family="Consolas, monospace" font-size="13" letter-spacing="2.2" fill="#87a5b7">ASSET GOVERNANCE  /  POSTURE INTELLIGENCE  /  REMEDIATION  /  AUDIT</text>
-    <g transform="translate(38 210)" font-family="Consolas, monospace" font-size="11" letter-spacing="1.2">
-      <rect width="110" height="28" rx="4" fill="#103d42" stroke="#2e8580"/>
-      <circle cx="14" cy="14" r="3" fill="#62e0b3"/>
-      <text x="26" y="18" fill="#a9e9da">SCOPE FIRST</text>
-      <rect x="122" width="110" height="28" rx="4" fill="#102d43" stroke="#316487"/>
-      <circle cx="136" cy="14" r="3" fill="#70b8ee"/>
-      <text x="148" y="18" fill="#b1d6f0">EVIDENCE</text>
-      <rect x="244" width="116" height="28" rx="4" fill="#342a1c" stroke="#81643d"/>
-      <circle cx="258" cy="14" r="3" fill="#e7bd78"/>
-      <text x="270" y="18" fill="#eed7ac">ACCOUNTABLE</text>
+
+  <rect width="1600" height="520" fill="url(#bg)"/>
+  <rect width="1600" height="520" fill="url(#grid)"/>
+  <ellipse cx="1250" cy="240" rx="470" ry="340" fill="url(#ambient)"/>
+  <path d="M0 476H1600" stroke="#29485b" stroke-opacity=".75"/>
+  <path d="M0 476H530" stroke="url(#cyan)" stroke-width="2.5"/>
+  <path d="M530 476H810" stroke="#3d8590" stroke-width="1" stroke-dasharray="3 8" opacity=".75"/>
+
+  <!-- Left identity block -->
+  <g transform="translate(82 112)">
+    <rect x="0" y="1" width="4" height="188" rx="2" fill="url(#cyan)"/>
+    <text x="28" y="20" fill="#78cfc8" font-family="Consolas,monospace" font-size="11" letter-spacing="3">DEFENSIVE ENGINEERING / AUTHORIZATION FIRST</text>
+    <text x="25" y="105" fill="#effafa" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="700" letter-spacing="5">SENTINEL</text>
+    <text x="29" y="148" fill="#67e2d0" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="600" letter-spacing="4">SECURITY OPERATIONS PLATFORM</text>
+    <text x="30" y="183" fill="#91aebe" font-family="Consolas,monospace" font-size="13" letter-spacing="1.1">Know your assets. Validate your exposure. Own the response.</text>
+    <g transform="translate(28 220)" font-family="Consolas,monospace" font-size="10" letter-spacing="1">
+      <rect width="154" height="33" rx="5" fill="#10383b" stroke="#287f79"/>
+      <circle cx="15" cy="16.5" r="3.5" fill="#65e5b8"/>
+      <text x="28" y="20" fill="#b8f5e7">SCOPE ENFORCEMENT</text>
+      <rect x="166" width="143" height="33" rx="5" fill="#112d43" stroke="#326b8a"/>
+      <circle cx="181" cy="16.5" r="3.5" fill="#7dc5f1"/>
+      <text x="194" y="20" fill="#c3e5fa">EVIDENCE LED</text>
+      <rect x="321" width="155" height="33" rx="5" fill="#30281d" stroke="#765c36"/>
+      <circle cx="336" cy="16.5" r="3.5" fill="#e6bd79"/>
+      <text x="349" y="20" fill="#f2d8aa">AUDIT TRACEABLE</text>
     </g>
+    <g transform="translate(28 300)" fill="none" stroke="#3d7885" stroke-opacity=".56">
+      <path d="M0 0H470M0 13H260M0 26H390"/>
+      <path d="M0 -8V34M470 -8V34" opacity=".45"/>
+    </g>
+    <text x="28" y="357" fill="#5b8295" font-family="Consolas,monospace" font-size="10" letter-spacing="2">ASSET GOVERNANCE  /  POSTURE INTELLIGENCE  /  RESPONSE</text>
   </g>
-  <text x="85" y="424" font-family="Consolas, monospace" font-size="10" letter-spacing="2" fill="#54758a">SENTINEL / 0.3.0 ENGINEERING BASELINE</text>
-  <text x="1515" y="424" text-anchor="end" font-family="Consolas, monospace" font-size="10" letter-spacing="2" fill="#54758a">AUTHORIZATION FIRST</text>
+
+  <!-- Operations display -->
+  <g>
+    <rect x="886" y="64" width="630" height="390" rx="16" fill="url(#panel)" stroke="#2b6070" stroke-width="1.3"/>
+    <path d="M902 65H1260" stroke="url(#cyan)" stroke-width="2" opacity=".9"/>
+    <g font-family="Consolas,monospace">
+      <text x="914" y="94" fill="#8bc8c8" font-size="10" letter-spacing="2">SENTINEL / SECURITY CONTROL PLANE</text>
+      <circle cx="1468" cy="89" r="4" fill="#62e0b3">
+        <animate attributeName="opacity" values="1;.35;1" dur="2.2s" repeatCount="indefinite"/>
+      </circle>
+      <text x="1483" y="93" text-anchor="end" fill="#75d9b4" font-size="9" letter-spacing="1.2">DEFENSIVE MODE</text>
+    </g>
+    <path d="M910 111H1492" stroke="#244354"/>
+    <g clip-path="url(#panelClip)">
+      <rect x="889" y="112" width="624" height="340" fill="url(#grid)" opacity=".6"/>
+      <rect x="890" y="120" width="624" height="42" fill="url(#scan)" opacity=".9">
+        <animate attributeName="y" values="118;410;118" dur="7s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+
+    <!-- Radar -->
+    <g transform="translate(1094 286)">
+      <circle r="137" fill="url(#radarGlow)"/>
+      <circle r="121" fill="none" stroke="#2b7480" stroke-opacity=".45"/>
+      <circle r="93" fill="none" stroke="#3b9b9b" stroke-opacity=".5" stroke-dasharray="3 7"/>
+      <circle r="62" fill="none" stroke="#3b9b9b" stroke-opacity=".42"/>
+      <path d="M-137 0H137M0 -137V137M-97 -97L97 97M97 -97L-97 97" stroke="#39717b" stroke-opacity=".25" stroke-dasharray="3 8"/>
+      <circle r="30" fill="#0c2733" stroke="#3a9b9c" stroke-opacity=".6"/>
+      <circle r="45" fill="none" stroke="#68e8d2" stroke-opacity=".5">
+        <animate attributeName="r" values="44;72;98;44" dur="5.5s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values=".65;0;0;.65" dur="5.5s" repeatCount="indefinite"/>
+      </circle>
+      <g>
+        <path d="M0 0L0 -120A120 120 0 0 1 85 -85Z" fill="#55e3ce" fill-opacity=".12"/>
+        <path d="M0 0L0 -120" stroke="#6af1dc" stroke-width="2" stroke-linecap="round"/>
+        <path d="M0 0L85 -85" stroke="#6af1dc" stroke-opacity=".55" stroke-width="1"/>
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/>
+      </g>
+      <g fill="#69e8d2">
+        <circle cx="-68" cy="-45" r="3"><animate attributeName="opacity" values=".25;1;.25" dur="2.4s" repeatCount="indefinite"/></circle>
+        <circle cx="77" cy="38" r="3"><animate attributeName="opacity" values="1;.25;1" dur="3.1s" repeatCount="indefinite"/></circle>
+        <circle cx="25" cy="-83" r="2.5"><animate attributeName="opacity" values=".25;1;.25" dur="2.8s" repeatCount="indefinite"/></circle>
+      </g>
+      <path d="M-20 -10L-4 7L25 -26" fill="none" stroke="#80f4df" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <!-- Evidence and control indicators -->
+    <g transform="translate(1254 142)" font-family="Consolas,monospace">
+      <text x="0" y="0" fill="#6d9da9" font-size="9" letter-spacing="1.5">CONTROL TELEMETRY</text>
+      <g transform="translate(0 25)">
+        <rect width="222" height="66" rx="7" fill="#0c1f2c" stroke="#244a59"/>
+        <rect x="12" y="12" width="30" height="30" rx="6" fill="#123b3d" stroke="#2a7774"/>
+        <path d="M21 27L26 32L35 21" fill="none" stroke="#77e7d2" stroke-width="2" stroke-linecap="round"/>
+        <text x="54" y="25" fill="#c4e2e4" font-size="10">ASSET AUTHORIZATION</text>
+        <text x="54" y="43" fill="#72d4b6" font-size="9">TIME-BOUNDED SCOPE</text>
+        <path d="M12 55H210" stroke="#284453"/>
+      </g>
+      <g transform="translate(0 103)">
+        <rect width="222" height="66" rx="7" fill="#0c1f2c" stroke="#244a59"/>
+        <rect x="12" y="12" width="30" height="30" rx="6" fill="#112e43" stroke="#315c7b"/>
+        <path d="M19 28H35M27 20V36" stroke="#8dc9ef" stroke-width="1.6" stroke-linecap="round"/>
+        <text x="54" y="25" fill="#c4e2e4" font-size="10">DNS / TLS EVIDENCE</text>
+        <text x="54" y="43" fill="#88bee5" font-size="9">BOUNDED ASSESSMENT</text>
+        <path d="M12 55H210" stroke="#284453"/>
+      </g>
+      <g transform="translate(0 181)">
+        <rect width="222" height="66" rx="7" fill="#0c1f2c" stroke="#244a59"/>
+        <rect x="12" y="12" width="30" height="30" rx="6" fill="#332b20" stroke="#806341"/>
+        <path d="M21 21H34V35H21Z M24 25H31M24 29H31" fill="none" stroke="#e8c58a" stroke-width="1.4"/>
+        <text x="54" y="25" fill="#c4e2e4" font-size="10">AUDIT JOURNAL</text>
+        <text x="54" y="43" fill="#e2bf82" font-size="9">HASH-LINKED EVENTS</text>
+        <path d="M12 55H210" stroke="#284453"/>
+      </g>
+    </g>
+
+    <!-- Animated data trace -->
+    <path d="M914 419H950L963 405L978 432L994 397L1009 419H1040L1051 410L1062 419H1090" fill="none" stroke="#5de4d0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="7 7">
+      <animate attributeName="stroke-dashoffset" values="0;-56" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <text x="1110" y="423" fill="#5f8798" font-family="Consolas,monospace" font-size="8" letter-spacing="1.1">OBSERVE  →  VERIFY  →  RESPOND  →  RECORD</text>
+  </g>
+
+  <!-- Network traces and moving signal -->
+  <g fill="none" stroke="#3f8e96" stroke-opacity=".45">
+    <path d="M650 65L790 112L850 80L886 112"/>
+    <path d="M652 430L778 394L852 422L886 398"/>
+    <path d="M790 112L778 394"/>
+  </g>
+  <g fill="#69e8d2">
+    <circle cx="650" cy="65" r="3"><animate attributeName="r" values="2;5;2" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="790" cy="112" r="3"/>
+    <circle cx="850" cy="80" r="3"><animate attributeName="opacity" values=".3;1;.3" dur="2.6s" repeatCount="indefinite"/></circle>
+    <circle cx="652" cy="430" r="3"/>
+    <circle cx="778" cy="394" r="3"><animate attributeName="opacity" values=".3;1;.3" dur="2.2s" repeatCount="indefinite"/></circle>
+  </g>
+  <text x="82" y="500" fill="#52788c" font-family="Consolas,monospace" font-size="10" letter-spacing="2">SENTINEL / DEFENSIVE SECURITY ENGINEERING</text>
+  <text x="1517" y="500" text-anchor="end" fill="#52788c" font-family="Consolas,monospace" font-size="10" letter-spacing="2">SCOPE FIRST · EVIDENCE ALWAYS</text>
+  <style>
+    @media (prefers-reduced-motion: reduce) {
+      animate, animateTransform { display: none; }
+    }
+  </style>
 </svg>
