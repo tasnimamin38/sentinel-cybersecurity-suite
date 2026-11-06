@@ -110,3 +110,14 @@ This detects many accidental or partial modifications, but a privileged database
 ## 7. Control mapping semantics
 
 A control is marked <code>attention</code> when a mapped finding exists in retained assessments. Otherwise it is <code>not_observed</code>. A <code>not_observed</code> status is not a pass, audit opinion or proof of control effectiveness.
+
+
+## 8. Encrypted PostgreSQL backup envelope
+
+The backup envelope uses a version marker `SNTLBK01`, a fresh cryptographically random 96-bit GCM nonce, a one-byte key-ID length, the bounded ASCII key identifier, ciphertext and a 128-bit authentication tag. The complete header is authenticated as additional authenticated data (AAD).
+
+AES-256-GCM uses a 32-byte key supplied only through operator-controlled environment injection or a secret manager. The key ID is non-secret and must match the selected secret-manager version during restore. `pg_dump` bytes are streamed directly into the encryptor; the backup path does not stage a plaintext archive on disk.
+
+Decryption streams into a mode-600 temporary file, but that file is not published to the requested restore path until `finalize_with_tag` succeeds. A wrong key, modified header, changed ciphertext or invalid tag fails closed. SHA-256 sidecars remain useful for early accidental-corruption detection but do not authenticate a backup.
+
+Keys and key-ID mappings must be retained separately; key loss means backup loss. Deleting temporary files is not certified secure erasure on SSDs or copy-on-write filesystems. KMS/HSM, off-site retention, scheduled backups, automatic rotation and disaster-recovery certification remain outside this implementation.
