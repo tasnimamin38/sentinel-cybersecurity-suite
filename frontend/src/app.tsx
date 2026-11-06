@@ -477,7 +477,7 @@ export default function App() {
                   </section>
                   <section className="panel">
                     <div className="section-title-row"><PanelHeading eyebrow="ASSET GOVERNANCE" title="Recently registered assets" icon={<Server size={15} />} /><button className="link-button" onClick={() => setView("assets")}>VIEW INVENTORY <ArrowUpRight size={13} /></button></div>
-                    {assets.length ? <AssetTable rows={assets.slice(0, 5)} onAssess={assessAsset} busy={busy} /> : <EmptyState icon={<Database size={22} />} title="Your inventory is empty" text="Add an authorized domain with an owner and an expiry-dated authorization record." action={<button className="button-small" onClick={() => { setView("assets"); setShowAssetForm(true); }}><Plus size={13} /> REGISTER FIRST ASSET</button>} />}
+                    {assets.length ? <AssetTable rows={assets.slice(0, 5)} onAssess={assessAsset} busy={busy || !can("assessment.run")} /> : <EmptyState icon={<Database size={22} />} title="Your inventory is empty" text="Add an authorized domain with an owner and an expiry-dated authorization record." action={<button className="button-small" onClick={() => { setView("assets"); setShowAssetForm(true); }}><Plus size={13} /> REGISTER FIRST ASSET</button>} />}
                   </section>
                   <section className="bottom-grid">
                     <div className="panel"><PanelHeading eyebrow="PRIORITY QUEUE" title="Open remediation" icon={<ClipboardCheck size={15} />} />{remediations.filter((task) => ["open", "in_progress"].includes(task.status)).slice(0, 4).map((task) => <RemediationMini key={task.id} task={task} />)}{!remediations.some((task) => ["open", "in_progress"].includes(task.status)) && <EmptyState title="No open tasks" text="Create a task from a security finding to start tracking remediation." />}</div>
@@ -488,7 +488,7 @@ export default function App() {
 
               {view === "assets" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="AUTHORIZED ASSET REGISTER" title="Inventory and authorization" icon={<Server size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("assets")} disabled={busy}><Download size={13} /> EXPORT CSV</button>{can("asset.write") && <button className="button-small" onClick={() => setShowAssetForm(!showAssetForm)}><Plus size={14} /> {showAssetForm ? "CLOSE FORM" : "REGISTER ASSET"}</button>}</div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="AUTHORIZED ASSET REGISTER" title="Inventory and authorization" icon={<Server size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("assets")} disabled={busy}><Download size={13} /> EXPORT CSV</button>{can("asset.write") && <button className="button-small" onClick={() => setShowAssetForm(!showAssetForm)}><Plus size={14} /> {showAssetForm ? "CLOSE FORM" : "REGISTER ASSET"}</button>}</div></div>
                   <div className="page-toolbar"><div className="search-box"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search hostname, owner or environment" /></div><span className="data-count">{visibleAssets.length} ASSETS</span></div>
                   {can("asset.write") && showAssetForm && <form className="asset-form" onSubmit={registerAsset}>
                     <div className="form-heading"><div><span>NEW AUTHORIZED ASSET</span><b>Register a managed hostname</b></div><span className="form-secure"><LockKeyhole size={12} /> SCOPE CHECKED</span></div>
@@ -504,13 +504,13 @@ export default function App() {
                     </div>
                     <div className="form-footer"><p>Only domains inside the server-side allowlist can be registered. Expired authorization blocks the asset assessment endpoint.</p><button className="button-connect" disabled={busy}><ShieldCheck size={14} /> SAVE AUTHORIZATION RECORD</button></div>
                   </form>}
-                  {visibleAssets.length ? <AssetTable rows={visibleAssets} onAssess={assessAsset} busy={busy} /> : <EmptyState icon={<Database size={23} />} title="No matching assets" text="Register an authorized hostname to create its ownership and approval record." />}
+                  {visibleAssets.length ? <AssetTable rows={visibleAssets} onAssess={assessAsset} busy={busy || !can("assessment.run")} /> : <EmptyState icon={<Database size={23} />} title="No matching assets" text="Register an authorized hostname to create its ownership and approval record." />}
                 </section>
               )}
 
               {view === "findings" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="EVIDENCE & RISK" title="Findings register" icon={<ShieldAlert size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("findings")} disabled={busy}><Download size={13} /> EXPORT CSV</button><span className="data-count">{visibleFindings.length} MATCHING FINDINGS</span></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="EVIDENCE & RISK" title="Findings register" icon={<ShieldAlert size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("findings")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}<span className="data-count">{visibleFindings.length} MATCHING FINDINGS</span></div></div>
                   <div className="page-toolbar"><div className="search-box"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search code, target or finding" /></div><select className="toolbar-select" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Informational</option></select></div>
                   {visibleFindings.length ? <div className="finding-list">{visibleFindings.map((finding, index) => {
                     const exists = remediations.some((task) => task.assessment_id === finding.assessmentId && task.finding_code === finding.code);
@@ -521,7 +521,7 @@ export default function App() {
 
               {view === "remediations" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="REMEDIATION LIFECYCLE" title="Action and ownership queue" icon={<Workflow size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("remediations")} disabled={busy}><Download size={13} /> EXPORT CSV</button><span className="data-count">{remediations.length} TRACKED TASKS</span></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="REMEDIATION LIFECYCLE" title="Action and ownership queue" icon={<Workflow size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("remediations")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}<span className="data-count">{remediations.length} TRACKED TASKS</span></div></div>
                   <div className="remediation-summary"><SummaryTile label="OPEN" value={remediations.filter((task) => task.status === "open").length} /><SummaryTile label="IN PROGRESS" value={remediations.filter((task) => task.status === "in_progress").length} /><SummaryTile label="RESOLVED" value={resolvedCount} /><SummaryTile label="ACCEPTED" value={remediations.filter((task) => task.status === "accepted").length} /></div>
                   {remediations.length ? <div className="task-list">{remediations.map((task) => <div className="task-row" key={task.id}><div className={"task-severity " + severityClass(task.severity)}><ClipboardCheck size={16} /></div><div className="task-main"><div><code>{task.finding_code}</code><span className={"severity-chip " + severityClass(task.severity)}>{task.severity}</span></div><b>{task.title}</b><p>{task.assignee || "Unassigned"} · Due {dateLabel(task.due_at)} · Task {task.id.slice(0, 8)}</p></div><select className="task-status" value={task.status} onChange={(event) => updateRemediation(task, event.target.value)} disabled={!can("remediation.write") || busy}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="accepted">Accepted</option></select></div>)}</div> : <EmptyState icon={<ListChecks size={23} />} title="The remediation queue is empty" text="Open the Findings view and create tasks from findings you want to assign and track." />}
                 </section>
@@ -537,7 +537,7 @@ export default function App() {
 
               {view === "audit" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="TAMPER-EVIDENT TRACEABILITY" title="Audit chain and event journal" icon={<Fingerprint size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("audit")} disabled={busy}><Download size={13} /> EXPORT CSV</button><button className="link-button" onClick={() => runAction(refreshData)}><RefreshCw size={13} /> VERIFY AGAIN</button></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="TAMPER-EVIDENT TRACEABILITY" title="Audit chain and event journal" icon={<Fingerprint size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("audit")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}<button className="link-button" onClick={() => runAction(refreshData)}><RefreshCw size={13} /> VERIFY AGAIN</button></div></div>
                   <div className="audit-banner">
                     <div className={"audit-seal " + (auditIntegrity?.integrity_valid ? "verified" : "warning")}>{auditIntegrity?.integrity_valid ? <ShieldCheck size={26} /> : <AlertTriangle size={26} />}</div>
                     <div className="audit-banner-copy"><span>CHAIN VERIFICATION RESULT</span><b>{auditIntegrity?.integrity_valid ? "NO HASH-CHAIN MISMATCH DETECTED" : "AUDIT CHAIN REQUIRES REVIEW"}</b><small>{auditIntegrity?.assurance_note}</small></div>
@@ -597,7 +597,7 @@ export default function App() {
               )}
             </>
           )}
-          <footer className="app-footer"<span><ShieldCheck size={13} /> SENTINEL <b>0.7.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.7.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>
