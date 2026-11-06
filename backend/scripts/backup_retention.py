@@ -183,7 +183,10 @@ def prune_backups(directory: Path, keep_last: int = 7, apply: bool = False) -> t
             if not _same_inode(
                 directory_fd, sidecar_name, record.sidecar_device, record.sidecar_inode
             ):
-                print(f"SKIP {record.name}: checksum sidecar changed after verification.", file=sys.stderr)
+                print(
+                    f"SKIP {record.name}: checksum sidecar changed after verification.",
+                    file=sys.stderr,
+                )
                 continue
             try:
                 current = _verify_archive(directory_fd, record.name)
