@@ -61,5 +61,32 @@ class ProductionConfigTests(unittest.TestCase):
             Settings(request_timeout_seconds=99)
 
 
+    def test_production_worker_role_does_not_require_an_api_key(self):
+        settings = Settings(
+            environment="production",
+            process_role="worker",
+            allowed_domains="example.com",
+            database_url="postgresql+psycopg://user:pass@db/sentinel",
+            cors_origins="https://console.example.com",
+        )
+        self.assertEqual(settings.process_role, "worker")
+        self.assertEqual(settings.configured_api_keys, [])
+
+    def test_production_api_role_still_requires_a_strong_api_key(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                process_role="api",
+                api_key="",
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                cors_origins="https://console.example.com",
+            )
+
+    def test_process_role_rejects_unknown_values(self):
+        with self.assertRaises(ValidationError):
+            Settings(process_role="scheduler")
+
+
 if __name__ == "__main__":
     unittest.main()
