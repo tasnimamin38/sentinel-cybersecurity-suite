@@ -45,7 +45,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.13.0-pre"
+    assert response.json()["version"] == "0.16.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -1063,3 +1063,62 @@ def test_read_only_credentials_can_review_but_cannot_change_incidents(client, mo
         json={"status": "resolved"},
     )
     assert denied_update.status_code == 403
+
+
+def test_incident_csv_export_is_formula_safe_and_audited(client):
+    assessment_id = _create_incident_source_assessment()
+    created = client.post(
+        "/api/v1/incidents",
+        headers=API_HEADERS,
+        json={
+            "assessment_id": assessment_id,
+            "finding_code": "TLS_CERT_EXPIRY_WINDOW",
+            "assignee": '=HYPERLINK("https://example.invalid")',
+            "notes": "  +SUM(1,2)",
+        },
+    )
+    assert created.status_code == 201
+
+    response = client.get("/api/v1/exports/incidents.csv", headers=API_HEADERS)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert (
+        'attachment; filename="sentinel-incidents.csv"' in response.headers["content-disposition"]
+    )
+    assert "finding_code" in response.text
+    assert "TLS_CERT_EXPIRY_WINDOW" in response.text
+    assert "'=HYPERLINK" in response.text
+    assert "'  +SUM(1,2)" in response.text
+
+    events = client.get("/api/v1/audit?limit=50", headers=API_HEADERS).json()
+    assert any(
+        item["event_type"] == "data.exported"
+        and item["subject"] == "incidents"
+        and "dataset=incidents; rows=" in item["details"]
+        and "format=csv" in item["details"]
+        for item in events
+    )
+
+
+def test_incident_csv_export_requires_authenticated_export_permission(client, monkeypatch):
+    read_only_key = "I" * 40
+    monkeypatch.setattr(
+        settings,
+        "api_credentials_json",
+        json.dumps(
+            [
+                {
+                    "id": "incident-export-read-only",
+                    "key": read_only_key,
+                    "role": "read_only",
+                    "rate_limit_per_minute": 20,
+                    "daily_request_limit": 100,
+                }
+            ]
+        ),
+    )
+    response = client.get(
+        "/api/v1/exports/incidents.csv",
+        headers={"X-API-Key": read_only_key},
+    )
+    assert response.status_code == 403

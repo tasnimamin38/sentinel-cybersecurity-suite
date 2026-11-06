@@ -2,6 +2,20 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.16.0-pre — 2026-11-06
+
+### Added
+- Bounded CSV export for security incident records, including ownership, workflow status, dates and response notes.
+- Export action in the live Incident Register for credentials with `export.read`.
+- Export operations append the existing `data.exported` hash-linked audit event with dataset and row count.
+- Spreadsheet formula-like assignee and note values are neutralized by the shared CSV renderer.
+- Regression coverage verifies export contents, formula neutralization, audit recording and server-side permission denial.
+- UI/API release metadata aligned to `0.16.0-pre`.
+
+### Boundaries
+- Incident CSV exports are limited to the latest 5,000 records.
+- Exports are authenticated, no-store responses. This is not a scheduled reporting service.
+
 ## 0.15.0-pre — 2026-11-06
 
 ### Added
