@@ -99,7 +99,10 @@ def test_workflows_avoid_duplicate_feature_branch_push_runs():
         push_section = workflow.split("  push:", 1)[1].split("  pull_request:", 1)[0]
         assert "branches: [main]" in push_section
         assert "feat/sentinel-*" not in push_section
-        assert "branches: [main, 'feat/sentinel-*', 'fix/sentinel-*']" in workflow.split("  pull_request:", 1)[1]
+        assert (
+            "branches: [main, 'feat/sentinel-*', 'fix/sentinel-*']"
+            in workflow.split("  pull_request:", 1)[1]
+        )
 
 
 def test_final_backend_runtime_image_excludes_python_build_tools():
