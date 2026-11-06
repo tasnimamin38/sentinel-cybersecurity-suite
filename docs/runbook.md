@@ -31,3 +31,11 @@ If a credential is exposed, revoke it first, rotate dependent credentials, revie
 ## Audit checkpoint verification
 
 See [Offline signed audit checkpoints](audit-checkpoints.md) for the operator workflow. Keep the Ed25519 private key outside the SENTINEL host and store signed checkpoint artifacts in an independently controlled retention destination. The application does not store the signing key or automatically upload checkpoint files.
+
+## Optional Prometheus metrics
+
+SENTINEL exposes a small process-local Prometheus exposition endpoint at `/metrics` only when `SENTINEL_METRICS_ENABLED=true`. It is disabled by default. In the supplied Compose topology, the API host port is bound to `127.0.0.1`; keep it loopback-bound and do not publish this endpoint through a public reverse proxy or untrusted/shared network.
+
+The endpoint exports request totals by normalized HTTP method, FastAPI route template and status code, plus duration histograms by method and route template. It does not export request URLs, query strings, client IPs, API keys, credential IDs, hostnames or request/response bodies. Labels are bounded to known methods and registered route templates; unmatched routes are grouped as `unmatched`.
+
+Metrics are in-memory and process-local. They reset on restart and are not aggregated across replicas. This first operational slice is suitable for basic scraping and local diagnostics, not durable billing, multi-replica SLOs or a replacement for centralized telemetry. Keep the endpoint disabled unless a trusted scraper needs it.

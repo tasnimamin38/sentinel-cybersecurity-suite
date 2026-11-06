@@ -60,6 +60,34 @@ class ProductionConfigTests(unittest.TestCase):
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
             )
 
+    def test_prometheus_metrics_are_disabled_by_default_and_opt_in(self):
+        defaults = Settings()
+        self.assertFalse(defaults.metrics_enabled)
+        with self.assertRaises(ValidationError):
+            Settings(metrics_enabled=True)
+        enabled = Settings(metrics_enabled=True, metrics_token="M" * 40)
+        self.assertTrue(enabled.metrics_enabled)
+
+    def test_production_metrics_require_a_dedicated_strong_token(self):
+        baseline = {
+            "_env_file": None,
+            "environment": "production",
+            "api_key": "A" * 40,
+            "allowed_domains": "example.com",
+            "database_url": "postgresql+psycopg://user:pass@db/sentinel",
+            "cors_origins": "https://console.example.com",
+            "metrics_enabled": True,
+        }
+        with self.assertRaises(ValidationError):
+            Settings(**baseline)
+        with self.assertRaises(ValidationError):
+            Settings(**baseline, metrics_token="short")
+        configured = Settings(**baseline, metrics_token="M" * 40)
+        self.assertTrue(configured.metrics_enabled)
+        self.assertEqual(configured.metrics_token, "M" * 40)
+        with self.assertRaises(ValidationError):
+            Settings(metrics_enabled=True, api_key="A" * 40, metrics_token="A" * 40)
+
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)

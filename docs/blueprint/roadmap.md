@@ -49,8 +49,10 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 
 ## 0.6 — Audit and operational assurance
 
-- Independent append-only audit export with signed checkpoints
-- Metrics, tracing, structured logs, dashboards and alert rules
+- [x] Operator-controlled offline signed audit checkpoints (0.9 branch)
+- [x] Opt-in process-local HTTP counters and duration histograms with bounded Prometheus labels (0.10 branch)
+- [ ] Independent append-only audit export with automated signed-checkpoint retention
+- [ ] Distributed metrics, tracing, structured logs, dashboards and alert rules
 - Backup/restore automation, RPO/RTO targets and recovery drills
 - Security event integrations and incident-response workflow
 - Service-level objectives and dependency supply-chain controls

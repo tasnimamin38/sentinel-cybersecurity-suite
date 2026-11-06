@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
+    metrics_enabled: bool = False
+    metrics_token: str = ""
     process_role: str = "api"
     environment: str = "development"
 
@@ -118,6 +120,25 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Static role credential IDs must not collide with legacy credential IDs."
             )
+
+        if self.metrics_enabled:
+            if len(self.metrics_token) < 32:
+                raise ValueError(
+                    "SENTINEL_METRICS_TOKEN must contain at least 32 characters when metrics are enabled"
+                )
+            normalized_metrics_token = self.metrics_token.lower()
+            if any(
+                marker in normalized_metrics_token
+                for marker in ("replace-with", "change-me", "placeholder", "example")
+            ):
+                raise ValueError(
+                    "SENTINEL_METRICS_TOKEN must not contain a sample or placeholder value"
+                )
+            configured_service_keys = self.configured_api_keys + [
+                item["key"] for item in self.configured_role_credentials
+            ]
+            if self.metrics_token in configured_service_keys:
+                raise ValueError("SENTINEL_METRICS_TOKEN must not reuse an API credential")
 
         if self.environment == "production":
             errors = []

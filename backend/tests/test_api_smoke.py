@@ -44,7 +44,7 @@ def test_health_endpoint_is_public_and_returns_security_headers(client):
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "0.9.0-pre"
+    assert response.json()["version"] == "0.10.0-pre"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert len(response.headers["x-request-id"]) == 32
 
@@ -837,3 +837,44 @@ def test_audit_integrity_api_exports_verifiable_historical_checkpoint(client):
     )
     assert historical.status_code == 200
     assert historical.json()["checkpoint"] == first_checkpoint
+
+
+def test_metrics_endpoint_is_disabled_by_default(client, monkeypatch):
+    monkeypatch.setattr(settings, "metrics_enabled", False)
+    response = client.get("/metrics")
+    assert response.status_code == 404
+
+
+def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypatch):
+    monkeypatch.setattr(settings, "metrics_enabled", True)
+    metrics_token = "M" * 40
+    monkeypatch.setattr(settings, "metrics_token", metrics_token)
+
+    unauthorized = client.get("/metrics")
+    assert unauthorized.status_code == 401
+    wrong_token = client.get("/metrics", headers={"X-Metrics-Token": "W" * 40})
+    assert wrong_token.status_code == 401
+
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    private_path_id = "MUST_NOT_APPEAR_IN_METRICS"
+    missing = client.patch(
+        f"/api/v1/assets/{private_path_id}",
+        headers=API_HEADERS,
+        json={},
+    )
+    assert missing.status_code == 404
+
+    response = client.get("/metrics", headers={"X-Metrics-Token": metrics_token})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain; version=0.0.4")
+    payload = response.text
+    assert (
+        'sentinel_http_requests_total{method="GET",route="/healthz",status_code="200"}' in payload
+    )
+    assert 'route="/api/v1/assets/{asset_id}"' in payload
+    assert "sentinel_http_request_duration_seconds_bucket" in payload
+    assert "sentinel_http_request_duration_seconds_count" in payload
+    assert private_path_id not in payload
+    assert metrics_token not in payload
+    assert "X-API-Key" not in payload

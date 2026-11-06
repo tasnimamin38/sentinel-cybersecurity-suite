@@ -2,6 +2,23 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.10.0-pre — 2026-11-06
+
+### Added
+- Opt-in process-local Prometheus HTTP request counters and duration histograms.
+- Bounded metric dimensions: normalized HTTP method, registered route template and response status; duration histograms omit status to keep cardinality controlled.
+- Metrics are disabled by default through `SENTINEL_METRICS_ENABLED=false`; enabling them requires a separate random `SENTINEL_METRICS_TOKEN` of at least 32 characters.
+- Metrics intentionally exclude raw URLs, query strings, client IPs, API keys, credential identifiers, hostnames and request/response bodies.
+- Operator documentation describes scrape boundaries, process-local reset behavior and multi-replica limitations.
+
+### Security and operational boundaries
+- `/metrics` requires the dedicated `X-Metrics-Token` header with constant-time comparison; the metrics token is separate from API credentials. Do not expose it through a public or shared reverse proxy.
+- Counters and histograms are in-memory per process and reset on restart; this is not centralized telemetry, durable accounting or a multi-replica SLO system.
+
+### Validation
+- GitHub Actions CI run #42146827384 — success: 120 backend tests passed; pip-audit found no known vulnerabilities; Ruff format and lint passed; frontend npm audit and production build passed; Compose validation and backend/frontend image builds passed.
+- CodeQL run #42146827178 — success: Python and JavaScript/TypeScript analyses passed.
+
 ## 0.9.0-pre — 2026-11-06
 
 ### Added
