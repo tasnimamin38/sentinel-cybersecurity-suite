@@ -173,7 +173,12 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertEqual(settings.configured_role_credentials[0]["rate_limit_per_minute"], 30)
         self.assertEqual(settings.configured_role_credentials[0]["daily_request_limit"], 500)
 
-        for field, value in (("rate_limit_per_minute", 0), ("rate_limit_per_minute", 601), ("daily_request_limit", 0), ("daily_request_limit", 1_000_001)):
+        for field, value in (
+            ("rate_limit_per_minute", 0),
+            ("rate_limit_per_minute", 601),
+            ("daily_request_limit", 0),
+            ("daily_request_limit", 1_000_001),
+        ):
             invalid = [{"id": "quota-invalid", "key": "Q" * 40, "role": "analyst", field: value}]
             with self.assertRaises(ValidationError):
                 Settings(api_credentials_json=json.dumps(invalid))
