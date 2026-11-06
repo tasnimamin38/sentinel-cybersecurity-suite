@@ -77,7 +77,8 @@ def verify_assessment_evidence(db: Session, assessment: Assessment) -> dict:
             "assessment_id": assessment.id,
             "integrity_valid": False,
             "verification_status": (
-                "invalid" if duplicate or chain["verification_status"] == "invalid"
+                "invalid"
+                if duplicate or chain["verification_status"] == "invalid"
                 else "incomplete_legacy"
             ),
             "payload_digest_matches": False,
