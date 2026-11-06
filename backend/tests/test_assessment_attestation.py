@@ -30,13 +30,16 @@ def test_round_trip_and_current_anchor():
     assert verified["audit_sequence_no"] == 17
 
 
-@pytest.mark.parametrize(("field", "value"), [
-    ("integrity_valid", False),
-    ("verification_status", "incomplete_legacy"),
-    ("payload_digest_matches", False),
-    ("audit_chain_valid", False),
-    ("audit_chain_status", "invalid"),
-])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("integrity_valid", False),
+        ("verification_status", "incomplete_legacy"),
+        ("payload_digest_matches", False),
+        ("audit_chain_valid", False),
+        ("audit_chain_status", "invalid"),
+    ],
+)
 def test_signing_refuses_unverified_states(field, value):
     item = response()
     item[field] = value
@@ -44,13 +47,16 @@ def test_signing_refuses_unverified_states(field, value):
         build_signed_attestation(item, Ed25519PrivateKey.generate())
 
 
-@pytest.mark.parametrize(("field", "value"), [
-    ("evidence_sha256", "bad"),
-    ("audit_event_hash", "F" * 64),
-    ("audit_sequence_no", True),
-    ("assessment_id", ""),
-    ("audit_event_id", None),
-])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("evidence_sha256", "bad"),
+        ("audit_event_hash", "F" * 64),
+        ("audit_sequence_no", True),
+        ("assessment_id", ""),
+        ("audit_event_id", None),
+    ],
+)
 def test_signing_rejects_malformed_anchor(field, value):
     item = response()
     item[field] = value
