@@ -160,7 +160,9 @@ class ApiCredential(Base):
     rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=120)
     daily_request_limit: Mapped[int] = mapped_column(Integer, default=10000)
     rotated_to_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    rotation_grace_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rotation_grace_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 
