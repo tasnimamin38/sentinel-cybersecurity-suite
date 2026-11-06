@@ -4,8 +4,8 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from scripts.audit_checkpoint import load_json, load_private_key
 from scripts.assessment_attestation import build_signed_attestation
+from scripts.audit_checkpoint import load_json, load_private_key
 
 
 def _verified_response():
@@ -31,9 +31,7 @@ def _write_encrypted_private_key(path):
         key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.BestAvailableEncryption(
-                b"correct horse battery"
-            ),
+            encryption_algorithm=serialization.BestAvailableEncryption(b"correct horse battery"),
         )
     )
     path.chmod(0o600)
@@ -47,6 +45,24 @@ def test_signer_rejects_explicitly_empty_timestamp():
             Ed25519PrivateKey.generate(),
             signed_at="",
         )
+
+
+def test_private_key_loader_rejects_empty_file(tmp_path):
+    key_path = tmp_path / "empty-private.pem"
+    key_path.touch()
+    key_path.chmod(0o600)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        load_private_key(key_path, b"correct horse battery")
+
+
+def test_private_key_loader_rejects_oversized_file(tmp_path):
+    key_path = tmp_path / "oversized-private.pem"
+    key_path.write_bytes(b"x" * (64 * 1024 + 1))
+    key_path.chmod(0o600)
+
+    with pytest.raises(ValueError, match="64 KiB"):
+        load_private_key(key_path, b"correct horse battery")
 
 
 def test_private_key_loader_rejects_non_regular_file(tmp_path):
@@ -69,6 +85,28 @@ def test_private_key_loader_rejects_symlink(tmp_path):
         load_private_key(linked_path, b"correct horse battery")
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink replacement guarantee")
+def test_private_key_loader_rejects_path_replaced_after_open(tmp_path, monkeypatch):
+    key_path = tmp_path / "private.pem"
+    _write_encrypted_private_key(key_path)
+    replacement = tmp_path / "replacement.pem"
+    _write_encrypted_private_key(replacement)
+    real_read = os.read
+    replaced = False
+
+    def replace_path_before_first_read(descriptor, size):
+        nonlocal replaced
+        if not replaced:
+            key_path.unlink()
+            key_path.symlink_to(replacement)
+            replaced = True
+        return real_read(descriptor, size)
+
+    monkeypatch.setattr(os, "read", replace_path_before_first_read)
+    with pytest.raises(ValueError, match="symlink|changed"):
+        load_private_key(key_path, b"correct horse battery")
+
+
 def test_json_loader_rejects_duplicate_object_keys(tmp_path):
     source = tmp_path / "duplicate.json"
     source.write_text(
@@ -80,9 +118,10 @@ def test_json_loader_rejects_duplicate_object_keys(tmp_path):
         load_json(source)
 
 
-def test_json_loader_rejects_non_standard_nan(tmp_path):
-    source = tmp_path / "nan.json"
-    source.write_text('{"score": NaN}', encoding="utf-8")
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_json_loader_rejects_non_standard_numeric_constants(tmp_path, constant):
+    source = tmp_path / "non-standard-number.json"
+    source.write_text(f'{{"score": {constant}}}', encoding="utf-8")
 
     with pytest.raises(ValueError, match="non-standard"):
         load_json(source)
