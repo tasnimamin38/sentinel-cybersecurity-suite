@@ -91,14 +91,16 @@ def test_backend_ci_covers_python_312_and_313():
     assert 'python-version: ["3.12", "3.13"]' in workflow
 
 
-
 def test_workflows_avoid_duplicate_feature_branch_push_runs():
     for workflow_name in ("ci.yml", "codeql.yml", "supply-chain-security.yml"):
         workflow = (WORKFLOW_ROOT / workflow_name).read_text(encoding="utf-8")
         push_section = workflow.split("  push:", 1)[1].split("  pull_request:", 1)[0]
         assert "branches: [main]" in push_section
         assert "feat/sentinel-*" not in push_section
-        assert "branches: [main, 'feat/sentinel-*']" in workflow.split("  pull_request:", 1)[1]
+        assert (
+            "branches: [main, 'feat/sentinel-*']"
+            in workflow.split("  pull_request:", 1)[1]
+        )
 
 
 
