@@ -7,7 +7,7 @@ from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
