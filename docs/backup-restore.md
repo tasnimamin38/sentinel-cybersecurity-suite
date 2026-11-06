@@ -31,7 +31,7 @@ From the repository root, with Docker Compose running and both key variables pre
 bash backend/scripts/backup_postgres.sh
 ```
 
-The script creates `backups/sentinel-<UTC timestamp>.dump.enc` and a matching `.sha256` sidecar. The backup directory is restricted to mode 700 and both published files to mode 600 on POSIX systems. Plaintext is held in a private temporary directory only long enough to encrypt it; the temporary directory is removed on exit.
+The script creates `backups/sentinel-<UTC timestamp>.dump.enc` and a matching `.sha256` sidecar. The backup directory is restricted to mode 700 and both published files to mode 600 on POSIX systems. PostgreSQL dump bytes flow directly from `pg_dump` into the encryptor over stdin; the backup script does not create a plaintext staging archive on disk.
 
 The script refuses to overwrite a timestamp collision and fails closed when the encryption key or key ID is missing or invalid.
 
@@ -43,7 +43,7 @@ Provide the exact matching key and key ID, then run:
 bash backend/scripts/restore_check_postgres.sh backups/sentinel-<UTC timestamp>.dump.enc
 ```
 
-The verifier checks the SHA-256 sidecar, authenticates/decrypts the archive into a private temporary directory, and restores it into a disposable PostgreSQL 16 container with networking disabled, no-new-privileges, all Linux capabilities dropped, CPU/memory/PID limits, and an ephemeral password. It then checks the Alembic revision and seven core tables. The disposable container and plaintext restore file are removed on exit. The source encrypted archive is not changed.
+The verifier checks the SHA-256 sidecar, authenticates/decrypts the archive into a mode-600 private temporary file, and only after the GCM tag verifies restores it into a disposable PostgreSQL 16 container with networking disabled, no-new-privileges, all Linux capabilities dropped, CPU/memory/PID limits, and an ephemeral password. It then checks the Alembic revision and seven core tables. The disposable container and plaintext restore file are removed on exit. The source encrypted archive is not changed.
 
 Set `TMPDIR` to an approved encrypted or memory-backed temporary filesystem for stricter host-at-rest requirements. Deleting a temporary file does not guarantee secure erasure from SSDs or copy-on-write filesystems.
 
@@ -58,4 +58,4 @@ Set `TMPDIR` to an approved encrypted or memory-backed temporary filesystem for 
 
 ## CI coverage
 
-GitHub Actions generates an ephemeral test key and key ID for the backup/restore integration test. CI verifies that a valid encrypted backup restores, a modified ciphertext is rejected, the wrong key fails authentication, the disposable database is cleaned up, and no plaintext archive remains in the backup directory.
+The test suite covers large multi-chunk round trips, stdin encryption without a plaintext staging file, tamper rejection, wrong-key rejection, key-ID mismatch, malformed archives and refuse-to-overwrite behavior. The GitHub Actions integration is being updated to generate an ephemeral test key and exercise valid restore, wrong-key rejection, tamper rejection and disposable-container cleanup.
