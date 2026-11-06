@@ -1,7 +1,7 @@
 import json
 import re
-from uuid import UUID
 from functools import lru_cache
+from uuid import UUID
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
