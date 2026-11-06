@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, 'feat/sentinel-*']
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/sentinel-*']
   schedule:
     - cron: "23 4 * * 2"
   workflow_dispatch:
