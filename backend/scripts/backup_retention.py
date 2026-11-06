@@ -39,12 +39,7 @@ class BackupRecord:
 def _open_regular_at(directory_fd: int, name: str) -> tuple[int, os.stat_result]:
     if not hasattr(os, "O_NOFOLLOW"):
         raise RetentionError("This platform lacks O_NOFOLLOW; refusing unsafe retention.")
-    flags = (
-        os.O_RDONLY
-        | os.O_NOFOLLOW
-        | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_NONBLOCK", 0)
-    )
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
         fd = os.open(name, flags, dir_fd=directory_fd)
     except OSError:
@@ -125,11 +120,7 @@ def _same_inode(directory_fd: int, name: str, device: int, inode: int) -> bool:
         current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
     except FileNotFoundError:
         return False
-    return (
-        stat.S_ISREG(current.st_mode)
-        and current.st_dev == device
-        and current.st_ino == inode
-    )
+    return stat.S_ISREG(current.st_mode) and current.st_dev == device and current.st_ino == inode
 
 
 def _open_private_directory(path: Path) -> int:
@@ -145,7 +136,9 @@ def _open_private_directory(path: Path) -> int:
         or os.stat not in os.supports_dir_fd
         or os.unlink not in os.supports_dir_fd
     ):
-        raise RetentionError("This platform lacks safe directory-file operations; refusing retention.")
+        raise RetentionError(
+            "This platform lacks safe directory-file operations; refusing retention."
+        )
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     directory_fd = os.open(path, flags)
     metadata = os.fstat(directory_fd)
