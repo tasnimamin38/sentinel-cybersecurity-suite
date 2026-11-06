@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.14.0--pre-3977a7.svg" alt="Version 0.14.0-pre" />
+    <img src="https://img.shields.io/badge/Release-0.15.0--pre-3977a7.svg" alt="Version 0.15.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -32,6 +32,7 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Remediation ownership and task status | Implemented |
 | Finding-linked security incident triage with audited status transitions | Implemented in 0.13 API branch |
 | Live incident register with ownership, deadlines, overdue flags and audited response history | Implemented in 0.14 branch |
+| Dependency review, secret detection, Trivy scanning and SPDX SBOM workflow | Implemented in 0.15 branch |
 | Framework-neutral control mapping | Implemented |
 | Redacting inline secret-pattern review | Implemented |
 | Hash-linked audit event verification | Implemented |
@@ -181,9 +182,6 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code> and are protect
 | <code>GET</code> | <code>/api/v1/incidents</code> | Filter the incident register by status and severity |
 | <code>POST</code> | <code>/api/v1/incidents</code> | Create an incident from a stored completed-assessment finding |
 | <code>PATCH</code> | <code>/api/v1/incidents/{incident_id}</code> | Update an incident through allowed response-state transitions |
-| <code>GET</code> | <code>/api/v1/incidents</code> | Filter security incidents by status and severity |
-| <code>POST</code> | <code>/api/v1/incidents</code> | Create a triage record from a finding in a completed assessment |
-| <code>PATCH</code> | <code>/api/v1/incidents/{incident_id}</code> | Assign, schedule, note and transition an incident |
 | <code>GET</code> | <code>/api/v1/controls</code> | Operational finding-to-control mapping |
 | <code>POST</code> | <code>/api/v1/secrets/scan</code> | Bounded, non-persisted text secret-pattern review |
 | <code>GET</code> | <code>/api/v1/audit</code> | Recent audit events and hashes |
@@ -262,19 +260,18 @@ The API key is entered into the console and held in component memory; it is not 
 
 ## Engineering validation
 
-The automated GitHub validation suite covers API authentication, role-scoped authorization, managed credential creation/expiry/revocation, fixed-window request quotas, PostgreSQL concurrent quota enforcement and grace-period key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
+GitHub Actions runs attached to the exact commit SHA are the source of truth. Do not reuse a green result from an older or superseded commit.
 
-| Validation | Current local result |
-|:---|:---:|
-| Backend test suite | 62 passed |
-| Ruff 0.17.4 lint | Passed |
-| Ruff format check | Passed |
-| Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
-| <code>npm audit --audit-level=moderate</code> | 0 reported vulnerabilities |
+| Validation | Automated evidence |
+|:---|:---|
+| Backend | pytest, Ruff format/lint, pip-audit and PostgreSQL migration upgrade/downgrade/re-upgrade |
+| Frontend | exact lockfile install, npm audit and TypeScript/Vite production build |
+| Containers | Compose interpolation, backend/frontend image builds, Trivy OS/library vulnerability scans and backup/restore verification |
+| Static analysis | CodeQL Python and JavaScript/TypeScript |
+| Supply chain | full-SHA action pinning, dependency review, Gitleaks, Trivy filesystem/config scan and SPDX JSON SBOM |
+| Security workflow policy | regression tests enforce immutable action references and required scanning gates |
 
-The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build, Docker Compose interpolation validation, backend/frontend container image builds and CodeQL for Python and JavaScript/TypeScript. Docker CLI was unavailable locally, so container runtime was not exercised. pip-audit and npm audit both completed successfully; this does not replace image-level or runtime security testing. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
-
----
+A green workflow validates only checks that actually ran on that SHA. It is not a penetration-test result, production deployment approval or certification. Fork-originated pull requests run the scanners but skip SARIF upload where GitHub restricts write permissions.
 
 ## What is still required before multi-user industrial deployment?
 

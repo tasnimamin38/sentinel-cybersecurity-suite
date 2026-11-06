@@ -98,16 +98,41 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 
 **Exit gate:** encrypted off-host copies, documented retention, successful scheduled restore drills and independently reviewed recovery objectives.
 
-## 0.13 — Security incident triage
+## 0.13 — Security incident triage API
 
-- [x] Create one incident from a finding in a completed stored assessment
-- [x] Filter incidents by status and severity; assign owners and due dates
-- [x] Enforce auditable incident state transitions and terminal closure
-- [x] Apply role-scoped read/write API permissions and hash-linked audit events
-- [ ] Console incident register, notification delivery and on-call escalation
-- [ ] SIEM ingestion, alert correlation and automated incident creation
+- [x] Create an incident from a finding in a completed stored assessment.
+- [x] Enforce uniqueness for an assessment/finding pair and constrained terminal transitions.
+- [x] Apply role-scoped read/write permissions and append hash-linked audit events.
+- [x] Require timezone-aware response deadlines and bounded notes.
+- [ ] Notification delivery, on-call escalation and human assignee directory.
+- [ ] SIEM ingestion, alert correlation and automatic incident creation.
 
-**Exit gate:** incident list and transitions surfaced in the console, notification ownership defined, and end-to-end operational drill completed.
+**Exit gate:** incident API lifecycle, authorization, migration and audit regression tests pass; notification channels remain unconfigured.
+
+## 0.14 — Operator-grade incident response console
+
+- [x] Live React incident register backed by the authenticated API.
+- [x] Status/severity filters, search and response-state summary.
+- [x] Accountable operator, timezone-aware response deadline and overdue indicators.
+- [x] Per-incident metadata-only audit trace and manual API refresh.
+- [x] Frontend regression coverage for the API-backed response workflow.
+
+**Exit gate:** PR #28 and PR #29 remain a stacked dependency chain until individually reviewed and all exact-head CI/CodeQL checks pass.
+
+## 0.15 — Supply-chain security and release assurance
+
+- [x] Pin GitHub Actions dependencies to reviewed full commit SHAs.
+- [x] Review pull-request dependency changes for high/critical runtime and development vulnerabilities.
+- [x] Scan repository history for exposed secrets with Gitleaks; disable PR comments.
+- [x] Scan source, dependencies, secrets, licenses and deployment configuration with Trivy.
+- [x] Scan built backend and frontend images for high/critical OS/library vulnerabilities.
+- [x] Generate SPDX JSON SBOM and retain it as a short-lived workflow artifact.
+- [x] Configure weekly Dependabot updates for Python, npm and GitHub Actions.
+- [x] Add regression tests for workflow pinning and security gates.
+- [ ] Sign release artifacts and publish provenance attestations for tagged releases.
+- [ ] Assign ownership and expiry to SBOM retention and vulnerability exceptions.
+
+**Exit gate:** CI, CodeQL and supply-chain workflows are green on the exact PR head; high/critical findings are triaged; SPDX artifact is present and inspectable.
 
 ## 1.0 — Production readiness
 

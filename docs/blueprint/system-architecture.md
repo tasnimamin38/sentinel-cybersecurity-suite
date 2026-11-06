@@ -1,126 +1,129 @@
-# SENTINEL — System Architecture Blueprint
+# SENTINEL — System Architecture
 
-**Current implementation:** 0.3.2 engineering baseline  
-**Design scope:** Authorized, defensive security posture operations.
+**Current implementation baseline:** 0.14 operator-grade incident response console  
+**Hardening track:** 0.15 supply-chain security and release assurance  
+**Scope:** Authorized defensive security posture operations.
 
-This blueprint separates working implementation from target-state architecture. A diagram or roadmap item is not evidence that a capability is implemented, scalable or independently verified.
+This document describes the repository state and its verified boundaries. Roadmap diagrams and planned components are not evidence that a control has been deployed.
 
 ## 1. Architecture principles
 
-1. Authorization precedes target network I/O.
-2. Deny by default when scope, asset authorization or production configuration is missing.
-3. Keep assessment traffic bounded: authorized hostnames, validated public DNS answers, explicit timeouts and small response evidence.
-4. Preserve provenance: asset owner, authorization reference, findings, scoring model, remediation owner and audit event.
-5. Explain every score using stable finding codes, severity, confidence and criticality.
-6. Use versioned database migrations; never silently mutate production schema at API startup.
-7. Separate control plane, data plane, evidence storage and observability before multi-user scale.
-8. Treat operational security assurances as claims that require tests and independent evidence.
+1. Authorization must be resolved before target network I/O.
+2. Deny by default when scope, credentials, asset status or authorization expiry is missing.
+3. Bound assessment traffic by hostname scope, validated public DNS answers, timeouts, response-header limits and worker resources.
+4. Preserve evidence provenance from asset authorization through assessment, finding, remediation, incident and audit.
+5. Keep service identity separate from human identity; do not present API keys as SSO or MFA.
+6. Keep database schema evolution in Alembic migrations; production startup must not silently create or mutate schema.
+7. Separate API control plane, assessment worker, persistence, audit evidence and build/release assurance.
+8. Treat every security claim as a testable control with an explicit residual risk.
 
-## 2. Current 0.3 architecture
+## 2. Current logical architecture
 
 ~~~mermaid
 flowchart TB
-  OP[Security operator] --> WEB[React 19 / Vite 8 console]
-  WEB -->|X-API-Key, memory only| API[FastAPI 0.3 control API]
-  API --> AUTH[API-key authentication]
-  AUTH --> INV[Asset registry]
-  INV -->|owner, criticality, expiry, approval reference| SCOPE[Hostname allowlist and authorization gate]
-  AUTH --> SCOPE
-  SCOPE --> DNS[DNS A/AAAA validation]
-  DNS --> PIN[Validated-IP HTTPS probe]
-  PIN --> TARGET[Authorized HTTPS hostname]
-  PIN --> HEAD[HTTP headers and TLS evidence]
-  DNS --> EMAIL[MX / SPF / DMARC]
-  HEAD --> FIND[Finding normalization]
-  EMAIL --> FIND
-  FIND --> RISK[Explainable risk v2]
-  RISK --> ASSESS[(Assessment history)]
-  API --> TASK[Remediation workflow]
-  API --> CTRL[Operational control catalog]
-  API --> SECRET[Bounded redacting secret scan]
-  API --> AUDIT[SHA-256 linked audit events]
-  TASK --> DB[(PostgreSQL / SQLite)]
-  CTRL --> DB
-  SECRET --> DB
+  OP[Authorized operator] --> UI[React operations console]
+  UI -->|X-API-Key in component memory| API[FastAPI control API]
+  API --> AUTH[API key authentication]
+  AUTH --> RBAC[Route permission map and service roles]
+  RBAC --> POLICY[Scope and asset authorization]
+  POLICY -->|Synchronous compatibility request| PROBE[Bounded assessment services]
+  POLICY -->|Durable job| QUEUE[(PostgreSQL job queue)]
+  QUEUE --> WORKER[Separate resource-bounded worker]
+  WORKER --> PROBE
+  PROBE --> DNS[DNS answer validation]
+  DNS --> PIN[Validated-IP HTTPS and TLS probe]
+  PIN --> TARGET[Authorized hostname]
+  PROBE --> POSTURE[HTTP and DNS posture checks]
+  POSTURE --> FIND[Finding normalization and risk scoring]
+  FIND --> DB[(PostgreSQL production / SQLite development)]
+  API --> REM[Remediation workflow]
+  API --> INC[Finding-linked incident lifecycle]
+  API --> AUDIT[Hash-linked audit journal]
+  REM --> DB
+  INC --> DB
   AUDIT --> DB
-  ASSESS --> DB
+  API --> SECRET[Redacting secret-pattern review]
+  SECRET --> DB
+  CI[GitHub Actions] --> SAST[CodeQL and dependency audits]
+  CI --> SUPPLY[Gitleaks, Trivy and dependency review]
+  CI --> SBOM[SPDX JSON SBOM artifact]
 ~~~
 
-### Request lifecycle
+## 3. Component responsibilities
 
-1. Validate API authentication.
-2. Normalize hostname and authorize it against the exact/proper-subdomain allowlist.
-3. For managed assets, enforce active status and future, timezone-aware authorization expiry.
-4. Resolve DNS and reject invalid or non-global answers.
-5. Connect to a literal validated IP; keep canonical hostname for TLS SNI, certificate validation and HTTP Host.
-6. Issue one HTTP/1.1 GET, read only the bounded response-header block, do not follow redirects and do not download the response body.
-7. Evaluate selected HTTP headers, certificate expiry and MX/SPF/DMARC posture.
-8. Normalize findings and calculate deterministic, explainable risk.
-9. Persist assessment, create a hash-linked audit event and enforce assessment-history retention.
-10. Create remediation tasks only from findings stored in a selected assessment.
+| Component | Responsibility | Implemented boundary |
+|:---|:---|:---|
+| React console | Asset, assessment, findings, remediation, incident, controls and audit views | Live API-backed records; API key held in component memory |
+| FastAPI control API | Authentication, authorization, validation and API orchestration | Route-level permission checks; production docs disabled |
+| Service identity | Legacy admin and role-scoped static/database-managed credentials | Hash-only managed-key storage, one-time display, expiry, revocation and bounded rotation |
+| Quota service | Per-credential request limits | PostgreSQL-backed atomic minute/day accounting |
+| Asset authorization | Owner, environment, criticality, approval reference, status and expiry | Server-side allowlist and time-bounded authorization |
+| Assessment services | DNS/TLS/HTTPS and email/domain posture evidence | Validated public addresses, pinned connection, bounded GET/header read, no redirects |
+| Queue and worker | Durable assessment job execution | PostgreSQL claims/leases, retry/dead-letter lifecycle and resource-limited worker container |
+| Risk/remediation | Stable finding codes, deterministic scoring and task ownership | Score is SENTINEL-specific, not CVSS |
+| Incident response | Finding-linked triage, constrained status transitions, operator/deadline/notes | API-enforced permissions and metadata-only audit details |
+| Audit | Hash-linked records and integrity verification | Tamper-evident, not immutable against privileged DB operators |
+| Secret review | Selected secret-pattern detection | Bounded input; redacted output; no submitted source persistence |
+| GitHub Actions | Test, lint, dependency, static analysis, image and supply-chain checks | Full-SHA action references in 0.15 branch; CI status determined per commit |
+| SBOM pipeline | Inventory software packages | SPDX JSON repository SBOM artifact with 14-day retention; no automatic release publishing |
 
-## 3. Current service responsibilities
+## 4. Request and assessment flow
 
-| Service | Responsibility | Current boundary |
-|---|---|---|
-| React console | Asset, findings, remediation, controls, audit and secret review UI | API-key session is in component memory; no user identity |
-| FastAPI | Validation, authorization, orchestration and API response | Single shared API-key model |
-| Asset registry | Owner, environment, criticality, tags and approval expiry | Single workspace; not multi-tenant |
-| HTTPS probe | DNS-pinned TLS connection and headers-only request | One bounded root-path GET |
-| Risk engine | Deduplication, confidence, criticality and drivers | SENTINEL score; not CVSS |
-| Remediation | Assignee, due date, notes and status | Manual task workflow; no scheduler/ticket sync |
-| Control catalog | Links known findings to operational control themes | Not a certification or assurance opinion |
-| Secret scanner | Selected regex patterns and redacted fingerprint | Limited pattern catalog; source not persisted |
-| Audit service | SHA-256 hash-linked event sequence | Tamper-evident, not immutable against DB administrator |
-| Alembic | Versioned schema upgrade | One baseline migration currently |
+1. API authentication resolves a service principal and role.
+2. Route-level RBAC checks the required permission; unknown routes fail closed.
+3. The API normalizes a submitted hostname and checks the server-side authorized domain list.
+4. Managed assets must be active and have a future, timezone-aware authorization expiry.
+5. DNS resolution inspects the complete answer set and rejects private, reserved or otherwise non-global addresses.
+6. HTTPS connections use a validated literal IP while preserving the original hostname for SNI, certificate validation and the HTTP Host header.
+7. The probe performs one bounded HTTPS GET, does not follow redirects and does not download an unbounded response body.
+8. HTTP-header, TLS and DNS email-posture evidence is normalized into stable findings.
+9. Risk scoring records the model, weights and top drivers; persisted findings may create remediation tasks or security incidents.
+10. Writes commit with audit metadata; audit details do not copy free-form incident notes.
 
-## 4. Trust boundaries
+Queued work is processed by a separate worker service. The API does not execute queued network assessment work in the request process.
 
-| Boundary | Controls |
-|---|---|
-| Browser → API | API key in header, explicit CORS, no local-storage persistence |
-| API → asset scope | IDNA normalization, allowlist boundary matching, expiring authorization |
-| API → DNS | Complete answer set inspection, reject private/reserved/non-global IPs |
-| API → HTTPS asset | Literal validated IP connection, hostname-bound TLS, no redirects, bounded header read |
-| API → database | SQLAlchemy parameterization, transactions, migration-based schema |
-| Secret text → API | Payload cap, no source persistence, redacted output |
-| Audit → operator | Previous-hash continuity and content digest verification |
+## 5. Identity and authorization model
 
-## 5. Enterprise target architecture — not implemented
+Current principals are service credentials, not human users:
+- Roles: admin, analyst, asset_manager, auditor and read_only.
+- Route permissions are explicitly mapped and fail closed when an API route is not in the map.
+- Managed credential secrets are displayed once and stored as SHA-256 digests.
+- Managed credentials support expiry, revocation and bounded rotation grace periods.
+- Per-credential quotas use PostgreSQL-backed atomic accounting across API replicas.
 
-### Control plane
-- OIDC/SAML identity federation, MFA and short-lived sessions
-- RBAC, tenant administration and service identities
-- Authorization registry with owner approval and expiry
-- Versioned policy-as-code, policy exceptions and approval workflows
-- Asset inventory with business service and ownership relationships
+Not implemented: OIDC/SAML, MFA, short-lived human sessions, just-in-time access, multi-tenant row isolation or per-human assignee identity. Adding a tenant_id field alone would not be sufficient; API authorization and database-level isolation tests are required.
 
-### Data plane
-- API gateway, WAF and distributed rate limits
-- Durable job queue and assessment orchestrator
-- Ephemeral workers with CPU, memory, time and egress budgets
-- Network egress proxy/firewall with connection-time destination enforcement
-- Retry policy, cancellation, idempotency and dead-letter queue
+## 6. Deployment and network boundaries
 
-### Evidence and observability
-- Encrypted object storage and evidence lifecycle controls
-- Append-only external audit sink and signed checkpoints
-- Metrics, traces, structured logs, alert rules and SLO dashboards
-- Managed secrets, rotation and workload identity
+Production Compose separates PostgreSQL data, console web and API/worker egress networks. API and console containers use read-only root filesystems, dropped capabilities, non-root users and no-new-privileges. Workers have explicit CPU, memory and PID limits.
 
-### Multi-tenant data model target
+**Important:** the Compose egress network is not a destination-filtering firewall. Application DNS pinning does not replace a production egress proxy/firewall that enforces destination policy at connection time. Per-job disposable VM/sandbox isolation is not implemented.
 
-All tenant-owned rows need tenant ownership enforced in API authorization and at the database boundary. Adding a tenant_id column alone is insufficient. Required tests include cross-tenant read/write denial, migration checks, query-scope tests and privileged-role separation.
+## 7. Build and supply-chain assurance
 
-## 6. Reliability and operations
+The 0.15 branch adds:
+- Full commit-SHA references for GitHub Actions used by CI and CodeQL.
+- Pull request dependency review for newly introduced high/critical runtime and development vulnerabilities.
+- Gitleaks repository-history scanning; PR comments are disabled.
+- Trivy filesystem scans for vulnerabilities, misconfiguration, secrets and licenses.
+- Trivy scans of built backend and frontend images for high/critical OS/library vulnerabilities.
+- SPDX JSON SBOM generation as a 14-day workflow artifact.
+- Weekly Dependabot updates for Python, npm and GitHub Actions.
 
-- Use Alembic revisions for schema changes.
-- Database readiness must match the current Alembic head, not a hard-coded historical revision.
-- Long network work must not hold database transactions open.
-- Assessment retention is configurable; audit evidence requires a separate retention/export policy.
-- Production egress controls must independently enforce destination restrictions.
-- Backups require restore drills. A successful backup job alone is not recovery assurance.
+Fork-originated pull requests still run scanners; SARIF upload is skipped when GitHub restricts write permissions. No release assets are automatically published by the SBOM workflow.
 
-## 7. Production gate
+## 8. Production readiness gaps
 
-Before hosted multi-user or industrial deployment, complete OIDC/SSO, RBAC, tenant isolation, distributed rate limits, durable workers, egress enforcement, external audit checkpoints, managed secrets, monitoring, restore drills, independent penetration testing and an operational incident-response exercise.
+Before a hosted multi-user or industrial deployment:
+- Implement human identity federation, MFA and session lifecycle controls.
+- Design and independently verify tenant isolation across API queries and database boundaries.
+- Add destination-enforcing egress controls and per-job disposable worker isolation.
+- Export audit checkpoints to independently administered append-only storage.
+- Add encrypted evidence storage, retention and managed secret custody.
+- Add distributed tracing, metrics, alerting and operational SLOs.
+- Automate encrypted off-host backups and recurring restore drills with explicit RPO/RTO.
+- Sign release artifacts, publish provenance attestations and perform an independent penetration test.
+
+## 9. Release boundary
+
+A green workflow validates only the checks executed for the exact commit SHA. It does not certify the deployment, prove that the system is free of vulnerabilities or replace independent security review.
