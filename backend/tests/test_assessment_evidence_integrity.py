@@ -127,6 +127,7 @@ def test_assessment_persistence_anchors_digest_in_same_audit_transaction(db_sess
         max_records=100,
     )
     db_session.commit()
+    db_session.refresh(assessment)
 
     event = db_session.scalar(
         select(AuditEvent).where(
@@ -208,6 +209,7 @@ def test_assessment_payload_tampering_is_detected_without_breaking_audit_chain(
     else:
         assessment.status = "failed"
     db_session.commit()
+    db_session.refresh(assessment)
 
     result = verify_assessment_evidence(db_session, assessment)
 
