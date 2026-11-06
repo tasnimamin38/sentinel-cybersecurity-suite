@@ -30,7 +30,6 @@ if [[ -e "$backup_file" || -e "$checksum_file" ]]; then
 fi
 
 temporary_dir="$(mktemp -d "$backup_dir/.sentinel-backup.XXXXXX")"
-temporary_plain="$temporary_dir/archive.dump"
 temporary_encrypted="$temporary_dir/archive.dump.enc"
 temporary_checksum="$temporary_dir/archive.dump.enc.sha256"
 cleanup() {
@@ -39,24 +38,15 @@ cleanup() {
 trap cleanup EXIT
 chmod 700 -- "$temporary_dir"
 
-echo "Creating PostgreSQL custom-format backup from the Compose db service..."
+echo "Creating and encrypting PostgreSQL custom-format backup directly from the database stream..."
 docker compose exec -T db pg_dump \
   --username=sentinel \
   --dbname=sentinel \
   --format=custom \
   --no-owner \
-  --no-acl > "$temporary_plain"
-
-if [[ ! -s "$temporary_plain" ]]; then
-  echo "Backup command returned an empty archive; refusing to publish it." >&2
-  exit 1
-fi
-chmod 600 -- "$temporary_plain"
-
-echo "Encrypting backup with AES-256-GCM..."
-PYTHONPATH="$backend_dir${PYTHONPATH:+:$PYTHONPATH}" python3 -m app.services.backup_crypto \
-  encrypt "$temporary_plain" "$temporary_encrypted"
-rm -f -- "$temporary_plain"
+  --no-acl \
+  | PYTHONPATH="$backend_dir${PYTHONPATH:+:$PYTHONPATH}" python3 -m app.services.backup_crypto \
+      encrypt-stdin "$temporary_encrypted"
 
 if [[ ! -s "$temporary_encrypted" ]]; then
   echo "Encrypted backup is missing or empty; refusing to publish it." >&2
