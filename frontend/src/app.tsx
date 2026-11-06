@@ -123,6 +123,13 @@ function dateLabel(value?: string | null) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
+function localDateTimeValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
 function dateTimeLabel(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -158,6 +165,7 @@ export default function App() {
   const [incidentSearch, setIncidentSearch] = useState("");
   const [incidentStatusFilter, setIncidentStatusFilter] = useState("all");
   const [incidentSeverityFilter, setIncidentSeverityFilter] = useState("all");
+  const [incidentEditId, setIncidentEditId] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditIntegrity, setAuditIntegrity] = useState<AuditIntegrity | null>(null);
   const [controls, setControls] = useState<Control[]>([]);
@@ -354,6 +362,32 @@ export default function App() {
       });
       await refreshData();
       notify("Incident " + incident.finding_code + " moved to " + nextStatus.replace("_", " ") + ".", "success");
+    });
+  }
+
+  async function updateIncidentDetails(incident: SecurityIncident, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const assignee = String(form.get("assignee") ?? "").trim();
+    const dueAtInput = String(form.get("due_at") ?? "").trim();
+    const notes = String(form.get("notes") ?? "");
+    const dueAt = dueAtInput ? new Date(dueAtInput) : null;
+    if (dueAt && Number.isNaN(dueAt.getTime())) {
+      notify("Enter a valid incident due date and time.", "error");
+      return;
+    }
+    await runAction(async () => {
+      await api<SecurityIncident>("/api/v1/incidents/" + incident.id, {
+        method: "PATCH",
+        body: JSON.stringify({
+          assignee,
+          due_at: dueAt ? dueAt.toISOString() : null,
+          notes,
+        }),
+      });
+      await refreshData();
+      setIncidentEditId(null);
+      notify("Incident ownership, due date and response notes saved to the incident record.", "success");
     });
   }
 
@@ -615,9 +649,12 @@ export default function App() {
                 <section className="panel page-panel">
                   <div className="section-title-row">
                     <PanelHeading eyebrow="SECURITY INCIDENT RESPONSE" title="Finding-linked triage register" icon={<ShieldAlert size={15} />} />
-                    <span className="data-count">{incidents.length} TRACKED INCIDENTS</span>
+                    <div className="header-actions">
+                      <span className="data-count">{incidents.length} TRACKED INCIDENTS</span>
+                      <button className="link-button" onClick={() => runAction(refreshData)} disabled={busy}><RefreshCw size={13} /> REFRESH REGISTER</button>
+                    </div>
                   </div>
-                  <p className="panel-intro">Incidents are created only from findings in completed assessments. Review, assign and move each record through the controlled response lifecycle. Notification delivery and on-call paging are not configured in this release.</p>
+                  <p className="panel-intro">Incidents are created only from findings in completed assessments. Assign an accountable operator, set a response deadline, preserve working notes and move each record through the server-enforced lifecycle. Notification delivery and on-call paging are not configured in this release.</p>
                   <div className="incident-summary">
                     <SummaryTile label="OPEN" value={openIncidentCount} />
                     <SummaryTile label="ACKNOWLEDGED / INVESTIGATING" value={activeIncidentCount} />
@@ -637,22 +674,81 @@ export default function App() {
                     <div className="incident-list">
                       {visibleIncidents.map((incident) => {
                         const nextStates = incidentTransitions[incident.status] ?? [];
+                        const isOverdue = Boolean(
+                          incident.due_at &&
+                          new Date(incident.due_at).getTime() < Date.now() &&
+                          !["resolved", "accepted"].includes(incident.status),
+                        );
+                        const incidentHistory = auditEvents
+                          .filter((event) =>
+                            event.event_type.startsWith("security.incident.") &&
+                            (event.subject === incident.id || event.details.includes("incident_id=" + incident.id)),
+                          )
+                          .slice(0, 5);
+                        const editing = incidentEditId === incident.id;
                         return <article className="incident-row" key={incident.id}>
                           <div className={"finding-severity " + severityClass(incident.severity)}><ShieldAlert size={15} /></div>
                           <div className="incident-main">
-                            <div className="incident-meta"><code>{incident.finding_code}</code><span className={"severity-chip " + severityClass(incident.severity)}>{incident.severity}</span><span className={"incident-state " + incident.status}>{incident.status.replace("_", " ")}</span></div>
+                            <div className="incident-meta">
+                              <code>{incident.finding_code}</code>
+                              <span className={"severity-chip " + severityClass(incident.severity)}>{incident.severity}</span>
+                              <span className={"incident-state " + incident.status}>{incident.status.replace("_", " ")}</span>
+                              {isOverdue && <span className="incident-overdue"><AlertTriangle size={10} /> RESPONSE OVERDUE</span>}
+                            </div>
                             <b>{incident.title}</b>
-                            <p>{incident.assignee || "Unassigned"} · Due {dateLabel(incident.due_at)} · Incident {incident.id.slice(0, 8)}</p>
+                            <p>{incident.assignee || "Unassigned"} · Due {dateTimeLabel(incident.due_at)} · Incident {incident.id.slice(0, 8)}</p>
                             <small>Assessment {incident.assessment_id.slice(0, 12)} · Created {dateTimeLabel(incident.created_at)}{incident.closed_at ? " · Closed " + dateTimeLabel(incident.closed_at) : ""}</small>
-                            {incident.notes && <div className="incident-notes">{incident.notes}</div>}
+                            {incident.notes && !editing && <div className="incident-notes">{incident.notes}</div>}
                           </div>
                           <div className="incident-actions">
-                            <label>STATUS</label>
+                            <label>RESPONSE STATUS</label>
                             <select className="task-status" value={incident.status} onChange={(event) => updateIncident(incident, event.target.value as IncidentStatus)} disabled={!can("incident.write") || busy || nextStates.length === 0}>
                               <option value={incident.status}>{incident.status.replace("_", " ")}</option>
                               {nextStates.map((next) => <option value={next} key={next}>{next.replace("_", " ")}</option>)}
                             </select>
+                            <button className="button-small incident-edit-toggle" onClick={() => setIncidentEditId(editing ? null : incident.id)} disabled={!can("incident.write") || busy}>
+                              <Settings2 size={12} /> {editing ? "CLOSE EDITOR" : "EDIT RESPONSE"}
+                            </button>
                           </div>
+                          {editing && (
+                            <form className="incident-editor" onSubmit={(event) => updateIncidentDetails(incident, event)}>
+                              <div className="incident-editor-heading">
+                                <div><span>INCIDENT RESPONSE DETAILS</span><b>Ownership, deadline and operator notes</b></div>
+                                <span>PATCH · AUDITED</span>
+                              </div>
+                              <div className="incident-editor-grid">
+                                <label className="field-label">ACCOUNTABLE OPERATOR
+                                  <input name="assignee" defaultValue={incident.assignee} maxLength={120} placeholder="Team or operator name" />
+                                </label>
+                                <label className="field-label">RESPONSE DEADLINE · LOCAL TIME
+                                  <input name="due_at" type="datetime-local" defaultValue={localDateTimeValue(incident.due_at)} />
+                                </label>
+                                <label className="field-label incident-notes-field">RESPONSE NOTES · MAX 4,000 CHARACTERS
+                                  <textarea name="notes" defaultValue={incident.notes} maxLength={4000} rows={3} placeholder="Record containment steps, decisions and handoff context. Do not paste secrets or credentials." />
+                                </label>
+                              </div>
+                              <div className="incident-editor-footer">
+                                <span>Notes are not copied into the audit event details; changes record field names only.</span>
+                                <div>
+                                  <button type="button" className="link-button" onClick={() => setIncidentEditId(null)} disabled={busy}>CANCEL</button>
+                                  <button type="submit" className="button-small" disabled={busy}><CheckCircle2 size={12} /> SAVE RESPONSE</button>
+                                </div>
+                              </div>
+                            </form>
+                          )}
+                          {can("audit.read") && (
+                            <div className="incident-history">
+                              <div className="incident-history-heading"><Activity size={12} /> AUDIT TRACE <span>{incidentHistory.length} RECENT EVENTS</span></div>
+                              {incidentHistory.length ? incidentHistory.map((entry) => {
+                                const changed = entry.details.split("changed_fields=")[1]?.split(";")[0] || "metadata";
+                                return <div className="incident-history-row" key={entry.id}>
+                                  <b>{entry.event_type.replace("security.incident.", "").replace(".", " ").toUpperCase()}</b>
+                                  <span>{changed.replace(/,/g, " · ")}</span>
+                                  <small>{dateTimeLabel(entry.created_at)}</small>
+                                </div>;
+                              }) : <p className="incident-history-empty">No matching incident events in the latest audit window.</p>}
+                            </div>
+                          )}
                         </article>;
                       })}
                     </div>
@@ -661,7 +757,6 @@ export default function App() {
                   )}
                 </section>
               )}
-
               {view === "controls" && (
                 <section className="panel page-panel">
                   <div className="section-title-row"><PanelHeading eyebrow="OPERATIONAL CONTROL MAP" title="Security control coverage" icon={<Layers3 size={15} />} /><span className="neutral-chip">SENTINEL BASELINE · NOT A CERTIFICATION</span></div>
