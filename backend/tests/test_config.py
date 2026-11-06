@@ -142,6 +142,7 @@ class ProductionConfigTests(unittest.TestCase):
         asset_id = "00000000-0000-0000-0000-000000000001"
         selected = Settings(
             _env_file=None,
+            api_key="K" * 40,
             api_credentials_json=json.dumps(
                 [
                     {
