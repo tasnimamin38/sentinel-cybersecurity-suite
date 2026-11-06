@@ -56,6 +56,7 @@ def _parse_response_headers(raw: bytes) -> tuple[int, str, dict[str, str]]:
 
 async def _probe_one(hostname: str, address: str, deadline: float) -> dict:
     context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.set_alpn_protocols(["http/1.1"])
     reader, writer = await asyncio.wait_for(
         asyncio.open_connection(

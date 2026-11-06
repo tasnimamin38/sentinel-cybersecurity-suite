@@ -1,3 +1,4 @@
+import ssl
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -47,6 +48,18 @@ class FakeWriter:
 
 
 class HttpsProbeTests(unittest.IsolatedAsyncioTestCase):
+    @patch("app.services.https_probe.ssl.create_default_context")
+    @patch("app.services.https_probe.asyncio.open_connection", new_callable=AsyncMock)
+    async def test_enforces_tls_1_2_minimum(self, open_connection, create_context):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        create_context.return_value = context
+        open_connection.return_value = (FakeReader(), FakeWriter())
+
+        await inspect_https_endpoint("example.com", ["8.8.8.8"], timeout=2)
+
+        self.assertEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
+        self.assertIs(open_connection.await_args.kwargs["ssl"], context)
+
     @patch("app.services.https_probe.asyncio.open_connection", new_callable=AsyncMock)
     async def test_connects_to_validated_ip_with_original_hostname_sni_and_host_header(
         self, open_connection
