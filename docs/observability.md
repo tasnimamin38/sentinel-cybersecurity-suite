@@ -1,4 +1,4 @@
-# SENTINEL Observability — 0.10 baseline
+# SENTINEL Observability — 0.11 baseline
 
 ## Enable only for a trusted scraper
 
@@ -28,6 +28,30 @@ Methods outside the known HTTP method set are normalized to `OTHER`. Requests wi
 ## Explicit exclusions
 
 The exporter never attaches raw URL paths, query parameters, client IPs, API-key values, credential IDs, hostnames, request bodies or response bodies as labels. Do not add high-cardinality or secret-bearing labels.
+
+## Structured request logs and correlation
+
+Every completed HTTP response emits one JSON event to the dedicated `sentinel.access` logger. The server-generated identifier in the event exactly matches the response's `X-Request-ID` header.
+
+Example shape:
+
+```json
+{
+  "duration_ms": 4.218,
+  "event": "http_request",
+  "method": "GET",
+  "request_id": "server-generated-hex-id",
+  "route": "/api/v1/assets/{asset_id}",
+  "status_code": 200,
+  "timestamp": "2026-11-06T02:00:00+00:00"
+}
+```
+
+Only normalized methods and registered FastAPI route templates are recorded. Unknown methods become `OTHER`; requests without a matched route use `unmatched`. Duration is measured by the API process.
+
+The event deliberately omits raw paths, query strings, source IP addresses, hostnames, user agents, cookies, authorization/API-key/metrics-token headers, request or response bodies and credential identifiers. Do not add these fields or log arbitrary request objects. The logger writes a single-line JSON record to standard error for container log collection.
+
+These are per-request application logs, not distributed traces. Centralized collection, retention, dashboards, alert rules and incident routing must be configured separately. A request that fails before the middleware receives a response is not represented as a completed-response event.
 
 ## Limitations
 
