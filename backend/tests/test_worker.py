@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Assessment, Asset
+from app.models import Assessment, AssessmentJob, Asset, AuditEvent
 from app.services.jobs import claim_next_job, enqueue_assessment_job
 
 
@@ -168,4 +168,71 @@ def test_worker_rechecks_authorization_before_persisting_result(tmp_path):
                 now=now,
             )
         assert db.scalar(select(func.count()).select_from(Assessment)) == 0
+    engine.dispose()
+
+
+
+def test_worker_audits_dead_letter_after_expired_worker_lease(tmp_path, monkeypatch):
+    worker = worker_module()
+    engine = create_engine(f"sqlite:///{tmp_path / 'worker-expired-dead-letter.sqlite'}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    monkeypatch.setattr(worker, "SessionLocal", Session)
+    now = datetime.now(UTC)
+
+    with Session() as db:
+        asset = make_asset(db, "dead-letter-recovery.example.com")
+        job = enqueue_assessment_job(db, asset, scheduled_for=now - timedelta(minutes=1))
+        job.status = "running"
+        job.attempts = 3
+        job.max_attempts = 3
+        job.worker_id = "worker-that-crashed"
+        job.lease_expires_at = now - timedelta(seconds=1)
+        db.commit()
+        job_id = job.id
+
+    assert worker._claim_job("replacement-worker") is None
+
+    with Session() as db:
+        persisted = db.get(AssessmentJob, job_id)
+        events = db.scalars(
+            select(AuditEvent).where(AuditEvent.event_type == "assessment.job.dead_lettered")
+        ).all()
+        assert persisted.status == "dead_letter"
+        assert persisted.worker_id is None
+        assert len(events) == 1
+        assert f"job_id={job_id}" in events[0].details
+    engine.dispose()
+
+
+def test_worker_audits_cancelled_job_after_expired_worker_lease(tmp_path, monkeypatch):
+    worker = worker_module()
+    engine = create_engine(f"sqlite:///{tmp_path / 'worker-expired-cancelled.sqlite'}")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    monkeypatch.setattr(worker, "SessionLocal", Session)
+    now = datetime.now(UTC)
+
+    with Session() as db:
+        asset = make_asset(db, "cancel-recovery.example.com")
+        job = enqueue_assessment_job(db, asset, scheduled_for=now - timedelta(minutes=1))
+        job.status = "cancel_requested"
+        job.attempts = 1
+        job.worker_id = "worker-that-crashed"
+        job.lease_expires_at = now - timedelta(seconds=1)
+        job.cancel_requested_at = now - timedelta(seconds=30)
+        db.commit()
+        job_id = job.id
+
+    assert worker._claim_job("replacement-worker") is None
+
+    with Session() as db:
+        persisted = db.get(AssessmentJob, job_id)
+        events = db.scalars(
+            select(AuditEvent).where(AuditEvent.event_type == "assessment.job.cancelled")
+        ).all()
+        assert persisted.status == "cancelled"
+        assert persisted.worker_id is None
+        assert len(events) == 1
+        assert f"job_id={job_id}" in events[0].details
     engine.dispose()
