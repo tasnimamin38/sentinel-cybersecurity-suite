@@ -105,7 +105,6 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Settings(process_role="scheduler")
 
-
     def test_role_scoped_environment_credentials_are_validated(self):
         values = [{"id": "analyst-ci", "key": "A" * 40, "role": "analyst"}]
         settings = Settings(api_credentials_json=json.dumps(values))
@@ -119,7 +118,9 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Settings(api_credentials_json=json.dumps(duplicate))
         with self.assertRaises(ValidationError):
-            Settings(api_credentials_json=json.dumps([{"id": "weak", "key": "short", "role": "analyst"}]))
+            Settings(
+                api_credentials_json=json.dumps([{"id": "weak", "key": "short", "role": "analyst"}])
+            )
 
     def test_production_accepts_role_scoped_admin_bootstrap(self):
         values = [{"id": "bootstrap-admin", "key": "A" * 40, "role": "admin"}]
@@ -150,7 +151,9 @@ class ProductionConfigTests(unittest.TestCase):
                     _env_file=None,
                     environment="production",
                     process_role="worker",
-                    api_credentials_json=json.dumps([{"id": "worker-key", "key": "W" * 40, "role": "admin"}]),
+                    api_credentials_json=json.dumps(
+                        [{"id": "worker-key", "key": "W" * 40, "role": "admin"}]
+                    ),
                     allowed_domains="example.com",
                     database_url="postgresql+psycopg://user:pass@db/sentinel",
                 )
