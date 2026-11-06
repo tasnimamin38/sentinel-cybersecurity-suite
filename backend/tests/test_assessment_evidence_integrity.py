@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.auth import ROUTE_PERMISSIONS, require_api_key
+from app.auth import ApiPrincipal, ROUTE_PERMISSIONS, require_api_key
 from app.database import Base, get_db
 from app.models import Assessment, AuditEvent
 from app.routes.assessment_evidence import router
@@ -299,7 +299,13 @@ def test_evidence_integrity_endpoint_is_authenticated_and_read_only(db_session):
         yield db_session
 
     application.dependency_overrides[get_db] = override_db
-    application.dependency_overrides[require_api_key] = lambda: None
+    application.dependency_overrides[require_api_key] = lambda: ApiPrincipal(
+        credential_id="test-admin",
+        role="admin",
+        credential_source="test",
+        rate_limit_per_minute=600,
+        daily_request_limit=1_000_000,
+    )
 
     with TestClient(application) as client:
         response = client.get(f"/api/v1/assessments/{assessment.id}/evidence-integrity")
