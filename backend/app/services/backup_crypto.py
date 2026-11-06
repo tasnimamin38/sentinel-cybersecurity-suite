@@ -3,6 +3,7 @@
 The encryption key and non-secret key identifier are supplied through the process
 environment by an operator or secret manager. Neither is stored in the archive.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,11 +46,11 @@ def load_key_material() -> tuple[bytes, str]:
     try:
         key = base64.b64decode(encoded, validate=True)
     except (ValueError, binascii.Error) as exc:
-        raise BackupCryptoError(
-            "SENTINEL_BACKUP_ENCRYPTION_KEY must be standard Base64."
-        ) from exc
+        raise BackupCryptoError("SENTINEL_BACKUP_ENCRYPTION_KEY must be standard Base64.") from exc
     if len(key) != KEY_BYTES:
-        raise BackupCryptoError("SENTINEL_BACKUP_ENCRYPTION_KEY must decode to exactly 32 bytes.")
+        raise BackupCryptoError(
+            "SENTINEL_BACKUP_ENCRYPTION_KEY must decode to exactly 32 bytes."
+        )
     return key, key_id
 
 
@@ -175,7 +176,9 @@ def decrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
             while ciphertext_remaining:
                 chunk = input_file.read(min(CHUNK_BYTES, ciphertext_remaining))
                 if not chunk:
-                    raise BackupCryptoError("Encrypted backup ended before its authentication tag.")
+                    raise BackupCryptoError(
+                        "Encrypted backup ended before its authentication tag."
+                    )
                 ciphertext_remaining -= len(chunk)
                 output_file.write(decryptor.update(chunk))
 
@@ -199,7 +202,9 @@ def decrypt_file(source_path: str | Path, destination_path: str | Path) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Encrypt or authenticate/decrypt a SENTINEL backup.")
+    parser = argparse.ArgumentParser(
+        description="Encrypt or authenticate/decrypt a SENTINEL backup."
+    )
     subparsers = parser.add_subparsers(dest="operation", required=True)
     encrypt = subparsers.add_parser("encrypt")
     encrypt.add_argument("source")
