@@ -153,7 +153,7 @@ All <code>/api/v1/*</code> routes require <code>X-API-Key</code> and are protect
 |:---:|:---|:---|
 | <code>GET</code> | <code>/healthz</code> | Liveness |
 | <code>GET</code> | <code>/readyz</code> | Database and migration readiness |
-| <code>GET</code> | <code>/metrics</code> | Optional process-local Prometheus metrics; disabled by default |
+| <code>GET</code> | <code>/metrics</code> | Optional token-protected process-local Prometheus metrics; disabled by default |
 | <code>GET</code> | <code>/api/v1/config</code> | Configured scope and feature policy |
 | <code>GET</code> | <code>/api/v1/me</code> | Current service credential identity, role and permissions |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/credentials</code> | Admin-only managed API credential metadata and one-time key creation |
