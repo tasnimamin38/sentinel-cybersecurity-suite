@@ -356,7 +356,9 @@ def metrics(
 ):
     if not settings.metrics_enabled:
         raise HTTPException(status_code=404, detail="Not found.")
-    if not hmac.compare_digest(x_metrics_token or "", settings.metrics_token):
+    if len(settings.metrics_token) < 32 or not hmac.compare_digest(
+        x_metrics_token or "", settings.metrics_token
+    ):
         raise HTTPException(status_code=401, detail="Invalid metrics token.")
     return Response(
         content=HTTP_METRICS.render(),
