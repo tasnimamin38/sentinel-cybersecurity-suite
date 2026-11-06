@@ -10,6 +10,7 @@ It is not yet a multi-user enterprise service.
 
 - 0.18: authenticated PostgreSQL backup encryption, isolated restore verification and supply-chain gates.
 - 0.19: verified encrypted-backup retention with dry-run default, private-directory ownership enforcement, hard-link rejection and timestamp-based ordering.
+- 0.20: canonical assessment evidence digests anchored in the hash-linked audit journal, with per-assessment verification and explicit legacy/tamper states.
 
 ## Target platform layers
 
