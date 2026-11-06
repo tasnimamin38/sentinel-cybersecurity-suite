@@ -7,10 +7,10 @@ All `/api/v1/*` operations require `X-API-Key`. Authentication identifies a serv
 | Role | Intended use | Capabilities |
 |---|---|---|
 | `admin` | Platform bootstrap and administration | All API operations, including credential lifecycle |
-| `analyst` | Security analysis | Read inventory/evidence, run assessments, enqueue jobs, scan submitted text and read audit |
-| `asset_manager` | Authorized inventory operations | Analyst read/assessment operations plus asset registration/update, remediation updates, job cancellation and retry |
-| `auditor` | Independent review | Read dashboard, assets, assessments, jobs, remediation, controls, audit and bounded exports |
-| `read_only` | Monitoring integrations | Read dashboard, assets, assessments, jobs, remediation and controls |
+| `analyst` | Security analysis | Read inventory/evidence, run assessments, enqueue jobs, create/update incident triage records, scan submitted text and read audit |
+| `asset_manager` | Authorized inventory operations | Analyst operations plus asset registration/update, remediation updates, incident triage updates, job cancellation and retry |
+| `auditor` | Independent review | Read dashboard, assets, assessments, incidents, jobs, remediation, controls, audit and bounded exports |
+| `read_only` | Monitoring integrations | Read dashboard, assets, incidents, assessments, jobs, remediation and controls |
 
 Permissions are enforced in the shared API-key dependency, so the same policy covers the main API and assessment-job router. The frontend is not a security boundary; server-side authorization remains authoritative.
 

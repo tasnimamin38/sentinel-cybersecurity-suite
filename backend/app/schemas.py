@@ -256,3 +256,64 @@ class CredentialRotationResponse(BaseModel):
     grace_expires_at: datetime
     credential: CredentialResponse
     secret: str
+
+
+class SecurityIncidentCreate(BaseModel):
+    assessment_id: str = Field(min_length=36, max_length=36)
+    finding_code: str = Field(min_length=2, max_length=100)
+    assignee: str = Field(default="", max_length=120)
+    due_at: datetime | None = None
+    notes: str = Field(default="", max_length=4000)
+
+    @field_validator("assignee")
+    @classmethod
+    def normalize_incident_assignee(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("due_at")
+    @classmethod
+    def validate_incident_due_at(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("Incident due date must include a timezone.")
+        return value
+
+
+class SecurityIncidentUpdate(BaseModel):
+    status: str | None = Field(
+        default=None,
+        pattern="^(open|acknowledged|investigating|contained|resolved|accepted)$",
+    )
+    assignee: str | None = Field(default=None, max_length=120)
+    due_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("assignee")
+    @classmethod
+    def normalize_updated_incident_assignee(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("due_at")
+    @classmethod
+    def validate_updated_incident_due_at(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("Incident due date must include a timezone.")
+        return value
+
+
+class SecurityIncidentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    assessment_id: str
+    asset_id: str | None
+    finding_code: str
+    title: str
+    severity: str
+    status: str
+    assignee: str
+    due_at: datetime | None
+    notes: str
+    acknowledged_at: datetime | None
+    closed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
