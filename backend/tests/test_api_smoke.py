@@ -881,7 +881,6 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
     assert "X-API-Key" not in payload
 
 
-
 def test_request_id_is_correlated_with_privacy_safe_json_access_log(client, caplog):
     secret_query = "QUERY_SECRET_MUST_NOT_BE_LOGGED"
     secret_header = "HEADER_SECRET_MUST_NOT_BE_LOGGED"
