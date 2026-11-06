@@ -838,6 +838,7 @@ def test_audit_integrity_api_exports_verifiable_historical_checkpoint(client):
     assert historical.status_code == 200
     assert historical.json()["checkpoint"] == first_checkpoint
 
+
 def test_metrics_endpoint_is_disabled_by_default(client, monkeypatch):
     monkeypatch.setattr(settings, "metrics_enabled", False)
     response = client.get("/metrics")
@@ -846,6 +847,11 @@ def test_metrics_endpoint_is_disabled_by_default(client, monkeypatch):
 
 def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypatch):
     monkeypatch.setattr(settings, "metrics_enabled", True)
+    metrics_token = "M" * 40
+    monkeypatch.setattr(settings, "metrics_token", metrics_token)
+
+    unauthorized = client.get("/metrics")
+    assert unauthorized.status_code == 401
 
     health = client.get("/healthz")
     assert health.status_code == 200
@@ -857,7 +863,7 @@ def test_metrics_endpoint_exports_bounded_route_templates_only(client, monkeypat
     )
     assert missing.status_code == 404
 
-    response = client.get("/metrics")
+    response = client.get("/metrics", headers={"X-Metrics-Token": metrics_token})
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/plain; version=0.0.4")
     payload = response.text
