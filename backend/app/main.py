@@ -257,10 +257,13 @@ def rotate_api_credential(
         )
         or 0
     )
-    if active_count >= 250:
+    grace_expires_at = now + timedelta(seconds=payload.grace_period_seconds)
+    temporary_previous_key = payload.grace_period_seconds > 0
+    projected_active_count = active_count + 1 + int(temporary_previous_key)
+    if projected_active_count > 250:
         raise HTTPException(
             status_code=409,
-            detail="The active API credential limit would be exceeded by this rotation.",
+            detail="The active API credential limit would be exceeded during the rotation grace period.",
         )
 
     secret = secrets.token_urlsafe(48)
@@ -278,7 +281,6 @@ def rotate_api_credential(
     db.add(replacement)
     db.flush()
 
-    grace_expires_at = now + timedelta(seconds=payload.grace_period_seconds)
     item.rotated_to_id = replacement.id
     item.rotation_grace_expires_at = grace_expires_at
     db.add(
