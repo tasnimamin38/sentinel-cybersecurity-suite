@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.auth import ApiPrincipal, ROUTE_PERMISSIONS, require_api_key
+from app.auth import ROUTE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.database import Base, get_db
 from app.models import Assessment, AuditEvent
 from app.routes.assessment_evidence import router
