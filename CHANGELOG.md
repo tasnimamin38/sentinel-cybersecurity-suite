@@ -2,7 +2,7 @@
 
 ### Added
 - Immutable commit-SHA pinning for GitHub Actions used in CI and CodeQL.
-- Pull request dependency review for high/critical runtime and development vulnerabilities (requires the repository Dependency Graph setting to be enabled).
+- Pull-request dependency vulnerability audits using `pip-audit` for backend requirements and `npm audit --audit-level=high` for the exact frontend lockfile. GitHub's native PR-diff Dependency Review remains unavailable until the repository Dependency Graph is enabled.
 - Gitleaks repository-history scanning with pull-request comments disabled.
 - Trivy filesystem and built-container image scans for high/critical findings; backend uses a Python 3.13.18 builder and a clean Debian Trixie runtime, excluding package-manager tooling from the final image, with a Python 3.12/3.13 CI compatibility matrix.
 - SPDX JSON SBOM generation as a 14-day workflow artifact; no automatic release publication.
