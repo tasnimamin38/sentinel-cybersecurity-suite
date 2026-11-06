@@ -465,13 +465,17 @@ def test_role_scoped_environment_credentials_enforce_route_permissions(client, m
     monkeypatch.setattr(
         settings,
         "api_credentials_json",
-        json.dumps([{
-            "id": "analyst-ci",
-            "key": analyst_key,
-            "role": "analyst",
-            "rate_limit_per_minute": 2,
-            "daily_request_limit": 10,
-        }]),
+        json.dumps(
+            [
+                {
+                    "id": "analyst-ci",
+                    "key": analyst_key,
+                    "role": "analyst",
+                    "rate_limit_per_minute": 2,
+                    "daily_request_limit": 10,
+                }
+            ]
+        ),
     )
     analyst_headers = {"X-API-Key": analyst_key}
 
@@ -741,7 +745,6 @@ def test_managed_credential_rotation_preserves_grace_and_expires_old_key(client)
 
     events = client.get("/api/v1/audit?limit=100", headers=API_HEADERS).json()
     assert any(
-        event["event_type"] == "api_credential.rotated"
-        and old_credential["id"] in event["details"]
+        event["event_type"] == "api_credential.rotated" and old_credential["id"] in event["details"]
         for event in events
     )
