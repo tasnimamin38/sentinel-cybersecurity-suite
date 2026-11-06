@@ -122,15 +122,21 @@ class Settings(BaseSettings):
             if not isinstance(scope_mode, str) or scope_mode not in {"all", "selected"}:
                 raise ValueError("Static credential asset_scope_mode must be all or selected.")
             if not isinstance(scope_ids, list):
-                raise ValueError("Static credential asset_scope_ids must be a list of UUID strings.")
+                raise ValueError(
+                    "Static credential asset_scope_ids must be a list of UUID strings."
+                )
             try:
                 normalized_scope_ids = [str(UUID(asset_id)) for asset_id in scope_ids]
             except (AttributeError, TypeError, ValueError) as exc:
-                raise ValueError("Static credential asset_scope_ids must contain valid UUIDs.") from exc
+                raise ValueError(
+                    "Static credential asset_scope_ids must contain valid UUIDs."
+                ) from exc
             if len(normalized_scope_ids) != len(set(normalized_scope_ids)):
                 raise ValueError("Static credential asset_scope_ids must be unique.")
             if scope_ids != normalized_scope_ids:
-                raise ValueError("Static credential asset_scope_ids must use canonical lowercase UUID strings.")
+                raise ValueError(
+                    "Static credential asset_scope_ids must use canonical lowercase UUID strings."
+                )
             if scope_mode == "selected" and not normalized_scope_ids:
                 raise ValueError("Selected static credentials require at least one asset ID.")
             if scope_mode == "all" and normalized_scope_ids:
