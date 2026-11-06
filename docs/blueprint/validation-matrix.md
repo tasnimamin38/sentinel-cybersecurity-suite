@@ -16,7 +16,8 @@ This matrix records what the current automated checks exercise. A passing test i
 | Secret hygiene | Pattern detection, redaction, no source persistence and audit metadata |
 | CSV exports | Dataset allowlist, authentication, row caps, audit event and formula-injection neutralization |
 | Audit journal | Sequence continuity, hash verification, legacy-unsealed state and event tampering detection |
-| Database migration | Upgrade path from legacy schema while preserving existing records |\n| Encrypted backup | AES-256-GCM multi-chunk/stdin round trip, fresh nonce, authenticated header, key-ID binding, wrong-key/tamper/malformed rejection and no-overwrite behavior |
+| Database migration | Upgrade path from legacy schema while preserving existing records |
+| Encrypted backup | AES-256-GCM multi-chunk/stdin round trip, fresh nonce, authenticated header, key-ID binding, wrong-key/tamper/malformed rejection and no-overwrite behavior |
 
 ## Local verification record
 
