@@ -119,7 +119,7 @@ class Settings(BaseSettings):
                 raise ValueError("Static credential IDs and key material must be unique.")
             scope_mode = item.get("asset_scope_mode", "all")
             scope_ids = item.get("asset_scope_ids", [])
-            if scope_mode not in {"all", "selected"}:
+            if not isinstance(scope_mode, str) or scope_mode not in {"all", "selected"}:
                 raise ValueError("Static credential asset_scope_mode must be all or selected.")
             if not isinstance(scope_ids, list):
                 raise ValueError("Static credential asset_scope_ids must be a list of UUID strings.")
