@@ -254,9 +254,7 @@ def finish_cancelled_job(
     now: datetime | None = None,
 ) -> bool:
     current = _now(now)
-    job = db.scalar(
-        select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update()
-    )
+    job = db.scalar(select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update())
     if (
         job is None
         or job.worker_id != worker_id
@@ -283,9 +281,7 @@ def fail_job_permanently(
     now: datetime | None = None,
 ) -> AssessmentJob | None:
     current = _now(now)
-    job = db.scalar(
-        select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update()
-    )
+    job = db.scalar(select(AssessmentJob).where(AssessmentJob.id == job_id).with_for_update())
     if (
         job is None
         or job.worker_id != worker_id

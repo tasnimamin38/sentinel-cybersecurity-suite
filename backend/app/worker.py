@@ -332,7 +332,9 @@ async def process_job(job_id: str, worker_id: str) -> None:
         _fail_permanently(job_id, worker_id, type(exc).__name__)
     except Exception as exc:
         _fail_retryably(job_id, worker_id, type(exc).__name__)
-        LOGGER.warning("Assessment job attempt failed: job_id=%s; error_type=%s", job_id, type(exc).__name__)
+        LOGGER.warning(
+            "Assessment job attempt failed: job_id=%s; error_type=%s", job_id, type(exc).__name__
+        )
 
 
 async def run_worker() -> None:
