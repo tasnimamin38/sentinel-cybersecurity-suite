@@ -58,3 +58,12 @@ def test_dependabot_updates_all_manifest_ecosystems():
     for ecosystem, directory in (("pip", "/backend"), ("npm", "/frontend"), ("github-actions", "/")):
         assert f"package-ecosystem: {ecosystem}" in config
         assert f"directory: {directory}" in config
+
+    # Preserve Docker image update coverage for both Dockerfiles and root Compose.
+    docker_sections = config.split("  - package-ecosystem: docker")[1:]
+    docker_directories = {
+        section.split("directory:", 1)[1].splitlines()[0].strip()
+        for section in docker_sections
+        if "directory:" in section
+    }
+    assert docker_directories == {"/backend", "/frontend", "/"}
