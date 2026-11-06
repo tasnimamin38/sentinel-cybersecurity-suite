@@ -192,6 +192,8 @@ class CredentialCreate(BaseModel):
     label: str = Field(min_length=2, max_length=80)
     role: str = Field(pattern="^(admin|analyst|asset_manager|auditor|read_only)$")
     expires_at: datetime | None = None
+    rate_limit_per_minute: int = Field(default=120, ge=1, le=600)
+    daily_request_limit: int = Field(default=10000, ge=1, le=1_000_000)
 
     @field_validator("label")
     @classmethod
@@ -228,6 +230,10 @@ class CredentialResponse(BaseModel):
     created_by: str
     created_at: datetime
     last_used_at: datetime | None
+    rate_limit_per_minute: int
+    daily_request_limit: int
+    rotated_to_id: str | None
+    rotation_grace_expires_at: datetime | None
 
 
 class CredentialCreatedResponse(BaseModel):
@@ -239,3 +245,14 @@ class CredentialRevokeResponse(BaseModel):
     id: str
     status: str
     revoked_at: datetime
+
+
+class CredentialRotateRequest(BaseModel):
+    grace_period_seconds: int = Field(default=3600, ge=0, le=86400)
+
+
+class CredentialRotationResponse(BaseModel):
+    previous_credential_id: str
+    grace_expires_at: datetime
+    credential: CredentialResponse
+    secret: str
