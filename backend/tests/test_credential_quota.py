@@ -24,9 +24,10 @@ def test_credential_quota_uses_utc_minute_and_day_windows():
             assert consume_credential_quota(db, "quota-window", 2, 3, now=start) is None
             db.commit()
         with Session() as db:
-            assert consume_credential_quota(
-                db, "quota-window", 2, 3, now=start + timedelta(seconds=1)
-            ) is None
+            assert (
+                consume_credential_quota(db, "quota-window", 2, 3, now=start + timedelta(seconds=1))
+                is None
+            )
             db.commit()
         with Session() as db:
             retry_after = consume_credential_quota(
@@ -39,9 +40,7 @@ def test_credential_quota_uses_utc_minute_and_day_windows():
         # A new minute resets the minute counter without resetting the UTC day.
         next_minute = start + timedelta(seconds=35)
         with Session() as db:
-            assert consume_credential_quota(
-                db, "quota-window", 2, 3, now=next_minute
-            ) is None
+            assert consume_credential_quota(db, "quota-window", 2, 3, now=next_minute) is None
             db.commit()
         with Session() as db:
             usage = db.get(ApiCredentialUsage, "quota-window")
@@ -59,9 +58,7 @@ def test_credential_quota_uses_utc_minute_and_day_windows():
 
         next_day = next_minute + timedelta(days=1)
         with Session() as db:
-            assert consume_credential_quota(
-                db, "quota-window", 2, 3, now=next_day
-            ) is None
+            assert consume_credential_quota(db, "quota-window", 2, 3, now=next_day) is None
             db.commit()
     finally:
         Base.metadata.drop_all(engine)
