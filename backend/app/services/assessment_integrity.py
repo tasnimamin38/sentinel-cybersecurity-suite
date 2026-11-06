@@ -68,24 +68,30 @@ def verify_assessment_evidence(db: Session, assessment: Assessment) -> dict:
         if _event_fields(event.details).get("assessment_id") == assessment.id
     ]
     if len(matching) != 1:
+        duplicate = bool(matching)
+        chain = verify_audit_chain(db)
         return {
             "format": "sentinel.assessment.evidence-integrity.v1",
             "assessment_id": assessment.id,
             "integrity_valid": False,
-            "verification_status": "incomplete_legacy" if not matching else "invalid",
+            "verification_status": (
+                "invalid" if duplicate or chain["verification_status"] == "invalid"
+                else "incomplete_legacy"
+            ),
             "payload_digest_matches": False,
-            "audit_chain_valid": False,
-            "audit_chain_status": "unavailable",
+            "audit_chain_valid": bool(chain["integrity_valid"]),
+            "audit_chain_status": chain["verification_status"],
             "evidence_sha256": None,
             "computed_sha256": None,
             "audit_event_id": None,
             "audit_sequence_no": None,
             "audit_event_hash": None,
             "errors": [
-                "No unique assessment.completed audit event is available for this assessment."
-                if not matching
-                else "Multiple assessment.completed audit events reference this assessment."
-            ],
+                "Multiple assessment.completed audit events reference this assessment."
+                if duplicate
+                else "No unique assessment.completed audit event is available for this assessment.",
+                *chain["errors"],
+            ][:50],
             "assurance_note": (
                 "The digest is an integrity anchor, not proof against a privileged database "
                 "operator who can rewrite the assessment and the complete audit chain. Preserve "
@@ -97,40 +103,47 @@ def verify_assessment_evidence(db: Session, assessment: Assessment) -> dict:
     fields = _event_fields(event.details)
     expected_digest = fields.get("evidence_sha256")
     if expected_digest is None:
+        chain = verify_audit_chain(db, through_sequence=event.sequence_no)
         return {
             "format": "sentinel.assessment.evidence-integrity.v1",
             "assessment_id": assessment.id,
             "integrity_valid": False,
-            "verification_status": "incomplete_legacy",
+            "verification_status": (
+                "invalid" if chain["verification_status"] == "invalid" else "incomplete_legacy"
+            ),
             "payload_digest_matches": False,
-            "audit_chain_valid": False,
-            "audit_chain_status": "incomplete_legacy",
+            "audit_chain_valid": bool(chain["integrity_valid"]),
+            "audit_chain_status": chain["verification_status"],
             "evidence_sha256": None,
             "computed_sha256": None,
             "audit_event_id": event.id,
             "audit_sequence_no": event.sequence_no,
             "audit_event_hash": event.event_hash,
-            "errors": ["This assessment predates evidence-digest anchoring."],
+            "errors": ["This assessment predates evidence-digest anchoring.", *chain["errors"]][:50],
             "assurance_note": (
                 "Legacy assessment evidence is not retroactively marked as verified. Preserve "
                 "offline signed audit checkpoints in independently controlled storage."
             ),
         }
     if not _DIGEST_PATTERN.fullmatch(expected_digest):
+        chain = verify_audit_chain(db, through_sequence=event.sequence_no)
         return {
             "format": "sentinel.assessment.evidence-integrity.v1",
             "assessment_id": assessment.id,
             "integrity_valid": False,
             "verification_status": "invalid",
             "payload_digest_matches": False,
-            "audit_chain_valid": False,
-            "audit_chain_status": "invalid",
+            "audit_chain_valid": bool(chain["integrity_valid"]),
+            "audit_chain_status": chain["verification_status"],
             "evidence_sha256": expected_digest,
             "computed_sha256": None,
             "audit_event_id": event.id,
             "audit_sequence_no": event.sequence_no,
             "audit_event_hash": event.event_hash,
-            "errors": ["The audit event contains a malformed assessment evidence digest."],
+            "errors": [
+                "The audit event contains a malformed assessment evidence digest.",
+                *chain["errors"],
+            ][:50],
             "assurance_note": (
                 "The digest is an integrity anchor, not proof against a privileged database "
                 "operator who can rewrite the assessment and the complete audit chain."
@@ -152,12 +165,12 @@ def verify_assessment_evidence(db: Session, assessment: Assessment) -> dict:
     elif not digest_matches:
         errors.append("The current assessment snapshot does not match its anchored SHA-256 digest.")
 
-    if not chain_valid and chain["verification_status"] == "invalid":
+    if not digest_matches or chain["verification_status"] == "invalid":
         verification_status = "invalid"
-    elif not chain_valid or not digest_matches:
-        verification_status = "incomplete_legacy" if chain["verification_status"] == "incomplete_legacy" else "invalid"
-    else:
+    elif chain_valid and chain["verification_status"] == "verified":
         verification_status = "verified"
+    else:
+        verification_status = "incomplete_legacy"
 
     return {
         "format": "sentinel.assessment.evidence-integrity.v1",
