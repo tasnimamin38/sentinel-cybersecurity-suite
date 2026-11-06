@@ -93,3 +93,61 @@ jobs:
         run: docker build --pull -f backend/Dockerfile -t sentinel-api:ci .
       - name: Build frontend image
         run: docker build --pull -f frontend/Dockerfile -t sentinel-console:ci .
+      - name: Exercise PostgreSQL backup and isolated restore verification
+        run: |
+          set -Eeuo pipefail
+          compose_file="$(mktemp "$RUNNER_TEMP/sentinel-backup-compose.XXXXXX")"
+          backup_dir="$(mktemp -d "$RUNNER_TEMP/sentinel-backups.XXXXXX")"
+          export COMPOSE_FILE="$compose_file"
+          export COMPOSE_PROJECT_NAME="sentinel-backup-restore-ci-$GITHUB_RUN_ID"
+          cleanup() {
+            docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+            rm -f -- "$compose_file"
+            rm -rf -- "$backup_dir"
+          }
+          trap cleanup EXIT
+          cat > "$compose_file" <<'YAML'
+          services:
+            db:
+              image: postgres:16-alpine
+              environment:
+                POSTGRES_DB: sentinel
+                POSTGRES_USER: sentinel
+                POSTGRES_PASSWORD: backup-restore-ci-only
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+                interval: 2s
+                timeout: 2s
+                retries: 30
+          YAML
+          docker compose up -d --wait db
+          docker compose exec -T db psql -v ON_ERROR_STOP=1 -U sentinel -d sentinel <<'SQL'
+          CREATE TABLE public.alembic_version (version_num varchar(32) NOT NULL);
+          INSERT INTO public.alembic_version VALUES ('ci-test-revision');
+          CREATE TABLE public.assets (id bigint);
+          CREATE TABLE public.assessments (id bigint);
+          CREATE TABLE public.remediation_tasks (id bigint);
+          CREATE TABLE public.audit_events (id bigint);
+          CREATE TABLE public.assessment_jobs (id bigint);
+          CREATE TABLE public.api_credentials (id bigint);
+          CREATE TABLE public.api_credential_usage (id bigint);
+          SQL
+          bash backend/scripts/backup_postgres.sh "$backup_dir"
+          backup_file="$(find "$backup_dir" -maxdepth 1 -type f -name '*.dump' -print -quit)"
+          test -n "$backup_file"
+          test "$(stat -c '%a' "$backup_dir")" = "700"
+          original_hash="$(awk '{print $1}' "$backup_file.sha256")"
+          corrupt_file="$backup_dir/corrupt.dump"
+          cp "$backup_file" "$corrupt_file"
+          printf '%s  %s\n' "$original_hash" "$(basename "$corrupt_file")" > "$corrupt_file.sha256"
+          printf 'corruption-test' >> "$corrupt_file"
+          if bash backend/scripts/restore_check_postgres.sh "$corrupt_file"; then
+            echo "Corrupted archive unexpectedly passed checksum validation." >&2
+            exit 1
+          fi
+          bash backend/scripts/restore_check_postgres.sh "$backup_file"
+          remaining="$(docker ps -a --filter name=sentinel-restore-check- --format '{{.Names}}')"
+          if [[ -n "$remaining" ]]; then
+            echo "Disposable restore containers were not cleaned up." >&2
+            exit 1
+          fi

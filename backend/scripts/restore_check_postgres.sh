@@ -41,6 +41,7 @@ trap 'exit 143' TERM
 echo "Starting a disposable PostgreSQL 16 restore target (network disabled)..."
 docker run --detach --rm \
   --name "$container_name" \
+  --user postgres \
   --network none \
   --memory 1g \
   --cpus 2 \
