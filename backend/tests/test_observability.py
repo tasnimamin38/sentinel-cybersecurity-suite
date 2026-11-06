@@ -26,7 +26,6 @@ def test_duration_histogram_uses_cumulative_buckets():
     assert 'route="/healthz",le="+Inf"} 1' in payload
 
 
-
 def test_structured_request_event_contains_only_bounded_safe_fields(caplog):
     request_id = "a" * 32
     with caplog.at_level(logging.INFO, logger="sentinel.access"):
