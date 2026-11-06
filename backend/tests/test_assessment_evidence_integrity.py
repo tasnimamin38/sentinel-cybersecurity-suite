@@ -165,9 +165,12 @@ def test_assessment_payload_tampering_is_detected_without_breaking_audit_chain(
     assessment = _new_assessment(db_session)
     _add_completion_event(db_session, assessment)
     if field == "findings":
-        assessment.findings[0]["title"] = "tampered finding"
+        assessment.findings = [{**assessment.findings[0], "title": "tampered finding"}]
     elif field == "evidence":
-        assessment.evidence["web"]["headers"]["server"] = "tampered"
+        assessment.evidence = {
+            **assessment.evidence,
+            "web": {"status_code": 200, "headers": {"server": "tampered"}},
+        }
     elif field == "score":
         assessment.score = 99
     elif field == "risk_level":
