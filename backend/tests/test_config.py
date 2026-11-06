@@ -158,7 +158,6 @@ class ProductionConfigTests(unittest.TestCase):
                     database_url="postgresql+psycopg://user:pass@db/sentinel",
                 )
 
-
     def test_role_credential_quota_limits_are_bounded(self):
         valid = [
             {
