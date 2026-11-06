@@ -15,6 +15,7 @@ SENTINEL assesses only systems owned by the operator or explicitly authorized in
 - Finding-linked remediation tasks.
 - Bounded inline secret-pattern scan; source content not persisted; matched values are not returned.
 - SHA-256 hash-linked audit events and chain verifier.
+- Canonical SHA-256 assessment snapshot digests anchored in each new `assessment.completed` event, with a read-only per-assessment integrity verifier; legacy assessments remain explicitly incomplete until re-assessed.
 - Alembic migrations; production startup runs migrations before API server startup.
 - Production API docs are disabled and CORS origins are explicitly configured.
 
