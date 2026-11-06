@@ -39,7 +39,7 @@ def load_key_material() -> tuple[bytes, str]:
         raise BackupCryptoError("SENTINEL_BACKUP_ENCRYPTION_KEY is required.")
     if not key_id or not KEY_ID_PATTERN.fullmatch(key_id):
         raise BackupCryptoError(
-            "SENTINEL_BACKUP_ENCRYPTION_KEY_ID must be 1-64 safe characters "
+            "SENTINEL_BACKUP_ENCRYPTION_KEY_ID must be a 1-64 character safe key identifier "
             "(letters, digits, dot, underscore or hyphen)."
         )
     try:
