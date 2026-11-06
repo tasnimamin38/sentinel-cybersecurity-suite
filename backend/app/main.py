@@ -453,11 +453,21 @@ def readyz(db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
-def read_config():
+def read_config(
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    authorized_domains = settings.allowed_domain_list
+    if principal.asset_scope_mode == "selected":
+        authorized_domains = sorted(
+            db.scalars(
+                apply_asset_scope(select(Asset.hostname), principal, Asset.id)
+            ).all()
+        )
     return {
         "version": "0.16.0-pre",
         "metrics_enabled": settings.metrics_enabled,
-        "authorized_domains": settings.allowed_domain_list,
+        "authorized_domains": authorized_domains,
         "features": [
             "dns-pinned-https-headers",
             "tls-certificate",
