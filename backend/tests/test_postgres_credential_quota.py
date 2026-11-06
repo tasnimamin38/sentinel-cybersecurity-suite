@@ -40,6 +40,7 @@ def test_postgres_concurrent_requests_cannot_exceed_a_service_quota():
         )
         barrier = threading.Barrier(12)
         credential_id = "quota-race-" + uuid4().hex
+        quota_now = datetime.now(UTC)
 
         def consume() -> bool:
             with Session() as db:
@@ -49,7 +50,7 @@ def test_postgres_concurrent_requests_cannot_exceed_a_service_quota():
                     credential_id,
                     rate_limit_per_minute=6,
                     daily_request_limit=20,
-                    now=datetime.now(UTC),
+                    now=quota_now,
                 )
                 if retry_after is None:
                     db.commit()
