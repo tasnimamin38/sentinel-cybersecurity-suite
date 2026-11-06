@@ -55,7 +55,7 @@ Content-Type: application/json
 }
 ```
 
-`expires_at` is optional. When present, it must include a timezone, be in the future and be no more than 365 days ahead. Active managed credentials are capped at 250.
+`expires_at` is optional. When omitted, the API sets a 90-day expiry. When present, it must include a timezone, be in the future and be no more than 365 days ahead. Active managed credentials are capped at 250.
 
 The creation response includes the raw secret exactly once and sends `Cache-Control: no-store` and `Pragma: no-cache`. Copy it into the intended secret manager immediately. The database stores only its SHA-256 digest and a short display prefix. The digest and raw secret are never included in API list responses or credential audit details.
 
