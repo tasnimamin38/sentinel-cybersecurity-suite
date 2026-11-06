@@ -1,6 +1,6 @@
+import hashlib
 import json
 import os
-import hashlib
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -13,6 +13,7 @@ os.environ["SENTINEL_CORS_ORIGINS"] = "http://localhost:5173"
 
 from fastapi.testclient import TestClient
 
+from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
 from app.models import ApiCredential, Assessment, RemediationTask
@@ -584,3 +585,41 @@ def test_managed_admin_credential_cannot_revoke_itself(client):
 
     revoked_key = client.get("/api/v1/me", headers=managed_headers)
     assert revoked_key.status_code == 401
+
+
+def test_every_versioned_api_route_has_explicit_authentication_and_permission_policy():
+    for route in app.routes:
+        route_path = getattr(route, "path", "")
+        if not route_path.startswith("/api/v1/"):
+            continue
+        assert any(
+            dependency.call is require_api_key
+            for dependency in route.dependant.dependencies
+        ), f"Missing authentication dependency: {route_path}"
+        for method in route.methods or set():
+            assert (method, route_path) in ROUTE_PERMISSIONS, (
+                f"Missing role permission mapping: {method} {route_path}"
+            )
+
+
+def test_managed_credential_expiry_blocks_authentication(client):
+    created = client.post(
+        "/api/v1/credentials",
+        headers=API_HEADERS,
+        json={"label": "Short lived monitor", "role": "read_only"},
+    )
+    assert created.status_code == 201
+    payload = created.json()
+    key = payload["secret"]
+    credential_id = payload["credential"]["id"]
+
+    db = SessionLocal()
+    try:
+        stored = db.get(ApiCredential, credential_id)
+        stored.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        db.commit()
+    finally:
+        db.close()
+
+    rejected = client.get("/api/v1/me", headers={"X-API-Key": key})
+    assert rejected.status_code == 401
