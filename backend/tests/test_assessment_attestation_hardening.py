@@ -33,3 +33,17 @@ def test_signer_rejects_mismatched_computed_digest():
     item["computed_sha256"] = "c" * 64
     with pytest.raises(ValueError, match="computed_sha256"):
         build_signed_attestation(item, Ed25519PrivateKey.generate())
+
+
+def test_signer_rejects_missing_computed_digest():
+    item = response()
+    item.pop("computed_sha256")
+    with pytest.raises(ValueError, match="computed_sha256"):
+        build_signed_attestation(item, Ed25519PrivateKey.generate())
+
+
+def test_signer_rejects_malformed_computed_digest():
+    item = response()
+    item["computed_sha256"] = "not-a-digest"
+    with pytest.raises(ValueError, match="computed_sha256"):
+        build_signed_attestation(item, Ed25519PrivateKey.generate())
