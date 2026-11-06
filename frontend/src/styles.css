@@ -613,3 +613,29 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .credential-form-grid { grid-template-columns: 1fr; }
   .credential-secret-value { align-items: stretch; flex-direction: column; }
 }
+
+
+/* Finding-linked incident triage register */
+.incident-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 13px 0; }
+.incident-list { display: grid; gap: 8px; margin-top: 12px; }
+.incident-row { display: flex; align-items: center; gap: 11px; padding: 12px; border: 1px solid #20384a; border-radius: 6px; background: #0b1927; }
+.incident-main { min-width: 0; flex: 1; }
+.incident-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 6px; }
+.incident-main > b { display: block; color: #e0ebf1; font: 600 10px var(--display); }
+.incident-main > p { margin: 5px 0 0; color: #8299aa; font: 8px var(--mono); }
+.incident-main > small { display: block; margin-top: 5px; color: #627d91; font: 7px var(--mono); }
+.incident-notes { margin-top: 8px; padding: 7px 9px; border-left: 2px solid #315869; color: #9bb0bf; background: rgba(7, 18, 29, .45); font-size: 8px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.incident-actions { display: grid; gap: 5px; min-width: 145px; }
+.incident-actions > label { color: #718da1; font: 7px var(--mono); letter-spacing: .7px; }
+.incident-state { padding: 4px 6px; border: 1px solid #29485b; border-radius: 4px; color: #92b1c5; background: #142738; font: 7px var(--mono); text-transform: uppercase; }
+.incident-state.open { border-color: #705a36; color: #e5c28b; background: #302719; }
+.incident-state.acknowledged, .incident-state.investigating { border-color: #385b76; color: #a7c9e2; background: #172d40; }
+.incident-state.contained { border-color: #31595a; color: #8bd4c7; background: #152d31; }
+.incident-state.resolved, .incident-state.accepted { border-color: #345b4d; color: #91d4a9; background: #173126; }
+.incident-create { border-color: #365b65; color: #8de0d4; background: #102b34; }
+.finding-actions { flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .incident-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .incident-row { align-items: flex-start; flex-wrap: wrap; }
+  .incident-actions { width: 100%; min-width: 0; margin-left: 40px; grid-template-columns: auto minmax(145px, 1fr); align-items: center; }
+}
