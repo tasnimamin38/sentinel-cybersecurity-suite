@@ -74,7 +74,7 @@ Evidence is appended to the existing hash-linked audit journal and can be read u
 
 **Client IP trust:** SENTINEL accepts `X-Real-IP` only when the immediate TCP peer belongs to `SENTINEL_TRUSTED_PROXY_CIDRS`. The Nginx proxy overwrites this header from its socket peer. SENTINEL deliberately ignores `X-Forwarded-For`; do not expand the trusted CIDR to an untrusted network. The configured trusted CIDR must match the Compose `sentinel-web` subnet.
 
-**Rate limits:** authenticated Redis sliding windows are shared by API instances. Defaults are 120 requests/minute per API credential, 300/minute per observed IP, 10 assessments/minute and 20 secret scans/minute. Redis uses a private Compose network and password authentication. Production startup refuses missing/invalid Redis configuration, and requests fail closed with HTTP 503 if the protection store becomes unavailable.
+**Rate limits:** authenticated Redis sliding windows are shared by API instances. Defaults are 120 requests/minute per API credential, 300/minute per observed IP, 10 honeypot events/minute per observed IP, 10 assessments/minute and 20 secret scans/minute. Redis uses a private Compose network and password authentication. Production startup refuses missing/invalid Redis configuration, and requests fail closed with HTTP 503 if the protection store becomes unavailable.
 
 **Alerts:** optionally configure an operator-owned HTTPS webhook. SENTINEL signs the exact JSON request body with HMAC-SHA256 and sends the signature in `X-SENTINEL-Signature`. Configure a secret of at least 32 characters. Verify the signature at the receiving endpoint. Only high/critical events trigger the webhook. Delivery uses a short timeout and does not follow redirects.
 
