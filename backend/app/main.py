@@ -1,18 +1,20 @@
+import hashlib
+import secrets
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import require_api_key
+from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, engine, get_db
-from app.models import Assessment, Asset, AuditEvent, RemediationTask
+from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
     AssessmentRequest,
@@ -20,6 +22,10 @@ from app.schemas import (
     AssetCreate,
     AssetResponse,
     AssetUpdate,
+    CredentialCreate,
+    CredentialCreatedResponse,
+    CredentialResponse,
+    CredentialRevokeResponse,
     OverviewResponse,
     RemediationCreate,
     RemediationResponse,
@@ -30,7 +36,6 @@ from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
-from app.services.request_limits import RequestBodySizeLimitMiddleware
 from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
 
@@ -48,7 +53,7 @@ settings = get_settings()
 is_production = settings.environment == "production"
 app = FastAPI(
     title="SENTINEL Defensive Security Platform",
-    version="0.3.2",
+    version="0.7.0-pre",
     description="Authorized asset governance, posture assessment, remediation and tamper-evident audit.",
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -61,11 +66,6 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "X-API-Key", "Idempotency-Key"],
-)
-
-app.add_middleware(
-    RequestBodySizeLimitMiddleware,
-    max_bytes=settings.max_request_body_bytes,
 )
 
 
@@ -85,6 +85,122 @@ async def security_response_headers(request, call_next):
 
 
 app.include_router(assessment_jobs_router)
+
+
+@app.get("/api/v1/me", dependencies=[Depends(require_api_key)])
+def read_api_identity(principal: ApiPrincipal = Depends(require_api_key)):
+    permissions = ROLE_PERMISSIONS.get(principal.role, frozenset())
+    return {
+        "credential_id": principal.credential_id,
+        "role": principal.role,
+        "credential_source": principal.credential_source,
+        "permissions": sorted(permissions),
+    }
+
+
+@app.get(
+    "/api/v1/credentials",
+    response_model=list[CredentialResponse],
+    dependencies=[Depends(require_api_key)],
+)
+def list_api_credentials(db: Session = Depends(get_db)):
+    return db.scalars(select(ApiCredential).order_by(desc(ApiCredential.created_at))).all()
+
+
+@app.post(
+    "/api/v1/credentials",
+    response_model=CredentialCreatedResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_api_key)],
+)
+def create_api_credential(
+    payload: CredentialCreate,
+    response: Response,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(UTC)
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": 7812340912346},
+        )
+    active_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ApiCredential)
+            .where(
+                ApiCredential.revoked_at.is_(None),
+                (ApiCredential.expires_at.is_(None)) | (ApiCredential.expires_at > now),
+            )
+        )
+        or 0
+    )
+    if active_count >= 250:
+        raise HTTPException(
+            status_code=409, detail="The active API credential limit has been reached."
+        )
+
+    secret = secrets.token_urlsafe(48)
+    item = ApiCredential(
+        label=payload.label,
+        role=payload.role,
+        key_hash=hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+        key_prefix=secret[:12],
+        expires_at=payload.expires_at or (now + timedelta(days=90)),
+        created_by=principal.credential_id,
+        created_at=now,
+    )
+    db.add(item)
+    db.flush()
+    db.add(
+        record_audit_event(
+            db,
+            event_type="api_credential.created",
+            subject=item.label,
+            details=f"credential_id={item.id}; role={item.role}; key_prefix={item.key_prefix}; actor={principal.credential_id}",
+        )
+    )
+    db.commit()
+    db.refresh(item)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {"credential": item, "secret": secret}
+
+
+@app.post(
+    "/api/v1/credentials/{credential_id}/revoke",
+    response_model=CredentialRevokeResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def revoke_api_credential(
+    credential_id: str,
+    principal: ApiPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+):
+    item = db.scalar(
+        select(ApiCredential).where(ApiCredential.id == credential_id).with_for_update()
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="API credential not found.")
+    if principal.credential_source == "database" and principal.credential_id == item.id:
+        raise HTTPException(
+            status_code=409,
+            detail="A managed credential cannot revoke itself; use a different admin credential.",
+        )
+    if item.revoked_at is None:
+        item.revoked_at = datetime.now(UTC)
+        db.add(
+            record_audit_event(
+                db,
+                event_type="api_credential.revoked",
+                subject=item.label,
+                details=f"credential_id={item.id}; role={item.role}; actor={principal.credential_id}",
+            )
+        )
+        db.commit()
+        db.refresh(item)
+    return {"id": item.id, "status": "revoked", "revoked_at": item.revoked_at}
 
 
 def _aware_utc(value: datetime) -> datetime:
@@ -123,7 +239,7 @@ def healthz():
     return {
         "status": "ok",
         "service": "sentinel-api",
-        "version": "0.3.2",
+        "version": "0.7.0-pre",
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -156,7 +272,7 @@ def readyz(db: Session = Depends(get_db)):
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
 def read_config():
     return {
-        "version": "0.3.2",
+        "version": "0.7.0-pre",
         "authorized_domains": settings.allowed_domain_list,
         "features": [
             "dns-pinned-https-headers",
@@ -181,6 +297,10 @@ def read_config():
             "bounded-job-retries-and-dead-letter",
             "cooperative-job-cancellation",
             "resource-bounded-assessment-worker-service",
+            "route-level-rbac",
+            "role-scoped-static-api-credentials",
+            "database-managed-api-credentials",
+            "credential-expiry-and-revocation",
         ],
         "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
     }

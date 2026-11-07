@@ -1,0 +1,3 @@
+[allowlist]
+description = "Verified documentation-only false positive: this commit documents API credential metadata and contains no credential material."
+commits = ["0f61b8adcc89db318e5c5118acbdf9ccdd2abb34"]
