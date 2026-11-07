@@ -66,7 +66,7 @@ GET /api/v1/credentials
 X-API-Key: <admin-service-key>
 ```
 
-The list contains IDs, labels, roles, key prefixes, expiry/revocation state and created/last-used timestamps. It never returns the secret or digest.
+The list contains credential IDs, labels, roles, display prefixes, lifecycle status, creation time and last-use time. It never returns the secret or digest.
 
 ### Revoke
 
