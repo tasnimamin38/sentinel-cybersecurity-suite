@@ -168,6 +168,7 @@ jobs:
         if: always()
         env:
           POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db"
+          REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
           SENTINEL_CORS_ORIGINS: "http://localhost:8080"
