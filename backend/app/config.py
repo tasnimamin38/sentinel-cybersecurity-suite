@@ -101,7 +101,9 @@ class Settings(BaseSettings):
             try:
                 ip_network(cidr, strict=False)
             except ValueError as exc:
-                raise ValueError("SENTINEL_TRUSTED_PROXY_CIDRS must contain valid IP networks.") from exc
+                raise ValueError(
+                    "SENTINEL_TRUSTED_PROXY_CIDRS must contain valid IP networks."
+                ) from exc
 
         if self.security_alert_webhook_secret and not self.security_alert_webhook_url:
             raise ValueError("A webhook secret requires SENTINEL_SECURITY_ALERT_WEBHOOK_URL.")
