@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
+    max_request_body_bytes: int = 524_288
     process_role: str = "api"
     redis_url: str = ""
     trusted_proxy_cidrs: str = ""
@@ -77,6 +78,8 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
         if not 1 <= self.max_assessment_records <= 100_000:
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
+        if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
+            raise ValueError("SENTINEL_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760.")
         if not 1 <= self.rate_limit_window_seconds <= 86_400:
             raise ValueError("SENTINEL_RATE_LIMIT_WINDOW_SECONDS must be between 1 and 86400.")
         for name, value in (
