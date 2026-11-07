@@ -36,9 +36,10 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Alembic schema migrations | Implemented |
 | Overlapping API-key rotation | Implemented |
 | Audited CSV exports with formula-injection defense | Implemented |
-| PostgreSQL durable assessment queue, idempotency and cancellation | Implemented in 0.6 branch |
-| Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
-| RBAC and role-scoped service API credentials | Implemented in 0.7 branch |
+| PostgreSQL durable assessment queue, idempotency and cancellation | Implemented |
+| Separate resource-bounded assessment worker service | Implemented |
+| Bounded API request-body enforcement | Implemented |
+| RBAC and role-scoped service API credentials | Implemented |
 | OIDC/SSO, MFA, human user sessions and multi-tenant isolation | Roadmap |
 | Independent network egress gateway and immutable evidence storage | Roadmap |
 
