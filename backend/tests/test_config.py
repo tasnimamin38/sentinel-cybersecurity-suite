@@ -16,6 +16,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="short",
                 allowed_domains="",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_production_rejects_sqlite_database(self):
@@ -158,6 +160,37 @@ class ProductionConfigTests(unittest.TestCase):
                     database_url="postgresql+psycopg://user:pass@db/sentinel",
                 )
 
+
+    def test_trusted_proxy_cidrs_and_https_alert_webhook_are_validated(self):
+        accepted = Settings(
+            trusted_proxy_cidrs="172.30.240.0/24,2001:db8::/32",
+            security_alert_webhook_url="https://alerts.example.com/sentinel",
+            security_alert_webhook_secret="H" * 40,
+        )
+        self.assertEqual(accepted.trusted_proxy_cidr_list, ["172.30.240.0/24", "2001:db8::/32"])
+
+        with self.assertRaises(ValidationError):
+            Settings(trusted_proxy_cidrs="not-a-network")
+        with self.assertRaises(ValidationError):
+            Settings(
+                security_alert_webhook_url="http://alerts.example.com/hook",
+                security_alert_webhook_secret="H" * 40,
+            )
+        with self.assertRaises(ValidationError):
+            Settings(
+                security_alert_webhook_url="https://alerts.example.com/hook",
+                security_alert_webhook_secret="short",
+            )
+
+    def test_production_api_requires_authenticated_redis_and_trusted_proxy_network(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="S" * 40,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                cors_origins="https://console.example.com",
+            )
 
 if __name__ == "__main__":
     unittest.main()
