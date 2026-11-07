@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from app.models import AuditEvent
 from app.services.audit import record_audit_event
 
-
 _HONEYPOT_PATHS: tuple[tuple[str, str], ...] = (
     ("/.env", "sensitive_file_probe"),
     ("/.git", "repository_metadata_probe"),
