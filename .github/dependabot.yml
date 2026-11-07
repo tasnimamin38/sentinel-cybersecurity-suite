@@ -8,6 +8,16 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+  # The Docker ecosystem monitors Dockerfiles in each directory and image
+  # references in the root Compose file. Each directory is explicit.
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
   - package-ecosystem: docker
     directory: /
     schedule:
