@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -7,13 +8,17 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
+from redis.asyncio import Redis
+import httpx
 from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
-from app.database import Base, engine, get_db
+from app.database import Base, SessionLocal, engine, get_db
 from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
@@ -38,15 +43,51 @@ from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
 from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
+from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
+from app.services.security_monitor import (
+    classify_security_response,
+    persist_security_evidence,
+    resolve_client_ip,
+    sign_alert_payload,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     # Development/test bootstrap only. Production containers run Alembic before
     # Uvicorn; schema changes must never be hidden behind create_all.
     if settings.environment != "production":
         Base.metadata.create_all(bind=engine)
-    yield
+
+    redis_client: Redis | None = None
+    application.state.redis = None
+    application.state.rate_limiter = None
+    if settings.redis_url:
+        redis_client = Redis.from_url(
+            settings.redis_url,
+            decode_responses=False,
+            socket_connect_timeout=1.5,
+            socket_timeout=1.5,
+            health_check_interval=30,
+            max_connections=64,
+        )
+        try:
+            await redis_client.ping()
+        except Exception as exc:
+            await redis_client.aclose()
+            raise RuntimeError(
+                "Shared Redis protection is unavailable; API startup refused."
+            ) from exc
+        application.state.redis = redis_client
+        application.state.rate_limiter = RedisSlidingWindowLimiter(redis_client)
+
+    try:
+        yield
+    finally:
+        if redis_client is not None:
+            await redis_client.aclose()
 
 
 settings = get_settings()
@@ -69,10 +110,88 @@ app.add_middleware(
 )
 
 
+async def _send_security_webhook(url: str, secret: str, payload: dict) -> None:
+    body, signature = sign_alert_payload(payload, secret)
+    try:
+        async with httpx.AsyncClient(
+            timeout=4.0,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
+            response = await client.post(
+                url,
+                content=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-SENTINEL-Signature": signature,
+                    "X-SENTINEL-Event": str(payload.get("rule_id", "security-event")),
+                },
+            )
+            response.raise_for_status()
+    except (httpx.HTTPError, ValueError):
+        # Do not log the URL, secret, body or any attacker-supplied values.
+        logger.warning("Security webhook delivery failed.")
+
+
 @app.middleware("http")
 async def security_response_headers(request, call_next):
     request_id = uuid4().hex
-    response = await call_next(request)
+    request.state.request_id = request_id
+    response = None
+    source_ip = resolve_client_ip(
+        peer_ip=request.client.host if request.client else None,
+        x_real_ip=request.headers.get("X-Real-IP"),
+        trusted_proxy_cidrs=settings.trusted_proxy_cidr_list,
+    )
+
+    if request.url.path.startswith("/api/v1/") and request.method.upper() != "OPTIONS":
+        limiter = getattr(request.app.state, "rate_limiter", None)
+        if limiter is None and settings.environment == "production":
+            response = JSONResponse(
+                status_code=503,
+                content={"detail": "Request protection is temporarily unavailable."},
+            )
+        elif limiter is not None:
+            supplied_key = request.headers.get("X-API-Key", "")
+            key_identity = hashlib.sha256(
+                (supplied_key if supplied_key else "anonymous:" + source_ip).encode("utf-8")
+            ).hexdigest()
+            ip_identity = hashlib.sha256(source_ip.encode("utf-8")).hexdigest()
+            policies = [
+                ("ip", ip_identity, settings.ip_rate_limit_per_minute),
+                ("key", key_identity, settings.api_rate_limit_per_minute),
+            ]
+            if request.method.upper() == "POST" and request.url.path.endswith("/assessments"):
+                policies.append(
+                    ("assessment", key_identity, settings.assessment_rate_limit_per_minute)
+                )
+            if request.method.upper() == "POST" and request.url.path.endswith("/secrets/scan"):
+                policies.append(
+                    ("secret-scan", key_identity, settings.secret_scan_rate_limit_per_minute)
+                )
+            try:
+                for bucket, identity, limit in policies:
+                    decision = await limiter.check(
+                        f"sentinel:rate:{bucket}:{identity}",
+                        limit,
+                        settings.rate_limit_window_seconds,
+                    )
+                    if not decision.allowed:
+                        response = JSONResponse(
+                            status_code=429,
+                            content={"detail": "Request rate limit exceeded. Retry later."},
+                            headers={"Retry-After": str(decision.retry_after_seconds)},
+                        )
+                        break
+            except RateLimiterUnavailable:
+                response = JSONResponse(
+                    status_code=503,
+                    content={"detail": "Request protection is temporarily unavailable."},
+                )
+
+    if response is None:
+        response = await call_next(request)
+
     response.headers.setdefault("X-Request-ID", request_id)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
@@ -81,6 +200,36 @@ async def security_response_headers(request, call_next):
     response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     response.headers.setdefault("Cache-Control", "no-store")
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+
+    signal = classify_security_response(request.url.path, response.status_code)
+    if signal:
+        try:
+            with SessionLocal() as db:
+                alerts = persist_security_evidence(
+                    db,
+                    signal=signal,
+                    source_ip=source_ip,
+                    path=request.url.path,
+                    method=request.method,
+                    user_agent=request.headers.get("User-Agent", ""),
+                    request_id=request_id,
+                    auth_failure_threshold=settings.auth_failure_threshold,
+                    auth_failure_window_seconds=settings.auth_failure_window_seconds,
+                )
+                db.commit()
+            if settings.security_alert_webhook_url and settings.security_alert_webhook_secret:
+                for alert in alerts:
+                    response.background = BackgroundTask(
+                        _send_security_webhook,
+                        settings.security_alert_webhook_url,
+                        settings.security_alert_webhook_secret,
+                        alert,
+                    )
+        except Exception:
+            # Evidence persistence must not turn an otherwise handled request
+            # into an application error; the server log carries only the class.
+            logger.exception("Unable to persist SENTINEL security evidence.")
+
     return response
 
 
