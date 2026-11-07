@@ -128,7 +128,6 @@ def sign_alert_payload(payload: dict, secret: str) -> tuple[bytes, str]:
     return body, "sha256=" + signature
 
 
-
 def persist_security_evidence(
     db: Session,
     *,
