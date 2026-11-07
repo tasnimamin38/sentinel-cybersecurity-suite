@@ -219,6 +219,21 @@ async def security_response_headers(request, call_next):
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
 
     signal = classify_security_response(request.url.path, response.status_code)
+    limiter = getattr(request.app.state, "rate_limiter", None)
+    if signal and limiter is not None and source_ip != "unknown":
+        try:
+            event_identity = hashlib.sha256(source_ip.encode("utf-8")).hexdigest()
+            event_budget = await limiter.check(
+                f"sentinel:rate:security-event-audit:{event_identity}",
+                settings.security_event_audit_limit_per_minute,
+                settings.rate_limit_window_seconds,
+            )
+            if not event_budget.allowed:
+                signal = None
+        except RateLimiterUnavailable:
+            # If the shared limiter is unavailable, do not amplify a possible
+            # flood by persisting additional signal events.
+            signal = None
     if signal:
         try:
             with SessionLocal() as db:
