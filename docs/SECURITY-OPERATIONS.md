@@ -46,6 +46,7 @@ Default shared limits per rolling 60-second window:
 | Requests per API credential fingerprint | 120 |
 | Assessment requests | 10 |
 | Secret scan requests | 20 |
+| Honeypot events per observed IP | 10 |
 
 Tune these limits for expected traffic and capacity. A shared IP may represent multiple legitimate users behind NAT or a corporate proxy.
 
@@ -57,7 +58,7 @@ Nginx forwards the following decoy paths to the API. The application does not se
 - `/wp-admin/*`, `/wp-login.php`, `/phpmyadmin/*`, `/adminer.php`
 - `/actuator/env`, `/server-status`, `/.well-known/sentinel-canary`
 
-The monitor also records API authentication failures and rate-limit denials. Repeated failed API authentication from an observed source IP triggers a brute-force signal after the configured threshold (default: five attempts within five minutes).
+The monitor also records API authentication failures and rate-limit denials. Repeated failed API authentication from an observed source IP triggers a brute-force signal after the configured threshold (default: five attempts within five minutes). Decoy/honeypot traffic has a separate per-IP event ceiling (default: 10/minute); once exceeded, Nginx-forwarded probes receive HTTP 429 and repeated blocked probes are not appended to the audit journal.
 
 Operators with the `audit.read` permission can query:
 
