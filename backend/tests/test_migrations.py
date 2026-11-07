@@ -100,6 +100,16 @@ class LegacyMigrationTests(unittest.TestCase):
                     ).fetchall()
                 }
                 self.assertIn("tenant_id", columns, msg=table_name)
+                tenant_foreign_keys = connection.execute(
+                    f"PRAGMA foreign_key_list({table_name})"
+                ).fetchall()
+                self.assertTrue(
+                    any(
+                        row[2] == "tenants" and row[3] == "tenant_id" and row[4] == "id"
+                        for row in tenant_foreign_keys
+                    ),
+                    msg=f"{table_name} must reference tenants.id",
+                )
                 tenant_id = connection.execute(
                     f"SELECT DISTINCT tenant_id FROM {table_name}"
                 ).fetchall()
