@@ -124,8 +124,8 @@ jobs:
           skip-setup-trivy: true
       - name: Exercise same-origin console-to-API proxy in Compose
         env:
-          POSTGRES_PASSWORD: "ci-test-db-password-0123456789abcdef0123456789abcdef"
-          SENTINEL_API_KEY: "ci-test-key-ci-test-key-ci-test-key-123456"
+          POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db-ci-db"
+          SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
           SENTINEL_CORS_ORIGINS: "http://localhost:8080"
         run: |
@@ -145,8 +145,8 @@ jobs:
       - name: Tear down Compose smoke stack
         if: always()
         env:
-          POSTGRES_PASSWORD: "ci-test-db-password-0123456789abcdef0123456789abcdef"
-          SENTINEL_API_KEY: "ci-test-key-ci-test-key-ci-test-key-123456"
+          POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db-ci-db"
+          SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
           SENTINEL_CORS_ORIGINS: "http://localhost:8080"
         run: docker compose down --volumes --remove-orphans
