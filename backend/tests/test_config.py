@@ -172,6 +172,12 @@ class ProductionConfigTests(unittest.TestCase):
                     database_url="postgresql+psycopg://user:pass@db/sentinel",
                 )
 
+    def test_security_event_audit_limit_is_bounded(self):
+        with self.assertRaises(ValidationError):
+            Settings(security_event_audit_limit_per_minute=0)
+        with self.assertRaises(ValidationError):
+            Settings(security_event_audit_limit_per_minute=100_001)
+
     def test_request_body_limit_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(max_request_body_bytes=512)
