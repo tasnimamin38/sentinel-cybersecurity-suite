@@ -201,6 +201,10 @@ class Settings(BaseSettings):
                     or not redis.hostname
                     or not redis.password
                     or len(redis.password) < 32
+                    or any(
+                        marker in redis.password.lower()
+                        for marker in ("replace-with", "change-me", "placeholder", "example")
+                    )
                 ):
                     errors.append(
                         "SENTINEL_REDIS_URL must configure authenticated shared Redis rate-limit storage"
