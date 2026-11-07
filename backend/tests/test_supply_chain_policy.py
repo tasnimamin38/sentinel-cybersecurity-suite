@@ -5,6 +5,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
 ACTION_LINE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 IMMUTABLE_ACTION_REF = re.compile(r"^[^@]+@[0-9a-f]{40}$")
+DEPENDENCY_REVIEW_ACTION = (
+    "actions/dependency-review-action@"
+    "a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+)
 
 
 def test_every_workflow_action_uses_an_immutable_commit_sha():
@@ -45,7 +49,13 @@ def test_supply_chain_workflow_enforces_security_gates():
     )
     for control in required_controls:
         assert control in workflow, f"Required supply-chain control missing: {control}"
-    assert "actions/dependency-review-action@" not in workflow
+
+    # Review only pull-request dependency changes; keep the full-manifest audits too.
+    assert "dependency-review-diff:" in workflow
+    assert DEPENDENCY_REVIEW_ACTION in workflow
+    assert "fail-on-severity: high" in workflow
+    assert "license-check: false" in workflow
+    assert "comment-summary-in-pr: never" in workflow
 
 
 def test_container_images_are_scanned_after_build():
