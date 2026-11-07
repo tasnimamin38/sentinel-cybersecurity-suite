@@ -16,6 +16,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="short",
                 allowed_domains="",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_production_rejects_sqlite_database(self):
@@ -25,6 +27,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="S" * 40,
                 allowed_domains="example.com",
                 database_url="sqlite:///./sentinel.db",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_production_accepts_strong_baseline_configuration(self):
@@ -47,6 +51,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="replace-with-a-long-but-not-a-real-secret-value",
                 allowed_domains="example.com",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_api_key_overlap_configuration_accepts_two_strong_keys(self):
@@ -60,6 +66,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_keys="A" * 40 + ",short",
                 allowed_domains="example.com",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_timeout_is_bounded(self):
@@ -89,6 +97,8 @@ class ProductionConfigTests(unittest.TestCase):
                     api_key="",
                     allowed_domains="example.com",
                     database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
                     cors_origins="https://console.example.com",
                 )
 
