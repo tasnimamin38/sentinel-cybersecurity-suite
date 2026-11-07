@@ -15,6 +15,10 @@ SENTINEL 0.3 is a defensive asset-governance and posture-operations baseline bui
 9. Persist the assessment and audit event.
 10. Create remediation tasks from actual stored findings.
 
+## API request resource guard
+
+All `/api/v1/*` request bodies are limited before FastAPI parses JSON. The default cap is 512 KiB and can be changed with `SENTINEL_MAX_REQUEST_BODY_BYTES` from 1 KiB through 10 MiB. The middleware rejects an oversized declared `Content-Length` before reading the body and counts streamed chunks when the length is missing or the request is chunked. Health and readiness endpoints are outside this API body policy.
+
 ## 0.3 operational modules
 
 - Asset inventory and authorization expiry
