@@ -250,5 +250,19 @@ class ProductionConfigTests(unittest.TestCase):
         )
 
 
+    def test_production_rejects_duplicate_legacy_api_keys(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_keys="S" * 40 + "," + "S" * 40,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
+                cors_origins="https://console.example.com",
+            )
+
+
+
 if __name__ == "__main__":
     unittest.main()
