@@ -27,8 +27,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="S" * 40,
                 allowed_domains="example.com",
                 database_url="sqlite:///./sentinel.db",
-            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
-            trusted_proxy_cidrs="172.30.240.0/24",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_production_accepts_strong_baseline_configuration(self):
@@ -37,8 +37,8 @@ class ProductionConfigTests(unittest.TestCase):
             api_key="S" * 40,
             allowed_domains="example.com",
             database_url="postgresql+psycopg://user:pass@db/sentinel",
-            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
-            trusted_proxy_cidrs="172.30.240.0/24",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
             cors_origins="https://console.example.com",
         )
         self.assertEqual(settings.allowed_domain_list, ["example.com"])
@@ -51,8 +51,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="replace-with-a-long-but-not-a-real-secret-value",
                 allowed_domains="example.com",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
-            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
-            trusted_proxy_cidrs="172.30.240.0/24",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_api_key_overlap_configuration_accepts_two_strong_keys(self):
@@ -66,8 +66,8 @@ class ProductionConfigTests(unittest.TestCase):
                 api_keys="A" * 40 + ",short",
                 allowed_domains="example.com",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
-            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
-            trusted_proxy_cidrs="172.30.240.0/24",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_timeout_is_bounded(self):
@@ -141,8 +141,8 @@ class ProductionConfigTests(unittest.TestCase):
             api_credentials_json=json.dumps(values),
             allowed_domains="example.com",
             database_url="postgresql+psycopg://user:pass@db/sentinel",
-            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
-            trusted_proxy_cidrs="172.30.240.0/24",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
             cors_origins="https://console.example.com",
         )
         self.assertEqual(settings.process_role, "api")
@@ -172,7 +172,6 @@ class ProductionConfigTests(unittest.TestCase):
                     database_url="postgresql+psycopg://user:pass@db/sentinel",
                 )
 
-
     def test_request_body_limit_is_bounded(self):
         with self.assertRaises(ValidationError):
             Settings(max_request_body_bytes=512)
@@ -181,14 +180,14 @@ class ProductionConfigTests(unittest.TestCase):
 
     def test_trusted_proxy_cidrs_and_https_alert_webhook_are_validated(self):
         accepted = Settings(
-            trusted_proxy_cidrs="172.30.240.0/24,2001:db8::/32",
+                    trusted_proxy_cidrs="172.30.240.0/24,2001:db8::/32",
             security_alert_webhook_url="https://alerts.example.com/sentinel",
             security_alert_webhook_secret="H" * 40,
         )
         self.assertEqual(accepted.trusted_proxy_cidr_list, ["172.30.240.0/24", "2001:db8::/32"])
 
         with self.assertRaises(ValidationError):
-            Settings(trusted_proxy_cidrs="not-a-network")
+                    Settings(trusted_proxy_cidrs="not-a-network")
         with self.assertRaises(ValidationError):
             Settings(
                 security_alert_webhook_url="http://alerts.example.com/hook",
