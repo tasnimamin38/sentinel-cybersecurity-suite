@@ -41,6 +41,7 @@ services:
     networks: [sentinel-data]
 
   api:
+    build:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
