@@ -45,6 +45,7 @@ from app.services.posture import assess_domain
 from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
 from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
+from app.services.request_limits import RequestBodySizeLimitMiddleware
 from app.services.security_monitor import (
     classify_security_response,
     persist_security_evidence,
@@ -108,6 +109,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "X-API-Key", "Idempotency-Key"],
+)
+app.add_middleware(
+    RequestBodySizeLimitMiddleware,
+    max_bytes=settings.max_request_body_bytes,
 )
 
 
