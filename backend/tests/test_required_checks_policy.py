@@ -68,3 +68,12 @@ def test_backend_image_uses_patched_python_without_runtime_build_tools():
         'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")'
         in dockerfile
     )
+
+def test_tls_probes_require_tls_1_2_or_newer():
+    tls_clients = (
+        REPOSITORY_ROOT / "backend/app/services/tls.py",
+        REPOSITORY_ROOT / "backend/app/services/https_probe.py",
+    )
+    for client in tls_clients:
+        source = client.read_text(encoding="utf-8")
+        assert "context.minimum_version = ssl.TLSVersion.TLSv1_2" in source
