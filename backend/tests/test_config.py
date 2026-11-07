@@ -215,6 +215,40 @@ class ProductionConfigTests(unittest.TestCase):
                 cors_origins="https://console.example.com",
             )
 
+    def test_production_rejects_insecure_or_non_origin_cors_entries(self):
+        base = {
+            "environment": "production",
+            "api_key": "S" * 40,
+            "allowed_domains": "example.com",
+            "database_url": "postgresql+psycopg://user:pass@db/sentinel",
+            "redis_url": "redis://:" + "R" * 40 + "@redis:6379/0",
+            "trusted_proxy_cidrs": "172.30.240.0/24",
+        }
+        for origin in (
+            "http://console.example.com",
+            "https://*.example.com",
+            "https://console.example.com/admin",
+            "https://user:pass@console.example.com",
+            "https://console.example.com?debug=true",
+        ):
+            with self.subTest(origin=origin), self.assertRaises(ValidationError):
+                Settings(**base, cors_origins=origin)
+
+    def test_production_accepts_exact_https_cors_origins(self):
+        settings = Settings(
+            environment="production",
+            api_key="S" * 40,
+            allowed_domains="example.com",
+            database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
+            cors_origins="https://console.example.com,https://admin.example.com:8443",
+        )
+        self.assertEqual(
+            settings.cors_origin_list,
+            ["https://console.example.com", "https://admin.example.com:8443"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
