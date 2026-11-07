@@ -19,6 +19,10 @@ Thanks for helping improve SENTINEL. Contributions must keep the project defensi
 6. Confirm no secrets, local databases, build outputs, backups or environment files are included.
 7. Describe residual risk and distinguish what is implemented from what remains a roadmap item.
 
+## Commit signing
+
+See [Git Commit Signing and Verification](docs/security/commit-signing.md) for the Windows SSH-signing setup, GitHub key registration, verification steps and safe migration guidance. A Verified badge confirms a validated signature; it is not a substitute for code review, CI or security testing. Never publish a private signing key or rewrite shared history solely to change verification badges.
+
 ## Local validation
 
 Backend:
