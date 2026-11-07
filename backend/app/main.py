@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import delete, desc, func, select, text
+from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from app.auth import require_api_key
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import Assessment, Asset, AuditEvent, RemediationTask
+from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
     AssessmentRequest,
     AssessmentResponse,
@@ -25,6 +26,7 @@ from app.schemas import (
     RemediationUpdate,
     SecretScanRequest,
 )
+from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
@@ -76,6 +78,9 @@ async def security_response_headers(request, call_next):
     return response
 
 
+app.include_router(assessment_jobs_router)
+
+
 def _aware_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
@@ -96,39 +101,12 @@ def _persist_assessment(
     result: dict,
     asset: Asset | None = None,
 ) -> Assessment:
-    item = Assessment(
-        asset_id=asset.id if asset else None,
-        target=result["target"],
-        status=result["status"],
-        score=result["score"],
-        risk_level=result["risk_level"],
-        findings=result["findings"],
-        evidence={
-            **result["evidence"],
-            "risk_explanation": result["risk_explanation"],
-        },
+    item = add_assessment_result(
+        db,
+        result,
+        asset,
+        max_records=settings.max_assessment_records,
     )
-    db.add(item)
-    db.flush()
-    db.add(
-        record_audit_event(
-            db,
-            event_type="assessment.completed",
-            subject=result["target"],
-            details=f"assessment_id={item.id}; asset_id={item.asset_id or 'unregistered'}; score={result['score']}; findings={len(result['findings'])}",
-        )
-    )
-    excess_ids = db.scalars(
-        select(Assessment.id)
-        .where(
-            Assessment.id != item.id,
-            Assessment.id.not_in(select(RemediationTask.assessment_id)),
-        )
-        .order_by(desc(Assessment.created_at), desc(Assessment.id))
-        .offset(settings.max_assessment_records - 1)
-    ).all()
-    if excess_ids:
-        db.execute(delete(Assessment).where(Assessment.id.in_(excess_ids)))
     db.commit()
     db.refresh(item)
     return item
@@ -189,6 +167,14 @@ def read_config():
             "audited-csv-exports",
             "extended-dns-posture",
             "security-header-policy-analysis",
+            "durable-assessment-jobs",
+            "scheduled-assessment-jobs",
+            "idempotent-job-requests",
+            "postgresql-row-locked-worker-claims",
+            "lease-based-worker-recovery",
+            "bounded-job-retries-and-dead-letter",
+            "cooperative-job-cancellation",
+            "resource-bounded-assessment-worker-service",
         ],
         "network_policy": "HTTPS-only, validated public DNS answers, pinned IP connection, no redirects, headers-only response read",
     }

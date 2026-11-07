@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/sentinel-*', 'fix/sentinel-*']
   workflow_dispatch:
 
 permissions:
@@ -16,16 +16,36 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend security and tests
+    name: Backend security and tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      SENTINEL_TEST_POSTGRES_URL: postgresql+psycopg://sentinel:ci-only-postgres-password@localhost:5432/sentinel_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sentinel_test
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: ci-only-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinel -d sentinel_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install backend and audit tooling
@@ -38,6 +58,10 @@ jobs:
         run: ruff format --check app tests alembic
       - name: Ruff lint
         run: ruff check app tests alembic
+      - name: Validate PostgreSQL migration upgrade and downgrade
+        env:
+          SENTINEL_DATABASE_URL: postgresql+psycopg://sentinel:ci-only-postgres-password@localhost:5432/sentinel_test
+        run: alembic upgrade head && alembic downgrade -1 && alembic upgrade head
 
   frontend:
     name: Frontend security and build
@@ -46,8 +70,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "24"
           cache: npm
@@ -63,7 +87,7 @@ jobs:
     name: Container image and Compose validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate Compose interpolation and structure
         env:
           POSTGRES_PASSWORD: "ci-only-not-a-secret"
@@ -73,5 +97,28 @@ jobs:
         run: docker compose config --quiet
       - name: Build backend image
         run: docker build --pull -f backend/Dockerfile -t sentinel-api:ci .
+      - name: Scan backend image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: sentinel-api:ci
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 10m
       - name: Build frontend image
         run: docker build --pull -f frontend/Dockerfile -t sentinel-console:ci .
+      - name: Scan frontend image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: sentinel-console:ci
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 10m
+          skip-setup-trivy: true

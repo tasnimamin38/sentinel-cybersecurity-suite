@@ -8,7 +8,7 @@ Security reports are accepted for the latest code on the `main` branch and the l
 
 Please do not disclose exploitable vulnerabilities in public issues or pull requests.
 
-Use GitHub's **Report a vulnerability** feature on this repository's Security tab when private vulnerability reporting is available. Include:
+Use the repository's **Report a vulnerability** feature on the Security tab to submit a private report. Private vulnerability reporting is enabled for this repository. Include:
 
 - A clear impact summary and affected component.
 - A minimal reproduction using assets you own or are authorized to test.

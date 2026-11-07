@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 def inspect_tls(hostname: str, timeout: float = 4.0) -> list[dict]:
     context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     with socket.create_connection((hostname, 443), timeout=timeout) as raw_socket:
         with context.wrap_socket(raw_socket, server_hostname=hostname) as connection:
             certificate = connection.getpeercert()
