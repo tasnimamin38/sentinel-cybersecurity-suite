@@ -30,8 +30,8 @@ from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
-from app.services.scope import ScopeViolation, authorize_domain
 from app.services.request_limits import RequestBodySizeLimitMiddleware
+from app.services.scope import ScopeViolation, authorize_domain
 from app.services.secrets import scan_text
 
 
