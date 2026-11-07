@@ -170,6 +170,9 @@ def require_api_key(
         credential_id, role, source = matches[0]
         principal = ApiPrincipal(credential_id=credential_id, role=role, credential_source=source)
     elif supplied:
+        # This verifier is for a uniformly random 48-byte bearer token, not a user
+        # password. Its 384 bits of entropy make a fast digest suitable for indexed
+        # lookup; slow password KDFs are designed for low-entropy human passwords.
         digest = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
         managed = db.scalar(
             select(ApiCredential).where(ApiCredential.key_hash == digest).with_for_update()
