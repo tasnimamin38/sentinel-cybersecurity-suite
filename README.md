@@ -277,17 +277,20 @@ The API key is entered into the console and held in component memory; it is not 
 
 ## Engineering validation
 
-The automated GitHub validation suite covers API authentication, role-scoped authorization, managed credential creation/expiry/revocation and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
+The automated GitHub validation suite covers API authentication, role-scoped authorization, managed credential creation/expiry/revocation and overlapping key rotation, trusted-proxy client IP handling, honeypot evidence sanitization, webhook HMAC signatures, Redis sliding-window and fail-closed behavior, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and database migrations.
 
-| Validation | Current local result |
-|:---|:---:|
-| Backend test suite | 62 passed |
-| Ruff 0.17.4 lint | Passed |
-| Ruff format check | Passed |
-| Frontend React 19 + TypeScript 7 + Vite 8 production build | Passed |
-| <code>npm audit --audit-level=moderate</code> | 0 reported vulnerabilities |
+| Validation | Verification source |
+|:---|:---|
+| Backend tests (Python 3.12 and 3.13) | Required GitHub Actions CI |
+| Ruff lint and format | Required GitHub Actions CI |
+| Frontend production build and dependency audit | Required GitHub Actions CI |
+| Compose validation, image builds and Trivy scans | Required GitHub Actions CI |
+| Redis sliding-window integration test | Required GitHub Actions CI with an isolated Redis service |
+| CodeQL, Gitleaks, dependency review and SPDX SBOM | Required GitHub security workflows |
 
-The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build, Docker Compose interpolation validation, backend/frontend container image builds and CodeQL for Python and JavaScript/TypeScript. Docker CLI was unavailable locally, so container runtime was not exercised. pip-audit and npm audit both completed successfully; this does not replace image-level or runtime security testing. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
+No local execution result is claimed for this change set. Use the exact-head GitHub Actions checks on the pull request as the release gate. Docker runtime, production egress enforcement, sustained production traffic, backup/restore drills and independent penetration testing remain separate deployment verification tasks.
+
+The CI workflow runs Python dependency auditing with pip-audit, npm dependency auditing, backend tests, Ruff checks, frontend production build, authenticated Redis sliding-window integration tests, Docker Compose validation, backend/frontend image builds and HIGH/CRITICAL Trivy scans. Separate GitHub workflows run CodeQL, Gitleaks, dependency review and SPDX SBOM generation. Docker CLI was unavailable locally, so container runtime was not exercised. pip-audit and npm audit both completed successfully; this does not replace image-level or runtime security testing. Docker runtime, production egress enforcement, high-concurrency behavior, restore drills and independent penetration testing are not certified by this release.
 
 ---
 
