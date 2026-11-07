@@ -140,3 +140,20 @@ class AssessmentJob(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class ApiCredential(Base):
+    __tablename__ = "api_credentials"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    label: Mapped[str] = mapped_column(String(80))
+    role: Mapped[str] = mapped_column(String(24), index=True)
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    key_prefix: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
