@@ -14,3 +14,6 @@ line-ending = "lf"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["B008", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
