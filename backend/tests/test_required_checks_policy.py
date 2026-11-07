@@ -69,6 +69,7 @@ def test_backend_image_uses_patched_python_without_runtime_build_tools():
         in dockerfile
     )
 
+
 def test_tls_probes_require_tls_1_2_or_newer():
     tls_clients = (
         REPOSITORY_ROOT / "backend/app/services/tls.py",
