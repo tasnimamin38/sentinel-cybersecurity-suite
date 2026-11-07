@@ -104,7 +104,7 @@ jobs:
           REDIS_PASSWORD: "ci-only-redis-password"
           SENTINEL_API_KEY: "ci-only-placeholder-key-not-for-deployment"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
-          SENTINEL_CORS_ORIGINS: "http://localhost:8080"
+          SENTINEL_CORS_ORIGINS: "https://console.example.com"
         run: docker compose config --quiet
       - name: Build backend image
         run: docker build --pull -f backend/Dockerfile -t sentinel-api:ci .
@@ -139,7 +139,7 @@ jobs:
           REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
-          SENTINEL_CORS_ORIGINS: "http://localhost:8080"
+          SENTINEL_CORS_ORIGINS: "https://console.example.com"
         run: |
           docker compose up --build --detach
           docker compose exec -T api python -c '
@@ -169,5 +169,5 @@ jobs:
           REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
-          SENTINEL_CORS_ORIGINS: "http://localhost:8080"
+          SENTINEL_CORS_ORIGINS: "https://console.example.com"
         run: docker compose down --volumes --remove-orphans
