@@ -16,6 +16,7 @@ def test_real_redis_executes_atomic_sliding_window_policy():
     async def exercise():
         client = Redis.from_url(redis_url, decode_responses=False)
         key = f"sentinel:test:rate:{uuid4().hex}"
+        concurrent_key = f"sentinel:test:rate:concurrent:{uuid4().hex}"
         limiter = RedisSlidingWindowLimiter(client)
         try:
             first = await limiter.check(key, 2, 5)
@@ -26,7 +27,6 @@ def test_real_redis_executes_atomic_sliding_window_policy():
             assert third.allowed is False and third.remaining == 0
             assert 1 <= third.retry_after_seconds <= 5
 
-            concurrent_key = f"sentinel:test:rate:concurrent:{uuid4().hex}"
             concurrent = await asyncio.gather(
                 *(
                     limiter.check(concurrent_key, 5, 30)
@@ -36,7 +36,7 @@ def test_real_redis_executes_atomic_sliding_window_policy():
             assert sum(decision.allowed for decision in concurrent) == 5
             assert all(decision.remaining >= 0 for decision in concurrent)
         finally:
-            await client.delete(key, locals().get("concurrent_key", ""))
+            await client.delete(key, concurrent_key)
             await client.aclose()
 
     asyncio.run(exercise())
