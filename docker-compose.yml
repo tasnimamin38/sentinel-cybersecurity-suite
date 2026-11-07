@@ -52,7 +52,7 @@ services:
       retries: 5
       start_period: 25s
     ports: ["127.0.0.1:8000:8000"]
-    networks: [sentinel-data, sentinel-egress]
+    networks: [sentinel-data, sentinel-app, sentinel-egress]
 
   worker:
     build:
@@ -86,8 +86,6 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -101,7 +99,7 @@ services:
       api:
         condition: service_healthy
     ports: ["127.0.0.1:8080:8080"]
-    networks: [sentinel-web]
+    networks: [sentinel-web, sentinel-app]
 
 volumes:
   sentinel-db:
@@ -110,6 +108,8 @@ networks:
   sentinel-data:
     internal: true
   sentinel-web:
+    internal: true
+  sentinel-app:
     internal: true
   sentinel-egress:
     driver: bridge
