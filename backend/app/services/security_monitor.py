@@ -175,7 +175,7 @@ def persist_security_evidence(
                 AuditEvent.created_at >= cutoff,
             )
         ) or 0
-        failure_count = int(previous_failures) + 1
+        failure_count = max(1, int(previous_failures))
         already_alerted = db.scalar(
             select(AuditEvent.id)
             .where(
