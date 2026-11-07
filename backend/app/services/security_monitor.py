@@ -5,7 +5,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address, ip_network
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models import AuditEvent
+from app.services.audit import record_audit_event
 from urllib.parse import unquote
 
 
@@ -115,3 +122,87 @@ def sign_alert_payload(payload: dict, secret: str) -> tuple[bytes, str]:
     )
     signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return body, "sha256=" + signature
+
+
+
+def persist_security_evidence(
+    db: Session,
+    *,
+    signal: dict[str, str],
+    source_ip: str,
+    path: str,
+    method: str,
+    user_agent: str,
+    request_id: str,
+    auth_failure_threshold: int = 5,
+    auth_failure_window_seconds: int = 300,
+) -> list[dict[str, str | int]]:
+    """Append sanitized security signals to the existing hash-linked audit chain.
+
+    Only the URL path (never its query string), a validated source IP, a bounded
+    user-agent label and a request correlation ID are stored. Request bodies,
+    cookies and credential values are deliberately excluded.
+    """
+    now = datetime.now(UTC)
+    safe = {
+        "rule_id": signal["rule_id"][:80],
+        "severity": signal["severity"][:16],
+        "source_ip": source_ip[:64],
+        "path": path.split("?", 1)[0][:253],
+        "method": method[:12].upper(),
+        "user_agent": sanitize_user_agent(user_agent),
+        "request_id": request_id[:64],
+        "observed_at": now.isoformat(),
+    }
+    db.add(
+        record_audit_event(
+            db,
+            event_type=signal["event_type"],
+            subject=source_ip,
+            result=signal["severity"],
+            details=json.dumps(safe, sort_keys=True, separators=(",", ":")),
+        )
+    )
+    alerts: list[dict[str, str | int]] = []
+    if signal["event_type"] == "security.api_auth_failure" and source_ip != "unknown":
+        cutoff = now - timedelta(seconds=auth_failure_window_seconds)
+        previous_failures = db.scalar(
+            select(func.count())
+            .select_from(AuditEvent)
+            .where(
+                AuditEvent.event_type == "security.api_auth_failure",
+                AuditEvent.subject == source_ip,
+                AuditEvent.created_at >= cutoff,
+            )
+        ) or 0
+        failure_count = int(previous_failures) + 1
+        already_alerted = db.scalar(
+            select(AuditEvent.id)
+            .where(
+                AuditEvent.event_type == "security.brute_force_detected",
+                AuditEvent.subject == source_ip,
+                AuditEvent.created_at >= cutoff,
+            )
+            .limit(1)
+        )
+        if failure_count >= auth_failure_threshold and not already_alerted:
+            brute_force = {
+                **safe,
+                "rule_id": "AUTH_BRUTE_FORCE",
+                "severity": "critical",
+                "failure_count": failure_count,
+                "window_seconds": auth_failure_window_seconds,
+            }
+            db.add(
+                record_audit_event(
+                    db,
+                    event_type="security.brute_force_detected",
+                    subject=source_ip,
+                    result="critical",
+                    details=json.dumps(brute_force, sort_keys=True, separators=(",", ":")),
+                )
+            )
+            alerts.append(brute_force)
+    if signal["severity"] in {"high", "critical"}:
+        alerts.append(safe)
+    return alerts
