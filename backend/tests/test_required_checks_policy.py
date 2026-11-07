@@ -7,8 +7,7 @@ WORKFLOW_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
 ACTION_LINE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 IMMUTABLE_ACTION_REF = re.compile(r"^[^@]+@[0-9a-f]{40}$")
 DEPENDENCY_REVIEW_ACTION = (
-    "actions/dependency-review-action@"
-    "a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+    "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294"
 )
 
 
@@ -26,9 +25,7 @@ def test_ci_produces_every_required_main_branch_context():
 
 def test_codeql_and_trivy_publish_security_check_runs():
     codeql = (WORKFLOW_ROOT / "codeql.yml").read_text(encoding="utf-8")
-    supply_chain = (WORKFLOW_ROOT / "supply-chain-security.yml").read_text(
-        encoding="utf-8"
-    )
+    supply_chain = (WORKFLOW_ROOT / "supply-chain-security.yml").read_text(encoding="utf-8")
     assert "name: CodeQL" in codeql
     assert "matrix.language" in codeql
     assert "security-events: write" in codeql
@@ -38,9 +35,7 @@ def test_codeql_and_trivy_publish_security_check_runs():
 
 
 def test_dependency_review_is_a_required_pull_request_gate():
-    workflow = (WORKFLOW_ROOT / "supply-chain-security.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (WORKFLOW_ROOT / "supply-chain-security.yml").read_text(encoding="utf-8")
     assert "dependency-review-diff:" in workflow
     assert "name: Review pull-request dependency changes" in workflow
     assert DEPENDENCY_REVIEW_ACTION in workflow
@@ -51,9 +46,7 @@ def test_dependency_review_is_a_required_pull_request_gate():
 
 
 def test_every_third_party_workflow_action_uses_a_full_commit_sha():
-    workflow_files = sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(
-        WORKFLOW_ROOT.glob("*.yaml")
-    )
+    workflow_files = sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(WORKFLOW_ROOT.glob("*.yaml"))
     assert workflow_files, "GitHub Actions workflows must be present."
     unpinned = []
     for workflow in workflow_files:
@@ -62,9 +55,14 @@ def test_every_third_party_workflow_action_uses_a_full_commit_sha():
             if reference.startswith("./"):
                 continue
             if not IMMUTABLE_ACTION_REF.fullmatch(reference):
-                unpinned.append(
-                    f"{workflow.relative_to(REPOSITORY_ROOT)}: {reference}"
-                )
-    assert not unpinned, "Unpinned GitHub Actions references:\n" + "\n".join(
-        unpinned
-    )
+                unpinned.append(f"{workflow.relative_to(REPOSITORY_ROOT)}: {reference}")
+    assert not unpinned, "Unpinned GitHub Actions references:\n" + "\n".join(unpinned)
+
+
+def test_backend_image_uses_patched_python_without_runtime_build_tools():
+    dockerfile = (REPOSITORY_ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "FROM python:3.13.18-slim-trixie AS builder" in dockerfile
+    assert "FROM debian:trixie-slim AS runtime" in dockerfile
+    assert "setuptools>=78.1.1" in dockerfile
+    assert "python -m pip uninstall --yes pip setuptools wheel" in dockerfile
+    assert 'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")' in dockerfile
