@@ -27,7 +27,10 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 - OIDC/SAML federation, MFA, RBAC and short-lived user sessions
 - Per-user and per-service credentials, revocation and rotation
 - Formal asset authorization approval integration and expiry notifications
-- Distributed API rate limiting, quotas and abuse monitoring
+- [x] Shared Redis sliding-window rate limits per trusted client IP and API credential
+- [x] Endpoint-specific assessment/secret-scan limits and bounded honeypot/audit-event volume
+- [x] Defensive intrusion signals, auth-failure burst detection, admin/auditor event view and signed HTTPS webhook
+- [ ] Per-tenant quotas and policy-aware adaptive limits
 - Tenant boundary design and access-control test suite
 
 **Exit gate:** identity threat model, authorization policy review, cross-tenant denial tests and credential lifecycle tests.
@@ -50,9 +53,10 @@ This roadmap is an implementation plan, not a claim that every target feature ex
 ## 0.6 — Audit and operational assurance
 
 - Independent append-only audit export with signed checkpoints
-- Metrics, tracing, structured logs, dashboards and alert rules
+- Metrics, tracing, structured operational logs, SLO dashboards and alert rules
 - Backup/restore automation, RPO/RTO targets and recovery drills
-- Security event integrations and incident-response workflow
+- [x] Signed HTTPS security webhook and operator incident-response runbook (baseline)
+- [ ] Broader SIEM/SOAR integrations and automated incident-response workflow
 - Service-level objectives and dependency supply-chain controls
 
 **Exit gate:** restore proof, alert exercises, audit checkpoint verification and operational readiness review.
