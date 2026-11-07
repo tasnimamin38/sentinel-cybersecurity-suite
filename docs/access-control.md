@@ -72,7 +72,7 @@ The list contains credential IDs, labels, roles, display prefixes, lifecycle sta
 
 ```http
 POST /api/v1/credentials/<credential-id>/revoke
-X-API-Key: <different-admin-service-key>
+X-API-Key: <backup-admin-key>
 ```
 
 Revocation is immediate for subsequent API calls. A database-managed credential cannot revoke itself; use a separate administrator credential to avoid locking out the only active administrator.
