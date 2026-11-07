@@ -81,9 +81,7 @@ def test_tls_probes_require_tls_1_2_or_newer():
 
 
 def test_dependabot_monitors_all_dockerfile_and_compose_locations():
-    config = (REPOSITORY_ROOT / ".github" / "dependabot.yml").read_text(
-        encoding="utf-8"
-    )
+    config = (REPOSITORY_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
     docker_sections = config.split("  - package-ecosystem: docker")[1:]
     docker_directories = {
         section.split("directory:", 1)[1].splitlines()[0].strip()
