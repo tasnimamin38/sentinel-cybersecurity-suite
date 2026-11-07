@@ -103,6 +103,7 @@ ROUTE_PERMISSIONS: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/secrets/scan"): "secrets.scan",
     ("GET", "/api/v1/audit/integrity"): "audit.read",
     ("GET", "/api/v1/audit"): "audit.read",
+    ("GET", "/api/v1/security/events"): "audit.read",
     ("GET", "/api/v1/exports/{dataset}.csv"): "export.read",
     ("POST", "/api/v1/assessment-jobs"): "job.enqueue",
     ("GET", "/api/v1/assessment-jobs"): "job.read",

@@ -24,6 +24,7 @@ jobs:
         python-version: ["3.12", "3.13"]
     env:
       SENTINEL_TEST_POSTGRES_URL: postgresql+psycopg://sentinel:ci-only-postgres-password@localhost:5432/sentinel_test
+      SENTINEL_TEST_REDIS_URL: redis://localhost:6379/0
     services:
       postgres:
         image: postgres:16-alpine
@@ -35,6 +36,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U sentinel -d sentinel_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -91,6 +101,7 @@ jobs:
       - name: Validate Compose interpolation and structure
         env:
           POSTGRES_PASSWORD: "ci-only-not-a-secret"
+          REDIS_PASSWORD: "ci-only-redis-password"
           SENTINEL_API_KEY: "ci-only-placeholder-key-not-for-deployment"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
           SENTINEL_CORS_ORIGINS: "http://localhost:8080"
@@ -125,6 +136,7 @@ jobs:
       - name: Exercise same-origin console-to-API proxy in Compose
         env:
           POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db"
+          REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
           SENTINEL_CORS_ORIGINS: "http://localhost:8080"
@@ -154,6 +166,7 @@ jobs:
         if: always()
         env:
           POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db"
+          REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
           SENTINEL_CORS_ORIGINS: "http://localhost:8080"

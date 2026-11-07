@@ -27,4 +27,4 @@ SENTINEL is a defensive posture project. Its assessment engine is intended for e
 
 ## Security posture limitations
 
-The current release does not provide SSO, RBAC, multi-tenant isolation, distributed API rate limiting, immutable external audit storage, independent penetration-testing assurance or a certified production deployment. Please do not treat the project as an enterprise security certification or as a substitute for an established security programme.
+The current release includes service-to-service RBAC, optional authenticated Redis-backed rate limits in the production Compose deployment, defensive honeypot/probe monitoring and optional signed HTTPS security alerts. It does not provide OIDC/SAML, MFA, browser user sessions, multi-tenant isolation, WAF/EDR coverage, independently immutable external audit storage, independent penetration-testing assurance or a certified production deployment. Database administrators can still rewrite a database-resident hash chain. A detected source IP is not a verified human identity. Please do not treat the project as an enterprise security certification or as a substitute for an established security programme.

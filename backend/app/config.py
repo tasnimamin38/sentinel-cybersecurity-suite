@@ -1,6 +1,8 @@
 import json
 import re
 from functools import lru_cache
+from ipaddress import ip_network
+from urllib.parse import urlsplit
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,7 +24,21 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
     max_assessment_records: int = 250
+    max_request_body_bytes: int = 524_288
     process_role: str = "api"
+    redis_url: str = ""
+    trusted_proxy_cidrs: str = ""
+    rate_limit_window_seconds: int = 60
+    api_rate_limit_per_minute: int = 120
+    ip_rate_limit_per_minute: int = 300
+    honeypot_event_limit_per_minute: int = 10
+    security_event_audit_limit_per_minute: int = 10
+    assessment_rate_limit_per_minute: int = 10
+    secret_scan_rate_limit_per_minute: int = 20
+    auth_failure_threshold: int = 5
+    auth_failure_window_seconds: int = 300
+    security_alert_webhook_url: str = ""
+    security_alert_webhook_secret: str = ""
     environment: str = "development"
 
     @property
@@ -48,6 +64,10 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
+    @property
+    def trusted_proxy_cidr_list(self) -> list[str]:
+        return [item.strip() for item in self.trusted_proxy_cidrs.split(",") if item.strip()]
+
     @model_validator(mode="after")
     def validate_runtime_policy(self):
         if self.environment not in {"development", "test", "staging", "production"}:
@@ -60,6 +80,53 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
         if not 1 <= self.max_assessment_records <= 100_000:
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
+        if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
+            raise ValueError("SENTINEL_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760.")
+        if not 1 <= self.rate_limit_window_seconds <= 86_400:
+            raise ValueError("SENTINEL_RATE_LIMIT_WINDOW_SECONDS must be between 1 and 86400.")
+        for name, value in (
+            ("SENTINEL_API_RATE_LIMIT_PER_MINUTE", self.api_rate_limit_per_minute),
+            ("SENTINEL_IP_RATE_LIMIT_PER_MINUTE", self.ip_rate_limit_per_minute),
+            ("SENTINEL_HONEYPOT_EVENT_LIMIT_PER_MINUTE", self.honeypot_event_limit_per_minute),
+            (
+                "SENTINEL_SECURITY_EVENT_AUDIT_LIMIT_PER_MINUTE",
+                self.security_event_audit_limit_per_minute,
+            ),
+            ("SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE", self.assessment_rate_limit_per_minute),
+            ("SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE", self.secret_scan_rate_limit_per_minute),
+        ):
+            if not 1 <= value <= 100_000:
+                raise ValueError(f"{name} must be between 1 and 100000.")
+        if not 1 <= self.auth_failure_threshold <= 100:
+            raise ValueError("SENTINEL_AUTH_FAILURE_THRESHOLD must be between 1 and 100.")
+        if not 1 <= self.auth_failure_window_seconds <= 86_400:
+            raise ValueError("SENTINEL_AUTH_FAILURE_WINDOW_SECONDS must be between 1 and 86400.")
+
+        for cidr in self.trusted_proxy_cidr_list:
+            try:
+                ip_network(cidr, strict=False)
+            except ValueError as exc:
+                raise ValueError(
+                    "SENTINEL_TRUSTED_PROXY_CIDRS must contain valid IP networks."
+                ) from exc
+
+        if self.security_alert_webhook_secret and not self.security_alert_webhook_url:
+            raise ValueError("A webhook secret requires SENTINEL_SECURITY_ALERT_WEBHOOK_URL.")
+        if self.security_alert_webhook_url:
+            webhook = urlsplit(self.security_alert_webhook_url)
+            if (
+                webhook.scheme != "https"
+                or not webhook.hostname
+                or webhook.username
+                or webhook.password
+                or webhook.fragment
+                or len(self.security_alert_webhook_secret) < 32
+            ):
+                raise ValueError(
+                    "Security alert webhooks require an HTTPS URL without userinfo or fragments "
+                    "and a secret of at least 32 characters."
+                )
+
         role_credentials = self.configured_role_credentials
         if not isinstance(role_credentials, list):
             raise ValueError("SENTINEL_API_CREDENTIALS_JSON must be a JSON array.")
@@ -139,6 +206,25 @@ class Settings(BaseSettings):
                 errors.append("SENTINEL_CORS_ORIGINS must not contain a wildcard")
             if self.database_url.startswith("sqlite"):
                 errors.append("SENTINEL_DATABASE_URL must use PostgreSQL outside development")
+            if self.process_role == "api":
+                redis = urlsplit(self.redis_url)
+                if (
+                    redis.scheme not in {"redis", "rediss"}
+                    or not redis.hostname
+                    or not redis.password
+                    or len(redis.password) < 32
+                    or any(
+                        marker in redis.password.lower()
+                        for marker in ("replace-with", "change-me", "placeholder", "example")
+                    )
+                ):
+                    errors.append(
+                        "SENTINEL_REDIS_URL must configure authenticated shared Redis rate-limit storage"
+                    )
+                if not self.trusted_proxy_cidr_list:
+                    errors.append(
+                        "SENTINEL_TRUSTED_PROXY_CIDRS must identify the reverse-proxy network"
+                    )
             if errors:
                 raise ValueError("Production configuration rejected: " + "; ".join(errors))
         return self

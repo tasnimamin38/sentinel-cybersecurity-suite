@@ -96,7 +96,8 @@ flowchart TB
 - Asset inventory with business service and ownership relationships
 
 ### Data plane
-- API gateway, WAF and distributed rate limits
+- [Implemented baseline] Shared Redis sliding-window limits per trusted client IP and API credential; endpoint-specific assessment, secret-scan and honeypot limits
+- [Future] Dedicated API gateway/WAF and per-tenant quotas with policy-aware adaptive limits
 - Durable job queue and assessment orchestrator
 - Ephemeral workers with CPU, memory, time and egress budgets
 - Network egress proxy/firewall with connection-time destination enforcement
@@ -105,7 +106,8 @@ flowchart TB
 ### Evidence and observability
 - Encrypted object storage and evidence lifecycle controls
 - Append-only external audit sink and signed checkpoints
-- Metrics, traces, structured logs, alert rules and SLO dashboards
+- [Implemented baseline] Hash-linked security-event journal, operator/admin Threat Monitor view and optional HMAC-signed HTTPS webhook
+- [Future] Metrics, distributed tracing, structured operational logs, SLO dashboards and SIEM/SOAR integrations
 - Managed secrets, rotation and workload identity
 
 ### Multi-tenant data model target
@@ -123,4 +125,4 @@ All tenant-owned rows need tenant ownership enforced in API authorization and at
 
 ## 7. Production gate
 
-Before hosted multi-user or industrial deployment, complete OIDC/SSO, RBAC, tenant isolation, distributed rate limits, durable workers, egress enforcement, external audit checkpoints, managed secrets, monitoring, restore drills, independent penetration testing and an operational incident-response exercise.
+Before hosted multi-user or industrial deployment, complete OIDC/SSO, MFA and human user sessions; multi-tenant data isolation and tenant-aware RBAC/quotas; independent egress enforcement; per-job sandboxing; external audit checkpoints; managed-secret custody; production metrics/tracing; restore drills; independent penetration testing; and an operational incident-response exercise. Service-to-service RBAC, shared Redis rate limits, request evidence and signed webhook delivery are implemented baselines, not substitutes for those remaining gates.

@@ -8,7 +8,7 @@ import {
   Workflow, FileSearch,
 } from "lucide-react";
 
-type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "secrets" | "credentials";
+type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials";
 type Finding = {
   code: string; title: string; severity: string; description: string;
   recommendation: string; category?: string; confidence?: number;
@@ -48,6 +48,16 @@ type Control = {
   mapped_findings: string[]; matched_findings: string[];
   operational: string; status: string;
 };
+type SecurityEventDetails = {
+  rule_id?: string; severity?: string; source_ip?: string; path?: string; method?: string;
+  user_agent?: string; request_id?: string; observed_at?: string;
+  failure_count?: number; window_seconds?: number;
+};
+type SecurityEvent = {
+  id: string; event_type: string; severity: string; source_ip: string;
+  details: SecurityEventDetails; sequence_no?: number | null;
+  event_hash?: string | null; created_at: string;
+};
 type AuditIntegrity = {
   integrity_valid: boolean; verification_status: string; total_events: number; sealed_events: number;
   legacy_unsealed_events: number; verified_until?: string | null;
@@ -68,13 +78,14 @@ const API_BASE = "";
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",
-  audit: "Audit integrity", secrets: "Secret hygiene", credentials: "API access control",
+  audit: "Audit integrity", security: "Threat monitor", secrets: "Secret hygiene", credentials: "API access control",
 };
 const navGroups = [
   { label: "OPERATIONS", items: [
     { id: "overview" as View, label: "Command center", icon: Radar },
     { id: "assets" as View, label: "Asset inventory", icon: Server },
     { id: "findings" as View, label: "Findings", icon: ShieldAlert },
+    { id: "security" as View, label: "Threat monitor", icon: Radar },
     { id: "remediations" as View, label: "Remediation", icon: ListChecks },
     { id: "secrets" as View, label: "Secret hygiene", icon: Fingerprint },
   ]},
@@ -88,7 +99,7 @@ const navGroups = [
 ];
 const viewPermissions: Record<View, string> = {
   overview: "dashboard.read", assets: "asset.read", findings: "assessment.read",
-  remediations: "remediation.read", controls: "controls.read", audit: "audit.read",
+  remediations: "remediation.read", controls: "controls.read", audit: "audit.read", security: "audit.read",
   secrets: "secrets.scan", credentials: "credential.manage",
 };
 
@@ -134,6 +145,7 @@ export default function App() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [remediations, setRemediations] = useState<Remediation[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [auditIntegrity, setAuditIntegrity] = useState<AuditIntegrity | null>(null);
   const [controls, setControls] = useState<Control[]>([]);
   const [search, setSearch] = useState("");
@@ -180,11 +192,13 @@ export default function App() {
     setOverview(results[0]); setAssets(results[1]); setAssessments(results[2]);
     setRemediations(results[3]); setControls(results[4].controls);
     if (principal.role === "admin" || principal.permissions.includes("audit.read")) {
-      const [events, integrity] = await Promise.all([
-        api<AuditEvent[]>("/api/v1/audit?limit=100"), api<AuditIntegrity>("/api/v1/audit/integrity"),
+      const [events, integrity, security] = await Promise.all([
+        api<AuditEvent[]>("/api/v1/audit?limit=100"),
+        api<AuditIntegrity>("/api/v1/audit/integrity"),
+        api<SecurityEvent[]>("/api/v1/security/events?limit=100"),
       ]);
-      setAuditEvents(events); setAuditIntegrity(integrity);
-    } else { setAuditEvents([]); setAuditIntegrity(null); }
+      setAuditEvents(events); setAuditIntegrity(integrity); setSecurityEvents(security);
+    } else { setAuditEvents([]); setAuditIntegrity(null); setSecurityEvents([]); }
     if (principal.role === "admin" || principal.permissions.includes("credential.manage")) await loadCredentials();
   }
 
@@ -545,6 +559,44 @@ export default function App() {
                   <div className="audit-metrics"><SummaryTile label="TOTAL EVENTS" value={auditIntegrity?.total_events ?? 0} /><SummaryTile label="SEALED EVENTS" value={auditIntegrity?.sealed_events ?? 0} /><SummaryTile label="LEGACY UNSEALED" value={auditIntegrity?.legacy_unsealed_events ?? 0} /><SummaryTile label="INTEGRITY ERRORS" value={auditIntegrity?.errors.length ?? 0} /></div>
                   {auditIntegrity?.errors.map((error) => <div className="audit-error" key={error}><AlertTriangle size={13} />{error}</div>)}
                   <div className="audit-event-list">{auditEvents.map((event) => <div className="audit-event" key={event.id}><div className="event-mark"><Activity size={14} /></div><div className="event-body"><b>#{event.sequence_no ?? "LEGACY"} · {event.event_type}</b><span>{event.subject || "System event"} · {event.details}</span><small>{dateTimeLabel(event.created_at)}</small></div><div className="event-hash"><span>{shortHash(event.event_hash)}</span><small>{event.event_hash ? "HASH SEALED" : "LEGACY RECORD"}</small></div></div>)}</div>
+                </section>
+              )}
+
+              {view === "security" && can("audit.read") && (
+                <section className="panel page-panel">
+                  <div className="section-title-row">
+                    <PanelHeading eyebrow="RUNTIME INTRUSION MONITOR" title="Security event stream" icon={<Radar size={15} />} />
+                    <div className="header-actions">
+                      <span className="data-count">{securityEvents.length} RECENT SIGNALS</span>
+                      <button className="link-button" onClick={() => runAction(refreshData)} disabled={busy}><RefreshCw size={13} /> REFRESH EVENTS</button>
+                    </div>
+                  </div>
+                  <p className="panel-intro">Defensive telemetry from requests reaching this SENTINEL deployment: decoy-path probes, API authentication failures, brute-force thresholds and rate-limit signals. Entries are drawn from the hash-linked audit journal. Source IPs identify network endpoints, not verified people.</p>
+                  <div className="audit-metrics">
+                    <SummaryTile label="RECENT EVENTS" value={securityEvents.length} />
+                    <SummaryTile label="CRITICAL" value={securityEvents.filter((event) => event.severity === "critical").length} />
+                    <SummaryTile label="HIGH" value={securityEvents.filter((event) => event.severity === "high").length} />
+                    <SummaryTile label="AUTH FAILURES" value={securityEvents.filter((event) => event.event_type === "security.api_auth_failure" || event.event_type === "security.brute_force_detected").length} />
+                  </div>
+                  {securityEvents.length ? (
+                    <div className="audit-event-list">
+                      {securityEvents.map((event) => (
+                        <div className="audit-event" key={event.id}>
+                          <div className={"finding-severity " + severityClass(event.severity)}><ShieldAlert size={15} /></div>
+                          <div className="event-body">
+                            <b>{(event.details.rule_id ?? event.event_type).replace(/_/g, " ")}</b>
+                            <span>{event.details.path ?? "API request"} · {event.details.method ?? "—"} · {event.source_ip}</span>
+                            <small>{dateTimeLabel(event.created_at)} · Request {event.details.request_id ?? "—"}</small>
+                            {event.details.failure_count !== undefined && <small>{event.details.failure_count} failed authentications in {event.details.window_seconds ?? "configured"} seconds</small>}
+                          </div>
+                          <div className="event-hash">
+                            <span className={"severity-chip " + severityClass(event.severity)}>{event.severity}</span>
+                            <small>{event.sequence_no ? "EVENT #" + event.sequence_no : shortHash(event.event_hash)}</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <EmptyState icon={<ShieldCheck size={23} />} title="No intrusion signals recorded" text="SENTINEL will list decoy-path probes, failed API authentication and rate-limit signals here when they occur. An empty list does not prove the deployment has never been probed." />}
                 </section>
               )}
 
