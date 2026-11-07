@@ -2,6 +2,23 @@
 
 All notable changes to SENTINEL are documented here.
 
+## 0.7.0-pre — 2026-11-07
+
+### Added
+- PostgreSQL-backed assessment jobs with idempotency, bounded retries, cancellation, lease recovery and a separate resource-bounded worker service.
+- Configurable API request-body limits: 512 KiB by default, bounded to 1 KiB–10 MiB and enforced for declared and streamed request bodies.
+- Server-side route-to-permission RBAC for admin, analyst, asset-manager, auditor and read-only service identities.
+- Hash-only managed API credentials with one-time secret display, expiry checks, revocation, last-used tracking and audited lifecycle events.
+- Role-scoped frontend navigation and managed API credential administration.
+
+### Security boundaries
+- Legacy `SENTINEL_API_KEY` and `SENTINEL_API_KEYS` remain backward-compatible administrator credentials.
+- This release has service-to-service RBAC, not human identity federation, MFA, browser sessions or tenant isolation.
+- Credential quotas/rotation, per-credential asset scopes, worker sandboxing and independent network egress enforcement are separate release gates.
+
+### Validation
+- Exact-head CI, CodeQL, supply-chain and container checks are required for each release PR. See the linked pull request check runs for the commit-specific results.
+
 ## 0.3.2 — 2026-11-06
 
 ### Added
