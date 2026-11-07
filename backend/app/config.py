@@ -202,8 +202,30 @@ class Settings(BaseSettings):
                 errors.append(
                     "SENTINEL_ALLOWED_DOMAINS must contain at least one authorized domain"
                 )
-            if "*" in self.cors_origin_list:
-                errors.append("SENTINEL_CORS_ORIGINS must not contain a wildcard")
+            for origin in self.cors_origin_list:
+                parsed_origin = urlsplit(origin)
+                invalid_origin = (
+                    "*" in origin
+                    or parsed_origin.scheme != "https"
+                    or not parsed_origin.hostname
+                    or parsed_origin.username is not None
+                    or parsed_origin.password is not None
+                    or parsed_origin.path not in ("", "/")
+                    or bool(parsed_origin.query)
+                    or bool(parsed_origin.fragment)
+                    or any(character.isspace() for character in origin)
+                )
+                try:
+                    if parsed_origin.port is not None and not 1 <= parsed_origin.port <= 65535:
+                        invalid_origin = True
+                except ValueError:
+                    invalid_origin = True
+                if invalid_origin:
+                    errors.append(
+                        "SENTINEL_CORS_ORIGINS must contain HTTPS origins only, without "
+                        "wildcards, credentials, paths, query strings or fragments"
+                    )
+                    break
             if self.database_url.startswith("sqlite"):
                 errors.append("SENTINEL_DATABASE_URL must use PostgreSQL outside development")
             if self.process_role == "api":
