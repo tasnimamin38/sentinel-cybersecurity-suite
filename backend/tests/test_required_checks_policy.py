@@ -78,3 +78,17 @@ def test_tls_probes_require_tls_1_2_or_newer():
     for client in tls_clients:
         source = client.read_text(encoding="utf-8")
         assert "context.minimum_version = ssl.TLSVersion.TLSv1_2" in source
+
+
+def test_dependabot_monitors_all_dockerfile_and_compose_locations():
+    config = (REPOSITORY_ROOT / ".github" / "dependabot.yml").read_text(
+        encoding="utf-8"
+    )
+    docker_sections = config.split("  - package-ecosystem: docker")[1:]
+    docker_directories = {
+        section.split("directory:", 1)[1].splitlines()[0].strip()
+        for section in docker_sections
+        if "directory:" in section
+    }
+    assert docker_directories == {"/backend", "/frontend", "/"}
+
