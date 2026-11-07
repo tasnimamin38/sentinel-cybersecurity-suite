@@ -65,4 +65,7 @@ def test_backend_image_uses_patched_python_without_runtime_build_tools():
     assert "FROM debian:trixie-slim AS runtime" in dockerfile
     assert "setuptools>=78.1.1" in dockerfile
     assert "python -m pip uninstall --yes pip setuptools wheel" in dockerfile
-    assert 'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")' in dockerfile
+    assert (
+        'find_spec(name) is None for name in ("pip", "setuptools", "wheel", "ensurepip")'
+        in dockerfile
+    )
