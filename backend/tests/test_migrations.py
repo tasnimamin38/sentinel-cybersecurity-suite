@@ -80,6 +80,52 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIn("assessment_jobs", tables)
             self.assertIn("api_credential_usage", tables)
             self.assertIn("security_incidents", tables)
+            self.assertIn("tenants", tables)
+
+            expected_tenant_tables = (
+                "assets",
+                "assessments",
+                "remediation_tasks",
+                "audit_events",
+                "assessment_jobs",
+                "api_credentials",
+                "api_credential_usage",
+                "security_incidents",
+            )
+            for table_name in expected_tenant_tables:
+                columns = {
+                    row[1]
+                    for row in connection.execute(
+                        f"PRAGMA table_info({table_name})"
+                    ).fetchall()
+                }
+                self.assertIn("tenant_id", columns, msg=table_name)
+                tenant_foreign_keys = connection.execute(
+                    f"PRAGMA foreign_key_list({table_name})"
+                ).fetchall()
+                self.assertTrue(
+                    any(
+                        row[2] == "tenants" and row[3] == "tenant_id" and row[4] == "id"
+                        for row in tenant_foreign_keys
+                    ),
+                    msg=f"{table_name} must reference tenants.id",
+                )
+                tenant_id = connection.execute(
+                    f"SELECT DISTINCT tenant_id FROM {table_name}"
+                ).fetchall()
+                self.assertTrue(
+                    all(item[0] == "00000000-0000-4000-8000-000000000001" for item in tenant_id),
+                    msg=table_name,
+                )
+
+            legacy_tenant = connection.execute(
+                "SELECT slug, name, status FROM tenants "
+                "WHERE id='00000000-0000-4000-8000-000000000001'"
+            ).fetchone()
+            self.assertEqual(
+                legacy_tenant,
+                ("legacy-default", "Legacy Installation", "active"),
+            )
             usage_columns = {
                 row[1]
                 for row in connection.execute("PRAGMA table_info(api_credential_usage)").fetchall()
@@ -130,7 +176,7 @@ class LegacyMigrationTests(unittest.TestCase):
             }
             self.assertIn("ix_security_incidents_status_severity", incident_indexes)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0007_credential_asset_scopes")
+            self.assertEqual(revision[0], "0008_tenant_registry_and_ownership")
             self.assertIn("asset_scope_mode", credential_columns)
             self.assertIn("asset_scope_ids", credential_columns)
             connection.close()

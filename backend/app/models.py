@@ -16,9 +16,37 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
+# The legacy tenant is a migration-owned compatibility boundary. New tenant
+# context must be supplied explicitly by the authenticated principal.
+DEFAULT_TENANT_ID = "00000000-0000-4000-8000-000000000001"
+
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    slug: Mapped[str] = mapped_column(String(63), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(24), default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
 
 class Asset(Base):
     __tablename__ = "assets"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     hostname: Mapped[str] = mapped_column(String(253), unique=True, index=True)
@@ -42,6 +70,13 @@ class Asset(Base):
 
 class Assessment(Base):
     __tablename__ = "assessments"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     asset_id: Mapped[str | None] = mapped_column(
@@ -60,6 +95,13 @@ class Assessment(Base):
 
 class RemediationTask(Base):
     __tablename__ = "remediation_tasks"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     assessment_id: Mapped[str] = mapped_column(
@@ -87,6 +129,13 @@ class RemediationTask(Base):
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     event_type: Mapped[str] = mapped_column(String(80), index=True)
@@ -103,6 +152,13 @@ class AuditEvent(Base):
 
 class AssessmentJob(Base):
     __tablename__ = "assessment_jobs"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
     __table_args__ = (
         Index("ix_assessment_jobs_status_available", "status", "available_at"),
         Index("ix_assessment_jobs_lease_expires_at", "lease_expires_at"),
@@ -145,6 +201,13 @@ class AssessmentJob(Base):
 
 class ApiCredential(Base):
     __tablename__ = "api_credentials"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     label: Mapped[str] = mapped_column(String(80))
@@ -170,6 +233,13 @@ class ApiCredential(Base):
 
 class ApiCredentialUsage(Base):
     __tablename__ = "api_credential_usage"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
 
     credential_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     minute_window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -183,6 +253,13 @@ class ApiCredentialUsage(Base):
 
 class SecurityIncident(Base):
     __tablename__ = "security_incidents"
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        default=DEFAULT_TENANT_ID,
+        server_default=DEFAULT_TENANT_ID,
+        nullable=False,
+        index=True,
+    )
     __table_args__ = (
         UniqueConstraint(
             "assessment_id",
