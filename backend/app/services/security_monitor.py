@@ -13,7 +13,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import AuditEvent
-from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
 from app.services.audit import record_audit_event
 
 
@@ -219,23 +218,3 @@ def persist_security_evidence(
     return alerts
 
 
-
-async def allow_security_event_write(
-    limiter: RedisSlidingWindowLimiter | None,
-    source_ip: str,
-    limit: int,
-    window_seconds: int,
-) -> bool:
-    """Bound persisted evidence per observed IP; fail closed if Redis is unavailable."""
-    if limiter is None:
-        return True
-    identity = hashlib.sha256(source_ip.encode("utf-8")).hexdigest()
-    try:
-        decision = await limiter.check(
-            f"sentinel:rate:security-event-write:{identity}",
-            limit,
-            window_seconds,
-        )
-    except RateLimiterUnavailable:
-        return False
-    return decision.allowed
