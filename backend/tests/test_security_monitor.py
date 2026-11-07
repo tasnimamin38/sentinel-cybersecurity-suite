@@ -1,7 +1,9 @@
 from app.services.security_monitor import (
     classify_honeypot_path,
+    classify_security_response,
     resolve_client_ip,
     sanitize_user_agent,
+    sign_alert_payload,
 )
 
 
@@ -62,3 +64,21 @@ def test_user_agent_is_bounded_and_control_characters_are_removed():
     result = sanitize_user_agent("scanner\x00\nagent" + ("x" * 400))
     assert result.startswith("scanneragent")
     assert len(result) <= 256
+
+
+
+def test_security_response_classifier_emits_only_known_signal_classes():
+    assert classify_security_response("/.env", 404)["event_type"] == "security.honeypot_probe"
+    assert classify_security_response("/api/v1/config", 401)["rule_id"] == "API_AUTH_FAILURE"
+    assert classify_security_response("/api/v1/assets", 429)["rule_id"] == "API_RATE_LIMIT"
+    assert classify_security_response("/api/v1/assets", 200) is None
+
+
+def test_webhook_payload_signature_is_stable_and_verifiable():
+    import hashlib
+    import hmac
+
+    payload = {"severity": "high", "source_ip": "198.51.100.8", "rule_id": "probe"}
+    body, signature = sign_alert_payload(payload, "K" * 40)
+    expected = hmac.new(("K" * 40).encode(), body, hashlib.sha256).hexdigest()
+    assert signature == "sha256=" + expected
