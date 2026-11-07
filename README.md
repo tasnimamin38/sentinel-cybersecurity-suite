@@ -5,7 +5,7 @@
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
     <a href="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml"><img src="https://github.com/tasnimamin38/sentinel-cybersecurity-suite/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-3b8f84.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/Release-0.3.2-3977a7.svg" alt="Version 0.3.2" />
+    <img src="https://img.shields.io/badge/Release-0.7.0--pre-3977a7.svg" alt="Version 0.7.0-pre" />
     <img src="https://img.shields.io/badge/Security-Defensive%20Only-1b806b.svg" alt="Defensive only" />
   </p>
 
@@ -36,16 +36,18 @@ The current release is an <strong>engineering baseline</strong>, not a certified
 | Alembic schema migrations | Implemented |
 | Overlapping API-key rotation | Implemented |
 | Audited CSV exports with formula-injection defense | Implemented |
-| PostgreSQL durable assessment queue, idempotency and cancellation | Implemented in 0.6 branch |
-| Separate resource-bounded assessment worker service | Implemented in 0.6 branch |
-| OIDC/SSO, MFA, full RBAC and multi-tenant isolation | Roadmap |
+| PostgreSQL durable assessment queue, idempotency and cancellation | Implemented |
+| Separate resource-bounded assessment worker service | Implemented |
+| Bounded API request-body enforcement | Implemented |
+| RBAC and role-scoped service API credentials | Implemented |
+| OIDC/SSO, MFA, human user sessions and multi-tenant isolation | Roadmap |
 | Independent network egress gateway and immutable evidence storage | Roadmap |
 
 </div>
 
 ## Operations console
 
-The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
+The browser talks to the API through the console's same-origin `/api/` Nginx reverse proxy; the API service is reached over the private `sentinel-web` Compose network. The console does not need a browser-visible API hostname. The console uses live API-backed information. Asset, finding, remediation and audit views include export actions; the API records each export in the audit journal. It deliberately shows an unauthenticated state instead of presenting fabricated metrics when the control API is not connected.
 
 | Command center | Asset governance |
 |:---:|:---:|
@@ -145,13 +147,16 @@ flowchart LR
 
 ## API surface
 
-All <code>/api/v1/*</code> routes require <code>X-API-Key</code>.
+All <code>/api/v1/*</code> routes require <code>X-API-Key</code> and are protected by route-level role authorization. See [API access control](docs/access-control.md) for the role matrix and credential lifecycle.
 
 | Method | Endpoint | Purpose |
 |:---:|:---|:---|
 | <code>GET</code> | <code>/healthz</code> | Liveness |
 | <code>GET</code> | <code>/readyz</code> | Database and migration readiness |
 | <code>GET</code> | <code>/api/v1/config</code> | Configured scope and feature policy |
+| <code>GET</code> | <code>/api/v1/me</code> | Current service credential identity, role and permissions |
+| <code>GET</code>, <code>POST</code> | <code>/api/v1/credentials</code> | Admin-only managed API credential metadata and one-time key creation |
+| <code>POST</code> | <code>/api/v1/credentials/{credential_id}/revoke</code> | Admin-only immediate credential revocation |
 | <code>GET</code> | <code>/api/v1/overview</code> | Operational summary |
 | <code>GET</code>, <code>POST</code> | <code>/api/v1/assets</code> | List and register authorized assets |
 | <code>PATCH</code> | <code>/api/v1/assets/{asset_id}</code> | Update asset metadata/authorization |
@@ -200,7 +205,7 @@ Interactive API documentation is enabled only outside production at <code>/docs<
    python -c "import secrets; print(secrets.token_hex(32))"
    ~~~
 
-3. Set <code>POSTGRES_PASSWORD</code>, <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Use only assets covered by your authorization. For zero-downtime key rotation, temporarily set <code>SENTINEL_API_KEYS=old-key,new-key</code> (each key must be at least 32 characters), deploy, move clients to the new key, then remove the old key. Never commit real keys; use a secret manager in production.
+3. Set <code>POSTGRES_PASSWORD</code>, a strong bootstrap admin <code>SENTINEL_API_KEY</code> (or <code>SENTINEL_API_KEYS</code> during rotation), <code>SENTINEL_ALLOWED_DOMAINS</code> and <code>SENTINEL_CORS_ORIGINS</code> in <code>.env</code>. Optional environment-managed service keys use <code>SENTINEL_API_CREDENTIALS_JSON</code>, a JSON array of <code>{id,key,role}</code> records. Prefer creating expiring database-managed credentials through the admin API. Never commit real keys; use a secret manager in production.
 
 4. Start the stack:
 
@@ -210,7 +215,7 @@ Interactive API documentation is enabled only outside production at <code>/docs<
 
 5. Open the console at <code>http://localhost:8080</code>. API liveness is <code>http://localhost:8000/healthz</code>; readiness is <code>http://localhost:8000/readyz</code>. Compose also starts one isolated assessment worker after API readiness. Scale the worker independently with <code>docker compose up -d --scale worker=3 worker</code>.
 
-The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network. The console reaches the API through an Nginx reverse proxy on the internal `sentinel-web` network, so browser requests remain same-origin and the console has no direct outbound route. The API and worker join a separate outbound network for authorized DNS/HTTPS checks; the API also joins the internal console network solely for proxy traffic. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
+The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network; the API joins a separate outbound network for authorized DNS/HTTPS checks; the static console is isolated on its own internal web network. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
 
 ### Local development
 
@@ -233,20 +238,17 @@ uvicorn app.main:app --reload
 ~~~powershell
 cd frontend
 npm ci
+$env:VITE_API_BASE_URL = "http://localhost:8000"
 npm run dev
 ~~~
 
-The Vite development server proxies `/api/*` to `http://127.0.0.1:8000`; the browser uses relative API URLs just as it does behind the production Nginx proxy.
-
 The API key is entered into the console and held in component memory; it is not written to local storage.
-
-API request bodies are limited to 512 KiB by default before JSON parsing. Set `SENTINEL_MAX_REQUEST_BODY_BYTES` in `.env` to a value between 1024 and 10485760 bytes when an authorized integration requires a different bound.
 
 ---
 
 ## Engineering validation
 
-The current local validation suite covers API authentication and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
+The automated GitHub validation suite covers API authentication, role-scoped authorization, managed credential creation/expiry/revocation and overlapping key rotation, scope authorization, time-bounded asset registration, registered-asset assessment, remediation workflows, risk scoring, DNS-pinned transport, audit hash-chain behavior, redacted secret scanning, spreadsheet-safe CSV exports and legacy-database migration.
 
 | Validation | Current local result |
 |:---|:---:|
@@ -264,13 +266,13 @@ The CI workflow runs Python dependency auditing with pip-audit, npm dependency a
 
 | Capability | Status | Why it matters |
 |:---|:---:|:---|
-| OIDC/SSO, MFA, RBAC and service identities | Roadmap | Current API key is a single shared operator credential |
+| OIDC/SSO, MFA and per-human user sessions | Roadmap | Current identities are service credentials, not human user accounts |
 | Multi-tenant isolation and row-level policy | Roadmap | Current data model is single-workspace |
 | Distributed rate limits and quotas | Roadmap | No cluster-wide abuse control yet |
 | Per-job disposable sandboxes and stronger worker isolation | Roadmap | Current worker replicas are resource-bounded containers but share the host kernel |
 | Network egress gateway / firewall enforcement | Deployment requirement | App-level IP pinning is not a network boundary |
 | External append-only audit export/checkpoints | Roadmap | Database administrators can rewrite the stored chain |
-| Secret manager and managed key lifecycle | Roadmap | Rotation overlap is implemented; production secret custody still needs a secret manager |
+| External secret manager integration | Roadmap | Managed credentials are hashed in the application database; production bootstrap and environment keys still need secret-manager custody |
 | Metrics, traces, alerting and SLOs | Roadmap | Operational observability is incomplete |
 | Backup/restore and disaster-recovery exercises | Roadmap | No tested RPO/RTO claim |
 | Independent penetration test | Not performed | External security assurance is still required |
