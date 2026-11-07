@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import AuditEvent
-from app.services.rate_limit import RateLimitDecision, RateLimiterUnavailable, RedisSlidingWindowLimiter
+from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
 from app.services.audit import record_audit_event
 
 
