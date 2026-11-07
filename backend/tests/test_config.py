@@ -173,6 +173,12 @@ class ProductionConfigTests(unittest.TestCase):
                 )
 
 
+    def test_request_body_limit_is_bounded(self):
+        with self.assertRaises(ValidationError):
+            Settings(max_request_body_bytes=512)
+        with self.assertRaises(ValidationError):
+            Settings(max_request_body_bytes=10_485_761)
+
     def test_trusted_proxy_cidrs_and_https_alert_webhook_are_validated(self):
         accepted = Settings(
             trusted_proxy_cidrs="172.30.240.0/24,2001:db8::/32",
