@@ -174,15 +174,18 @@ def persist_security_evidence(
     alerts: list[dict[str, str | int]] = []
     if signal["event_type"] == "security.api_auth_failure" and source_ip != "unknown":
         cutoff = now - timedelta(seconds=auth_failure_window_seconds)
-        previous_failures = db.scalar(
-            select(func.count())
-            .select_from(AuditEvent)
-            .where(
-                AuditEvent.event_type == "security.api_auth_failure",
-                AuditEvent.subject == source_ip,
-                AuditEvent.created_at >= cutoff,
+        previous_failures = (
+            db.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.event_type == "security.api_auth_failure",
+                    AuditEvent.subject == source_ip,
+                    AuditEvent.created_at >= cutoff,
+                )
             )
-        ) or 0
+            or 0
+        )
         failure_count = int(previous_failures) + 1
         already_alerted = db.scalar(
             select(AuditEvent.id)
