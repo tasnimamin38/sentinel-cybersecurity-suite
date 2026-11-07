@@ -584,7 +584,7 @@ export default function App() {
                         <div className="audit-event" key={event.id}>
                           <div className={"finding-severity " + severityClass(event.severity)}><ShieldAlert size={15} /></div>
                           <div className="event-body">
-                            <b>{(event.details.rule_id ?? event.event_type).replaceAll("_", " ")}</b>
+                            <b>{(event.details.rule_id ?? event.event_type).replace(/_/g, " ")}</b>
                             <span>{event.details.path ?? "API request"} · {event.details.method ?? "—"} · {event.source_ip}</span>
                             <small>{dateTimeLabel(event.created_at)} · Request {event.details.request_id ?? "—"}</small>
                             {event.details.failure_count !== undefined && <small>{event.details.failure_count} failed authentications in {event.details.window_seconds ?? "configured"} seconds</small>}
