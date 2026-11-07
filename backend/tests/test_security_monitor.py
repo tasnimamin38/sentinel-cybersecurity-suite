@@ -72,6 +72,7 @@ def test_security_response_classifier_emits_only_known_signal_classes():
     assert classify_security_response("/api/v1/config", 401)["rule_id"] == "API_AUTH_FAILURE"
     assert classify_security_response("/api/v1/assets", 429)["rule_id"] == "API_RATE_LIMIT"
     assert classify_security_response("/api/v1/assets", 200) is None
+    assert classify_security_response("/.env", 429) is None
 
 
 def test_webhook_payload_signature_is_stable_and_verifiable():
