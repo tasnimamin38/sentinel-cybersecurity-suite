@@ -210,7 +210,7 @@ Interactive API documentation is enabled only outside production at <code>/docs<
 
 5. Open the console at <code>http://localhost:8080</code>. API liveness is <code>http://localhost:8000/healthz</code>; readiness is <code>http://localhost:8000/readyz</code>. Compose also starts one isolated assessment worker after API readiness. Scale the worker independently with <code>docker compose up -d --scale worker=3 worker</code>.
 
-The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network; the API joins a separate outbound network for authorized DNS/HTTPS checks; the static console is isolated on its own internal web network. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
+The Compose configuration binds API and console ports to localhost. PostgreSQL is isolated on an internal data network. The console reaches the API through an Nginx reverse proxy on the internal `sentinel-web` network, so browser requests remain same-origin and the console has no direct outbound route. The API and worker join a separate outbound network for authorized DNS/HTTPS checks; the API also joins the internal console network solely for proxy traffic. API and console containers use read-only root filesystems, dropped Linux capabilities, no-new-privileges and non-root identities. PostgreSQL health is checked before API startup; Alembic migrations run before Uvicorn; the console waits for API readiness. The egress network is not a destination-filtering firewall—production requires an independent egress proxy or firewall.
 
 ### Local development
 
@@ -233,9 +233,10 @@ uvicorn app.main:app --reload
 ~~~powershell
 cd frontend
 npm ci
-$env:VITE_API_BASE_URL = "http://localhost:8000"
 npm run dev
 ~~~
+
+The Vite development server proxies `/api/*` to `http://127.0.0.1:8000`; the browser uses relative API URLs just as it does behind the production Nginx proxy.
 
 The API key is entered into the console and held in component memory; it is not written to local storage.
 

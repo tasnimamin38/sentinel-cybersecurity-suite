@@ -58,7 +58,7 @@ type SecretScan = {
   source_persisted: boolean; redaction_policy: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = "";
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",

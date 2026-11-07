@@ -57,6 +57,22 @@ def test_protected_config_rejects_missing_api_key(client):
     assert response.status_code == 401
 
 
+def test_cors_preflight_allows_assessment_idempotency_key(client):
+    response = client.options(
+        "/api/v1/assessment-jobs",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-api-key,idempotency-key",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    allowed_headers = response.headers["access-control-allow-headers"].lower()
+    assert "x-api-key" in allowed_headers
+    assert "idempotency-key" in allowed_headers
+
+
 def test_protected_config_returns_security_features(client):
     response = client.get("/api/v1/config", headers=API_HEADERS)
     assert response.status_code == 200
