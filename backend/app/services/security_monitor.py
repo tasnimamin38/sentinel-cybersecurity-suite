@@ -216,5 +216,3 @@ def persist_security_evidence(
     if signal["severity"] in {"high", "critical"}:
         alerts.append(safe)
     return alerts
-
-
