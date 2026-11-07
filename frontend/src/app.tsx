@@ -8,7 +8,7 @@ import {
   Workflow, FileSearch,
 } from "lucide-react";
 
-type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "secrets";
+type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "secrets" | "credentials";
 type Finding = {
   code: string; title: string; severity: string; description: string;
   recommendation: string; category?: string; confidence?: number;
@@ -57,12 +57,18 @@ type SecretScan = {
   findings: Finding[]; finding_count: number; input_bytes: number;
   source_persisted: boolean; redaction_policy: string;
 };
+type ApiIdentity = { credential_id: string; role: string; credential_source: string; permissions: string[] };
+type ApiCredential = {
+  id: string; label: string; role: string; key_prefix: string; expires_at?: string | null;
+  revoked_at?: string | null; created_by: string; created_at: string; last_used_at?: string | null;
+};
+type CreatedCredential = { credential: ApiCredential; secret: string };
 
 const API_BASE = "";
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",
-  audit: "Audit integrity", secrets: "Secret hygiene",
+  audit: "Audit integrity", secrets: "Secret hygiene", credentials: "API access control",
 };
 const navGroups = [
   { label: "OPERATIONS", items: [
@@ -76,7 +82,15 @@ const navGroups = [
     { id: "controls" as View, label: "Control coverage", icon: Layers3 },
     { id: "audit" as View, label: "Audit integrity", icon: ClipboardCheck },
   ]},
+  { label: "ADMINISTRATION", items: [
+    { id: "credentials" as View, label: "API access control", icon: KeyRound },
+  ]},
 ];
+const viewPermissions: Record<View, string> = {
+  overview: "dashboard.read", assets: "asset.read", findings: "assessment.read",
+  remediations: "remediation.read", controls: "controls.read", audit: "audit.read",
+  secrets: "secrets.scan", credentials: "credential.manage",
+};
 
 function localDateTimeAfterDays(days: number) {
   const date = new Date(Date.now() + days * 86_400_000);
@@ -109,6 +123,10 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>("overview");
+  const [identity, setIdentity] = useState<ApiIdentity | null>(null);
+  const [credentials, setCredentials] = useState<ApiCredential[]>([]);
+  const [createdCredential, setCreatedCredential] = useState<CreatedCredential | null>(null);
+  const [credentialDraft, setCredentialDraft] = useState({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90) });
   const [toast, setToast] = useState("Connect the API to load live security telemetry.");
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -145,23 +163,29 @@ export default function App() {
     setToastKind(kind);
   }
 
-  async function refreshData() {
+  async function loadCredentials() {
+    setCredentials(await api<ApiCredential[]>("/api/v1/credentials"));
+  }
+
+  async function refreshData(identityOverride?: ApiIdentity) {
+    const principal = identityOverride ?? identity;
+    if (!principal) throw new Error("API identity was not loaded.");
     const results = await Promise.all([
       api<Overview>("/api/v1/overview"),
       api<Asset[]>("/api/v1/assets"),
       api<Assessment[]>("/api/v1/assessments?limit=100"),
       api<Remediation[]>("/api/v1/remediations"),
-      api<AuditEvent[]>("/api/v1/audit?limit=100"),
-      api<AuditIntegrity>("/api/v1/audit/integrity"),
       api<{ controls: Control[] }>("/api/v1/controls"),
     ]);
-    setOverview(results[0]);
-    setAssets(results[1]);
-    setAssessments(results[2]);
-    setRemediations(results[3]);
-    setAuditEvents(results[4]);
-    setAuditIntegrity(results[5]);
-    setControls(results[6].controls);
+    setOverview(results[0]); setAssets(results[1]); setAssessments(results[2]);
+    setRemediations(results[3]); setControls(results[4].controls);
+    if (principal.role === "admin" || principal.permissions.includes("audit.read")) {
+      const [events, integrity] = await Promise.all([
+        api<AuditEvent[]>("/api/v1/audit?limit=100"), api<AuditIntegrity>("/api/v1/audit/integrity"),
+      ]);
+      setAuditEvents(events); setAuditIntegrity(integrity);
+    } else { setAuditEvents([]); setAuditIntegrity(null); }
+    if (principal.role === "admin" || principal.permissions.includes("credential.manage")) await loadCredentials();
   }
 
   async function downloadExport(dataset: string) {
@@ -193,9 +217,12 @@ export default function App() {
     }
     setBusy(true);
     try {
-      await refreshData();
+      const principal = await api<ApiIdentity>("/api/v1/me");
+      setIdentity(principal);
+      await refreshData(principal);
       setConnected(true);
-      notify("Authenticated. Live asset, assessment, remediation and audit data loaded.", "success");
+      setView("overview");
+      notify("Authenticated as " + principal.role.replace("_", " ") + ". Role-authorized live data loaded.", "success");
     } catch (error) {
       setConnected(false);
       notify(error instanceof Error ? error.message : "Could not connect to the API.", "error");
@@ -285,10 +312,38 @@ export default function App() {
       const result = await api<SecretScan>("/api/v1/secrets/scan", {
         method: "POST", body: JSON.stringify({ content: secretText }),
       });
-      setSecretResult(result);
-      await refreshData();
+      setSecretResult(result); await refreshData();
       notify("Secret hygiene review complete. Submitted source text was not persisted.", "success");
     });
+  }
+
+  async function createCredential(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runAction(async () => {
+      const created = await api<CreatedCredential>("/api/v1/credentials", {
+        method: "POST", body: JSON.stringify({
+          label: credentialDraft.label, role: credentialDraft.role,
+          expires_at: new Date(credentialDraft.expires_at).toISOString(),
+        }),
+      });
+      setCreatedCredential(created); setCredentialDraft({ label: "Service integration", role: "analyst", expires_at: localDateTimeAfterDays(90) });
+      await loadCredentials();
+      notify("API credential created. Copy the secret now; it will not be shown again.", "success");
+    });
+  }
+
+  async function revokeCredential(credential: ApiCredential) {
+    if (!window.confirm("Revoke " + credential.label + "? New requests using this credential will be rejected.")) return;
+    await runAction(async () => {
+      await api("/api/v1/credentials/" + credential.id + "/revoke", { method: "POST" });
+      await loadCredentials(); notify("Credential revoked. Subsequent requests will be denied.", "success");
+    });
+  }
+
+  async function copyCreatedSecret() {
+    if (!createdCredential) return;
+    await navigator.clipboard.writeText(createdCredential.secret);
+    notify("New API secret copied to clipboard. Store it in your secret manager.", "success");
   }
 
   const allFindings = useMemo(() => assessments.flatMap((assessment) =>
@@ -313,23 +368,25 @@ export default function App() {
   const activeCount = assets.filter((asset) => asset.status === "active").length;
   const latest = assessments[0];
   const environmentLabel = assets.some((asset) => asset.environment === "production") ? "PRODUCTION SCOPE" : "LOCAL WORKSPACE";
+  const can = (permission: string) => identity?.role === "admin" || Boolean(identity?.permissions.includes(permission));
+  const visibleNavGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => can(viewPermissions[item.id])) })).filter((group) => group.items.length > 0);
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-emblem"><ShieldCheck size={22} strokeWidth={1.8} /></div>
-          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.3.2</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
+          <div className="brand-copy"><strong>SENTINEL<span> / </span>0.7.0</strong><small>SECURITY OPERATIONS PLATFORM</small></div>
         </div>
         <div className="workspace-chip"><span className="live-dot" /> PRIVATE SECURITY WORKSPACE <ChevronDown size={13} /></div>
         <div className="sidebar-scroll">
-          {navGroups.map((group) => (
+          {visibleNavGroups.map((group) => (
             <div className="nav-group" key={group.label}>
               <div className="nav-group-label">{group.label}</div>
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <button key={item.id} className={"nav-item " + (view === item.id ? "active" : "")} onClick={() => setView(item.id)}>
+                  <button key={item.id} className={"nav-item " + (view === item.id ? "active" : "")} onClick={() => { setView(item.id); if (item.id === "credentials") runAction(loadCredentials); }}>
                     <Icon size={16} strokeWidth={1.8} /><span>{item.label}</span>
                     {item.id === "remediations" && remediations.some((task) => ["open", "in_progress"].includes(task.status)) && <i className="nav-indicator" />}
                   </button>
@@ -344,7 +401,7 @@ export default function App() {
             <p>Assessments are restricted to explicitly allowlisted hostnames with active asset authorization.</p>
             <div className="security-card-state"><CheckCircle2 size={12} /> ENFORCED BY API</div>
           </div>
-          <div className="profile-row"><div className="profile-avatar">SA</div><div className="profile-copy"><b>Security Operator</b><span>API key identity · Local role</span></div><Settings2 size={15} /></div>
+          <div className="profile-row"><div className="profile-avatar">{(identity?.role ?? "SA").slice(0, 2).toUpperCase()}</div><div className="profile-copy"><b>{identity ? identity.role.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Security Operator"}</b><span>{identity ? identity.credential_source + " credential · " + identity.credential_id.slice(0, 12) : "API identity not connected"}</span></div><Settings2 size={15} /></div>
         </div>
       </aside>
 
@@ -401,10 +458,10 @@ export default function App() {
                     <div className="panel scan-panel">
                       <PanelHeading eyebrow="SAFE ASSESSMENT ENGINE" title="Run a domain review" icon={<ScanLine size={15} />} />
                       <p className="panel-intro">For ad-hoc checks, the target must belong to the configured authorized DNS scope. Managed assets should be assessed from the Asset Inventory to apply their authorization expiry and criticality profile.</p>
-                      <form className="quick-scan-form" onSubmit={assessDomain}>
+                      {can("assessment.run") && <form className="quick-scan-form" onSubmit={assessDomain}>
                         <label htmlFor="quick-target">AUTHORIZED HOSTNAME</label>
                         <div className="inline-input"><Globe2 size={15} /><input id="quick-target" value={assessmentTarget} onChange={(event) => setAssessmentTarget(event.target.value)} placeholder="app.example.com" /><button disabled={busy || !assessmentTarget.trim()}><ScanLine size={14} /> ASSESS</button></div>
-                      </form>
+                      </form>}
                       <div className="scope-list"><LockKeyhole size={13} /><span>CONFIGURED SCOPE</span><b>{overview?.authorized_domains.join(" · ") || "No domains configured"}</b></div>
                       <div className="scan-guards"><span><CheckCircle2 size={12} /> DNS PINNING</span><span><CheckCircle2 size={12} /> TLS VERIFY</span><span><CheckCircle2 size={12} /> NO REDIRECTS</span><span><CheckCircle2 size={12} /> HEADER-ONLY</span></div>
                     </div>
@@ -420,7 +477,7 @@ export default function App() {
                   </section>
                   <section className="panel">
                     <div className="section-title-row"><PanelHeading eyebrow="ASSET GOVERNANCE" title="Recently registered assets" icon={<Server size={15} />} /><button className="link-button" onClick={() => setView("assets")}>VIEW INVENTORY <ArrowUpRight size={13} /></button></div>
-                    {assets.length ? <AssetTable rows={assets.slice(0, 5)} onAssess={assessAsset} busy={busy} /> : <EmptyState icon={<Database size={22} />} title="Your inventory is empty" text="Add an authorized domain with an owner and an expiry-dated authorization record." action={<button className="button-small" onClick={() => { setView("assets"); setShowAssetForm(true); }}><Plus size={13} /> REGISTER FIRST ASSET</button>} />}
+                    {assets.length ? <AssetTable rows={assets.slice(0, 5)} onAssess={assessAsset} busy={busy || !can("assessment.run")} /> : <EmptyState icon={<Database size={22} />} title="Your inventory is empty" text="Add an authorized domain with an owner and an expiry-dated authorization record." action={can("asset.write") ? <button className="button-small" onClick={() => { setView("assets"); setShowAssetForm(true); }}><Plus size={13} /> REGISTER FIRST ASSET</button> : undefined} />}
                   </section>
                   <section className="bottom-grid">
                     <div className="panel"><PanelHeading eyebrow="PRIORITY QUEUE" title="Open remediation" icon={<ClipboardCheck size={15} />} />{remediations.filter((task) => ["open", "in_progress"].includes(task.status)).slice(0, 4).map((task) => <RemediationMini key={task.id} task={task} />)}{!remediations.some((task) => ["open", "in_progress"].includes(task.status)) && <EmptyState title="No open tasks" text="Create a task from a security finding to start tracking remediation." />}</div>
@@ -431,9 +488,9 @@ export default function App() {
 
               {view === "assets" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="AUTHORIZED ASSET REGISTER" title="Inventory and authorization" icon={<Server size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("assets")} disabled={busy}><Download size={13} /> EXPORT CSV</button><button className="button-small" onClick={() => setShowAssetForm(!showAssetForm)}><Plus size={14} /> {showAssetForm ? "CLOSE FORM" : "REGISTER ASSET"}</button></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="AUTHORIZED ASSET REGISTER" title="Inventory and authorization" icon={<Server size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("assets")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}{can("asset.write") && <button className="button-small" onClick={() => setShowAssetForm(!showAssetForm)}><Plus size={14} /> {showAssetForm ? "CLOSE FORM" : "REGISTER ASSET"}</button>}</div></div>
                   <div className="page-toolbar"><div className="search-box"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search hostname, owner or environment" /></div><span className="data-count">{visibleAssets.length} ASSETS</span></div>
-                  {showAssetForm && <form className="asset-form" onSubmit={registerAsset}>
+                  {can("asset.write") && showAssetForm && <form className="asset-form" onSubmit={registerAsset}>
                     <div className="form-heading"><div><span>NEW AUTHORIZED ASSET</span><b>Register a managed hostname</b></div><span className="form-secure"><LockKeyhole size={12} /> SCOPE CHECKED</span></div>
                     <div className="form-grid">
                       <Field label="HOSTNAME" value={assetDraft.hostname} onChange={(v) => setAssetDraft({ ...assetDraft, hostname: v })} placeholder="portal.example.com" required />
@@ -447,26 +504,26 @@ export default function App() {
                     </div>
                     <div className="form-footer"><p>Only domains inside the server-side allowlist can be registered. Expired authorization blocks the asset assessment endpoint.</p><button className="button-connect" disabled={busy}><ShieldCheck size={14} /> SAVE AUTHORIZATION RECORD</button></div>
                   </form>}
-                  {visibleAssets.length ? <AssetTable rows={visibleAssets} onAssess={assessAsset} busy={busy} /> : <EmptyState icon={<Database size={23} />} title="No matching assets" text="Register an authorized hostname to create its ownership and approval record." />}
+                  {visibleAssets.length ? <AssetTable rows={visibleAssets} onAssess={assessAsset} busy={busy || !can("assessment.run")} /> : <EmptyState icon={<Database size={23} />} title="No matching assets" text="Register an authorized hostname to create its ownership and approval record." />}
                 </section>
               )}
 
               {view === "findings" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="EVIDENCE & RISK" title="Findings register" icon={<ShieldAlert size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("findings")} disabled={busy}><Download size={13} /> EXPORT CSV</button><span className="data-count">{visibleFindings.length} MATCHING FINDINGS</span></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="EVIDENCE & RISK" title="Findings register" icon={<ShieldAlert size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("findings")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}<span className="data-count">{visibleFindings.length} MATCHING FINDINGS</span></div></div>
                   <div className="page-toolbar"><div className="search-box"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search code, target or finding" /></div><select className="toolbar-select" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Informational</option></select></div>
                   {visibleFindings.length ? <div className="finding-list">{visibleFindings.map((finding, index) => {
                     const exists = remediations.some((task) => task.assessment_id === finding.assessmentId && task.finding_code === finding.code);
-                    return <div className="finding-card" key={finding.assessmentId + finding.code + index}><div className={"finding-severity " + severityClass(finding.severity)}><AlertTriangle size={15} /></div><div className="finding-body"><div className="finding-meta"><code>{finding.code}</code><span>{finding.category ?? "security"}</span><span>{dateLabel(finding.createdAt)}</span></div><b>{finding.title}</b><p>{finding.description}</p><div className="finding-remediation"><b>RECOMMENDATION</b><span>{finding.recommendation}</span></div><small>{finding.target} · Confidence {Math.round((finding.confidence ?? 1) * 100)}%</small></div><div className="finding-actions"><span className={"severity-chip " + severityClass(finding.severity)}>{finding.severity}</span><button className="button-small" disabled={busy || exists} onClick={() => createRemediation(finding.assessmentId, finding.code)}><Plus size={13} /> {exists ? "TASK EXISTS" : "CREATE TASK"}</button></div></div>;
+                    return <div className="finding-card" key={finding.assessmentId + finding.code + index}><div className={"finding-severity " + severityClass(finding.severity)}><AlertTriangle size={15} /></div><div className="finding-body"><div className="finding-meta"><code>{finding.code}</code><span>{finding.category ?? "security"}</span><span>{dateLabel(finding.createdAt)}</span></div><b>{finding.title}</b><p>{finding.description}</p><div className="finding-remediation"><b>RECOMMENDATION</b><span>{finding.recommendation}</span></div><small>{finding.target} · Confidence {Math.round((finding.confidence ?? 1) * 100)}%</small></div><div className="finding-actions"><span className={"severity-chip " + severityClass(finding.severity)}>{finding.severity}</span><button className="button-small" disabled={!can("remediation.write") || busy || exists} onClick={() => createRemediation(finding.assessmentId, finding.code)}><Plus size={13} /> {exists ? "TASK EXISTS" : "CREATE TASK"}</button></div></div>;
                   })}</div> : <EmptyState icon={<ShieldCheck size={23} />} title="No findings match this view" text="Run an authorized assessment or adjust the search and severity filter." />}
                 </section>
               )}
 
               {view === "remediations" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="REMEDIATION LIFECYCLE" title="Action and ownership queue" icon={<Workflow size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("remediations")} disabled={busy}><Download size={13} /> EXPORT CSV</button><span className="data-count">{remediations.length} TRACKED TASKS</span></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="REMEDIATION LIFECYCLE" title="Action and ownership queue" icon={<Workflow size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("remediations")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}<span className="data-count">{remediations.length} TRACKED TASKS</span></div></div>
                   <div className="remediation-summary"><SummaryTile label="OPEN" value={remediations.filter((task) => task.status === "open").length} /><SummaryTile label="IN PROGRESS" value={remediations.filter((task) => task.status === "in_progress").length} /><SummaryTile label="RESOLVED" value={resolvedCount} /><SummaryTile label="ACCEPTED" value={remediations.filter((task) => task.status === "accepted").length} /></div>
-                  {remediations.length ? <div className="task-list">{remediations.map((task) => <div className="task-row" key={task.id}><div className={"task-severity " + severityClass(task.severity)}><ClipboardCheck size={16} /></div><div className="task-main"><div><code>{task.finding_code}</code><span className={"severity-chip " + severityClass(task.severity)}>{task.severity}</span></div><b>{task.title}</b><p>{task.assignee || "Unassigned"} · Due {dateLabel(task.due_at)} · Task {task.id.slice(0, 8)}</p></div><select className="task-status" value={task.status} onChange={(event) => updateRemediation(task, event.target.value)} disabled={busy}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="accepted">Accepted</option></select></div>)}</div> : <EmptyState icon={<ListChecks size={23} />} title="The remediation queue is empty" text="Open the Findings view and create tasks from findings you want to assign and track." />}
+                  {remediations.length ? <div className="task-list">{remediations.map((task) => <div className="task-row" key={task.id}><div className={"task-severity " + severityClass(task.severity)}><ClipboardCheck size={16} /></div><div className="task-main"><div><code>{task.finding_code}</code><span className={"severity-chip " + severityClass(task.severity)}>{task.severity}</span></div><b>{task.title}</b><p>{task.assignee || "Unassigned"} · Due {dateLabel(task.due_at)} · Task {task.id.slice(0, 8)}</p></div><select className="task-status" value={task.status} onChange={(event) => updateRemediation(task, event.target.value)} disabled={!can("remediation.write") || busy}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="accepted">Accepted</option></select></div>)}</div> : <EmptyState icon={<ListChecks size={23} />} title="The remediation queue is empty" text="Open the Findings view and create tasks from findings you want to assign and track." />}
                 </section>
               )}
 
@@ -480,7 +537,7 @@ export default function App() {
 
               {view === "audit" && (
                 <section className="panel page-panel">
-                  <div className="section-title-row"><PanelHeading eyebrow="TAMPER-EVIDENT TRACEABILITY" title="Audit chain and event journal" icon={<Fingerprint size={15} />} /><div className="header-actions"><button className="link-button" onClick={() => downloadExport("audit")} disabled={busy}><Download size={13} /> EXPORT CSV</button><button className="link-button" onClick={() => runAction(refreshData)}><RefreshCw size={13} /> VERIFY AGAIN</button></div></div>
+                  <div className="section-title-row"><PanelHeading eyebrow="TAMPER-EVIDENT TRACEABILITY" title="Audit chain and event journal" icon={<Fingerprint size={15} />} /><div className="header-actions">{can("export.read") && <button className="link-button" onClick={() => downloadExport("audit")} disabled={busy}><Download size={13} /> EXPORT CSV</button>}<button className="link-button" onClick={() => runAction(refreshData)}><RefreshCw size={13} /> VERIFY AGAIN</button></div></div>
                   <div className="audit-banner">
                     <div className={"audit-seal " + (auditIntegrity?.integrity_valid ? "verified" : "warning")}>{auditIntegrity?.integrity_valid ? <ShieldCheck size={26} /> : <AlertTriangle size={26} />}</div>
                     <div className="audit-banner-copy"><span>CHAIN VERIFICATION RESULT</span><b>{auditIntegrity?.integrity_valid ? "NO HASH-CHAIN MISMATCH DETECTED" : "AUDIT CHAIN REQUIRES REVIEW"}</b><small>{auditIntegrity?.assurance_note}</small></div>
@@ -491,7 +548,7 @@ export default function App() {
                 </section>
               )}
 
-              {view === "secrets" && (
+              {view === "secrets" && can("secrets.scan") && (
                 <section className="panel page-panel">
                   <div className="section-title-row"><PanelHeading eyebrow="CREDENTIAL HYGIENE" title="Redacting secret pattern review" icon={<Fingerprint size={15} />} /><span className="neutral-chip">NO SOURCE RETENTION</span></div>
                   <p className="panel-intro">Paste a bounded text snippet such as a configuration excerpt or code fragment. The API checks a small set of known credential patterns, returns fingerprints only and stores neither the submitted text nor matched values. This is not a complete secret scanner.</p>
@@ -502,9 +559,45 @@ export default function App() {
                   {secretResult && <div className="secret-results"><div className="secret-result-head"><b>{secretResult.finding_count} potential credential patterns</b><span>{secretResult.input_bytes.toLocaleString()} bytes examined · persisted: {String(secretResult.source_persisted)}</span></div><p>{secretResult.redaction_policy}</p>{secretResult.findings.length ? secretResult.findings.map((finding, index) => <div className="finding-card" key={finding.code + index}><div className={"finding-severity " + severityClass(finding.severity)}><KeyRound size={15} /></div><div className="finding-body"><b>{finding.title}</b><p>{finding.description}</p><div className="finding-remediation"><b>REMEDIATION</b><span>{finding.recommendation}</span></div><small>{String((finding as Finding & { evidence?: string }).evidence ?? "[REDACTED]")}</small></div><span className={"severity-chip " + severityClass(finding.severity)}>{finding.severity}</span></div>) : <EmptyState icon={<ShieldCheck size={22} />} title="No supported patterns detected" text="This result does not prove the source is free of secrets; the pattern catalog is intentionally limited." />}</div>}
                 </section>
               )}
+
+              {view === "credentials" && can("credential.manage") && (
+                <section className="panel page-panel credential-page">
+                  <div className="section-title-row"><PanelHeading eyebrow="SERVICE IDENTITY ADMINISTRATION" title="API access and credential inventory" icon={<KeyRound size={15} />} /><span className="neutral-chip">ADMIN ONLY · HASHES NEVER DISPLAYED</span></div>
+                  <p className="panel-intro">Create scoped service credentials for integrations and automation. Each key is shown once, stored as a SHA-256 digest, and checked for expiry or revocation on each API request. Keep the bootstrap admin key in a separate secret manager.</p>
+                  {createdCredential && <div className="credential-secret-panel">
+                    <div className="credential-secret-title"><ShieldCheck size={17} /><div><b>New credential created</b><span>Copy this secret now. It cannot be retrieved after this panel is cleared.</span></div></div>
+                    <div className="credential-secret-value"><code>{createdCredential.secret}</code><button className="button-small" onClick={copyCreatedSecret}><ClipboardCheck size={13} /> COPY SECRET</button></div>
+                    <div className="credential-secret-meta">{createdCredential.credential.label} · {createdCredential.credential.role} · Expires {dateTimeLabel(createdCredential.credential.expires_at)}</div>
+                    <button className="link-button" onClick={() => setCreatedCredential(null)}>CLEAR ONE-TIME SECRET</button>
+                  </div>}
+                  <form className="credential-create-form" onSubmit={createCredential}>
+                    <div className="form-heading"><div><span>NEW SERVICE CREDENTIAL</span><b>Issue a least-privilege API key</b></div><span className="form-secure"><LockKeyhole size={12} /> HASH-ONLY STORAGE</span></div>
+                    <div className="credential-form-grid">
+                      <label className="field-label">CREDENTIAL LABEL<input value={credentialDraft.label} onChange={(event) => setCredentialDraft({ ...credentialDraft, label: event.target.value })} required minLength={2} maxLength={80} /></label>
+                      <label className="field-label">ROLE<select value={credentialDraft.role} onChange={(event) => setCredentialDraft({ ...credentialDraft, role: event.target.value })}><option value="analyst">Analyst</option><option value="asset_manager">Asset manager</option><option value="auditor">Auditor</option><option value="read_only">Read only</option><option value="admin">Administrator</option></select></label>
+                      <label className="field-label">EXPIRES AT<input type="datetime-local" value={credentialDraft.expires_at} onChange={(event) => setCredentialDraft({ ...credentialDraft, expires_at: event.target.value })} required /></label>
+                    </div>
+                    <div className="form-footer"><p>Maximum lifetime: 365 days. Default: 90 days. Keep one independent admin credential for recovery.</p><button className="button-connect" disabled={busy || credentialDraft.label.trim().length < 2}><Plus size={14} /> CREATE API CREDENTIAL</button></div>
+                  </form>
+                  <div className="credential-inventory-heading"><div><span>MANAGED CREDENTIALS</span><b>{credentials.length} records</b></div><button className="link-button" onClick={() => runAction(loadCredentials)} disabled={busy}><RefreshCw size={13} /> REFRESH</button></div>
+                  {credentials.length ? <div className="table-wrap"><table className="data-table credential-table">
+                    <thead><tr><th>LABEL / PREFIX</th><th>ROLE</th><th>CREATED</th><th>LAST USED</th><th>EXPIRES</th><th>STATUS</th><th>ACTION</th></tr></thead>
+                    <tbody>{credentials.map((credential) => {
+                      const expired = Boolean(credential.expires_at && new Date(credential.expires_at).getTime() <= Date.now());
+                      const active = !credential.revoked_at && !expired;
+                      return <tr key={credential.id}>
+                        <td><b>{credential.label}</b><br /><code>{credential.key_prefix}…</code></td><td><span className="env-chip">{credential.role.replace("_", " ")}</span></td>
+                        <td>{dateTimeLabel(credential.created_at)}</td><td>{dateTimeLabel(credential.last_used_at)}</td><td>{dateTimeLabel(credential.expires_at)}</td>
+                        <td><span className={"credential-state " + (active ? "active" : "inactive")}>{credential.revoked_at ? "REVOKED" : expired ? "EXPIRED" : "ACTIVE"}</span></td>
+                        <td><button className="table-action" disabled={busy || !active || credential.id === identity?.credential_id} onClick={() => revokeCredential(credential)}>REVOKE</button></td>
+                      </tr>;
+                    })}</tbody>
+                  </table></div> : <EmptyState icon={<KeyRound size={22} />} title="No managed credentials" text="Create a scoped service key for an integration, analyst or audit workflow." /> }
+                </section>
+              )}
             </>
           )}
-          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.3.2</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
+          <footer className="app-footer"><span><ShieldCheck size={13} /> SENTINEL <b>0.7.0</b></span><span>DEFENSIVE SECURITY OPERATIONS · AUTHORIZATION FIRST</span><span><LockKeyhole size={12} /> SAFE MODE</span></footer>
         </div>
       </main>
     </div>
