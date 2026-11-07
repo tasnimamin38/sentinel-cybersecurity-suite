@@ -28,10 +28,7 @@ def test_real_redis_executes_atomic_sliding_window_policy():
             assert 1 <= third.retry_after_seconds <= 5
 
             concurrent = await asyncio.gather(
-                *(
-                    limiter.check(concurrent_key, 5, 30)
-                    for _ in range(25)
-                )
+                *(limiter.check(concurrent_key, 5, 30) for _ in range(25))
             )
             assert sum(decision.allowed for decision in concurrent) == 5
             assert all(decision.remaining >= 0 for decision in concurrent)
