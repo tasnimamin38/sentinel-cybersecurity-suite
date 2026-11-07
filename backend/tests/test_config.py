@@ -63,6 +63,18 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Settings(request_timeout_seconds=99)
 
+    def test_request_body_limit_defaults_to_512_kib(self):
+        settings = Settings()
+        self.assertEqual(settings.max_request_body_bytes, 524_288)
+
+    def test_request_body_limit_rejects_values_below_1_kib(self):
+        with self.assertRaises(ValidationError):
+            Settings(max_request_body_bytes=1023)
+
+    def test_request_body_limit_rejects_values_above_10_mib(self):
+        with self.assertRaises(ValidationError):
+            Settings(max_request_body_bytes=10_485_761)
+
     def test_production_worker_role_does_not_require_an_api_key(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = Settings(
