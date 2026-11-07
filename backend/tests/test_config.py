@@ -180,14 +180,14 @@ class ProductionConfigTests(unittest.TestCase):
 
     def test_trusted_proxy_cidrs_and_https_alert_webhook_are_validated(self):
         accepted = Settings(
-                    trusted_proxy_cidrs="172.30.240.0/24,2001:db8::/32",
+            trusted_proxy_cidrs="172.30.240.0/24,2001:db8::/32",
             security_alert_webhook_url="https://alerts.example.com/sentinel",
             security_alert_webhook_secret="H" * 40,
         )
         self.assertEqual(accepted.trusted_proxy_cidr_list, ["172.30.240.0/24", "2001:db8::/32"])
 
         with self.assertRaises(ValidationError):
-                    Settings(trusted_proxy_cidrs="not-a-network")
+            Settings(trusted_proxy_cidrs="not-a-network")
         with self.assertRaises(ValidationError):
             Settings(
                 security_alert_webhook_url="http://alerts.example.com/hook",
@@ -208,6 +208,7 @@ class ProductionConfigTests(unittest.TestCase):
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
                 cors_origins="https://console.example.com",
             )
+
 
 if __name__ == "__main__":
     unittest.main()
