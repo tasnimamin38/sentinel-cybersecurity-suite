@@ -53,7 +53,7 @@ services:
       retries: 5
       start_period: 25s
     ports: ["127.0.0.1:8000:8000"]
-    networks: [sentinel-data, sentinel-egress]
+    networks: [sentinel-data, sentinel-web, sentinel-egress]
 
   worker:
     build:
@@ -87,8 +87,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+
     restart: unless-stopped
     read_only: true
     tmpfs:
