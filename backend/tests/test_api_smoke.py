@@ -74,7 +74,8 @@ def test_repeated_api_auth_failures_emit_one_brute_force_signal(monkeypatch):
         events = isolated_client.get("/api/v1/security/events", headers=API_HEADERS)
         assert events.status_code == 200
         brute_force = [
-            item for item in events.json()
+            item
+            for item in events.json()
             if item["event_type"] == "security.brute_force_detected"
             and item["source_ip"] == "192.0.2.99"
         ]
@@ -101,7 +102,8 @@ def test_honeypot_probe_is_audited_without_query_string_or_secret(client):
     listed = client.get("/api/v1/security/events", headers=API_HEADERS)
     assert listed.status_code == 200
     event = next(
-        item for item in listed.json()
+        item
+        for item in listed.json()
         if item["event_type"] == "security.honeypot_probe"
         and item["details"].get("rule_id") == "sensitive_file_probe"
     )
