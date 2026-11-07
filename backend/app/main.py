@@ -831,6 +831,43 @@ def list_audit_events(limit: int = Query(default=50, ge=1, le=200), db: Session 
     ]
 
 
+@app.get("/api/v1/security/events", dependencies=[Depends(require_api_key)])
+def list_security_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    severity: str | None = Query(default=None, pattern="^(low|medium|high|critical)$"),
+    db: Session = Depends(get_db),
+):
+    """List sanitized runtime intrusion signals from the hash-linked audit journal."""
+    statement = (
+        select(AuditEvent)
+        .where(AuditEvent.event_type.like("security.%"))
+        .order_by(desc(AuditEvent.created_at), desc(AuditEvent.sequence_no))
+        .limit(limit)
+    )
+    events = db.scalars(statement).all()
+    results = []
+    for event in events:
+        try:
+            details = json.loads(event.details)
+        except (TypeError, ValueError):
+            details = {}
+        if severity and details.get("severity") != severity:
+            continue
+        results.append(
+            {
+                "id": event.id,
+                "event_type": event.event_type,
+                "severity": details.get("severity", event.result),
+                "source_ip": event.subject,
+                "details": details,
+                "sequence_no": event.sequence_no,
+                "event_hash": event.event_hash,
+                "created_at": event.created_at,
+            }
+        )
+    return results
+
+
 @app.get("/api/v1/exports/{dataset}.csv", dependencies=[Depends(require_api_key)])
 def export_dataset(dataset: str, db: Session = Depends(get_db)):
     """Export a bounded operational dataset; spreadsheet formula payloads are neutralized."""
