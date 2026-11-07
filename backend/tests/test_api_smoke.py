@@ -84,6 +84,16 @@ def test_repeated_api_auth_failures_emit_one_brute_force_signal(monkeypatch):
         assert "invalid-test-key" not in str(brute_force[0])
 
 
+def test_api_rejects_oversized_body_before_json_validation(client):
+    response = client.post(
+        "/api/v1/secrets/scan",
+        content=b"x" * 524_289,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+    assert "configured API size limit" in response.json()["detail"]
+
+
 def test_honeypot_probe_is_audited_without_query_string_or_secret(client):
     response = client.get("/.env?token=never-store-this-query-secret")
     assert response.status_code == 404
