@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./sentinel.db"
     cors_origins: str = "http://localhost:5173"
     request_timeout_seconds: float = 8.0
+    max_request_body_bytes: int = 524_288
     max_assessment_records: int = 250
     process_role: str = "api"
     environment: str = "development"
@@ -49,6 +50,8 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_PROCESS_ROLE must be api or worker.")
         if not 0.5 <= self.request_timeout_seconds <= 20:
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
+        if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
+            raise ValueError("SENTINEL_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760.")
         if not 1 <= self.max_assessment_records <= 100_000:
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
         if self.environment == "production":

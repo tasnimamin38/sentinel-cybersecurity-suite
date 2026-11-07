@@ -239,6 +239,8 @@ npm run dev
 
 The API key is entered into the console and held in component memory; it is not written to local storage.
 
+API request bodies are limited to 512 KiB by default before JSON parsing. Set `SENTINEL_MAX_REQUEST_BODY_BYTES` in `.env` to a value between 1024 and 10485760 bytes when an authorized integration requires a different bound.
+
 ---
 
 ## Engineering validation

@@ -17,6 +17,7 @@ SENTINEL assesses only systems owned by the operator or explicitly authorized in
 - SHA-256 hash-linked audit events and chain verifier.
 - Alembic migrations; production startup runs migrations before API server startup.
 - Production API docs are disabled and CORS origins are explicitly configured.
+- API request bodies are capped before JSON parsing; Content-Length and streamed bodies are both enforced, with a default 512 KiB limit configurable within a bounded range.
 
 ## Known limitations
 
@@ -24,7 +25,7 @@ SENTINEL assesses only systems owned by the operator or explicitly authorized in
 - Audit hash chaining is tamper-evident, not immutable against a privileged database operator.
 - Secret pattern coverage is intentionally limited.
 - Control mapping is not regulatory certification or audit evidence.
-- Multi-tenant isolation, OIDC/SSO, RBAC, distributed rate limits, durable worker queues, external audit checkpoints, managed secrets and observability stack are not implemented.
+- Multi-tenant isolation, OIDC/SSO, RBAC, distributed request quotas, per-job disposable sandbox isolation, external audit checkpoints, managed secrets and a complete observability stack are not implemented. A durable PostgreSQL-backed assessment queue and separate resource-bounded worker service are implemented.
 - Production egress firewall/proxy, restore drills and independent penetration testing are deployment requirements, not certified by local tests.
 
 ## Responsible operation
