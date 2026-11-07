@@ -163,6 +163,10 @@ def persist_security_evidence(
             details=json.dumps(safe, sort_keys=True, separators=(",", ":")),
         )
     )
+    # SessionLocal intentionally disables autoflush. Flush the first audit
+    # record before appending a second event in the same transaction so that
+    # sequence allocation observes the newly assigned chain tail.
+    db.flush()
     alerts: list[dict[str, str | int]] = []
     if signal["event_type"] == "security.api_auth_failure" and source_ip != "unknown":
         cutoff = now - timedelta(seconds=auth_failure_window_seconds)
