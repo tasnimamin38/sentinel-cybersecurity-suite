@@ -221,6 +221,10 @@ async def security_response_headers(request, call_next):
 
     signal = classify_security_response(request.url.path, response.status_code)
     limiter = getattr(request.app.state, "rate_limiter", None)
+    if signal and settings.environment == "production" and limiter is None:
+        # Do not write unbounded honeypot/auth telemetry when the shared
+        # protection store is absent; production API protection fails closed.
+        signal = None
     if signal and limiter is not None and source_ip != "unknown":
         try:
             event_identity = hashlib.sha256(source_ip.encode("utf-8")).hexdigest()
