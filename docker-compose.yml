@@ -17,8 +17,27 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  api:
-    build:
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    read_only: true
+    tmpfs:
+      - /data:rw,noexec,nosuid,size=8m
+      - /tmp:rw,noexec,nosuid,size=8m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    command: ["sh", "-c", "exec redis-server --save '' --appendonly no --maxmemory 128mb --maxmemory-policy noeviction --requirepass \"${REDIS_PASSWORD}\""]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [sentinel-data]
+
+  api:    build:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
@@ -40,8 +59,21 @@ services:
       SENTINEL_REQUEST_TIMEOUT_SECONDS: ${SENTINEL_REQUEST_TIMEOUT_SECONDS:-8}
       SENTINEL_MAX_REQUEST_BODY_BYTES: ${SENTINEL_MAX_REQUEST_BODY_BYTES:-524288}
       SENTINEL_MAX_ASSESSMENT_RECORDS: ${SENTINEL_MAX_ASSESSMENT_RECORDS:-250}
+      SENTINEL_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SENTINEL_TRUSTED_PROXY_CIDRS: ${SENTINEL_TRUSTED_PROXY_CIDRS:-172.30.240.0/24}
+      SENTINEL_RATE_LIMIT_WINDOW_SECONDS: ${SENTINEL_RATE_LIMIT_WINDOW_SECONDS:-60}
+      SENTINEL_API_RATE_LIMIT_PER_MINUTE: ${SENTINEL_API_RATE_LIMIT_PER_MINUTE:-120}
+      SENTINEL_IP_RATE_LIMIT_PER_MINUTE: ${SENTINEL_IP_RATE_LIMIT_PER_MINUTE:-300}
+      SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE: ${SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE:-10}
+      SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE: ${SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE:-20}
+      SENTINEL_AUTH_FAILURE_THRESHOLD: ${SENTINEL_AUTH_FAILURE_THRESHOLD:-5}
+      SENTINEL_AUTH_FAILURE_WINDOW_SECONDS: ${SENTINEL_AUTH_FAILURE_WINDOW_SECONDS:-300}
+      SENTINEL_SECURITY_ALERT_WEBHOOK_URL: ${SENTINEL_SECURITY_ALERT_WEBHOOK_URL:-}
+      SENTINEL_SECURITY_ALERT_WEBHOOK_SECRET: ${SENTINEL_SECURITY_ALERT_WEBHOOK_SECRET:-}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:
@@ -112,5 +144,8 @@ networks:
     internal: true
   sentinel-web:
     internal: true
+    ipam:
+      config:
+        - subnet: ${SENTINEL_WEB_SUBNET:-172.30.240.0/24}
   sentinel-egress:
     driver: bridge
