@@ -66,7 +66,6 @@ def test_user_agent_is_bounded_and_control_characters_are_removed():
     assert len(result) <= 256
 
 
-
 def test_security_response_classifier_emits_only_known_signal_classes():
     assert classify_security_response("/.env", 404)["event_type"] == "security.honeypot_probe"
     assert classify_security_response("/api/v1/config", 401)["rule_id"] == "API_AUTH_FAILURE"
