@@ -60,6 +60,22 @@ def test_protected_config_rejects_missing_api_key(client):
     assert response.status_code == 401
 
 
+def test_honeypot_probe_is_audited_without_query_string_or_secret(client):
+    response = client.get("/.env?token=never-store-this-query-secret")
+    assert response.status_code == 404
+
+    listed = client.get("/api/v1/security/events", headers=API_HEADERS)
+    assert listed.status_code == 200
+    event = next(
+        item for item in listed.json()
+        if item["event_type"] == "security.honeypot_probe"
+        and item["details"].get("rule_id") == "sensitive_file_probe"
+    )
+    assert event["details"]["path"] == "/.env"
+    assert event["severity"] == "high"
+    assert "never-store-this-query-secret" not in str(event)
+
+
 def test_protected_config_returns_security_features(client):
     response = client.get("/api/v1/config", headers=API_HEADERS)
     assert response.status_code == 200
