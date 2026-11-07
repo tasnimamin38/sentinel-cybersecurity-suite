@@ -89,4 +89,3 @@ def test_dependabot_monitors_all_dockerfile_and_compose_locations():
         if "directory:" in section
     }
     assert docker_directories == {"/backend", "/frontend", "/"}
-
