@@ -88,7 +88,10 @@ class Settings(BaseSettings):
             ("SENTINEL_API_RATE_LIMIT_PER_MINUTE", self.api_rate_limit_per_minute),
             ("SENTINEL_IP_RATE_LIMIT_PER_MINUTE", self.ip_rate_limit_per_minute),
             ("SENTINEL_HONEYPOT_EVENT_LIMIT_PER_MINUTE", self.honeypot_event_limit_per_minute),
-            ("SENTINEL_SECURITY_EVENT_AUDIT_LIMIT_PER_MINUTE", self.security_event_audit_limit_per_minute),
+            (
+                "SENTINEL_SECURITY_EVENT_AUDIT_LIMIT_PER_MINUTE",
+                self.security_event_audit_limit_per_minute,
+            ),
             ("SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE", self.assessment_rate_limit_per_minute),
             ("SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE", self.secret_scan_rate_limit_per_minute),
         ):
