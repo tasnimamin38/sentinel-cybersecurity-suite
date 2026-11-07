@@ -54,7 +54,6 @@ from app.services.security_monitor import (
     sign_alert_payload,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
