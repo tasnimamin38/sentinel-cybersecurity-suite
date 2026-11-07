@@ -1,8 +1,8 @@
 import json
 import re
+from functools import lru_cache
 from ipaddress import ip_network
 from urllib.parse import urlsplit
-from functools import lru_cache
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
