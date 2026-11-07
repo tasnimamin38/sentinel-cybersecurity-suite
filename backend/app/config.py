@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     api_rate_limit_per_minute: int = 120
     ip_rate_limit_per_minute: int = 300
+    honeypot_event_limit_per_minute: int = 10
     assessment_rate_limit_per_minute: int = 10
     secret_scan_rate_limit_per_minute: int = 20
     auth_failure_threshold: int = 5
@@ -85,6 +86,7 @@ class Settings(BaseSettings):
         for name, value in (
             ("SENTINEL_API_RATE_LIMIT_PER_MINUTE", self.api_rate_limit_per_minute),
             ("SENTINEL_IP_RATE_LIMIT_PER_MINUTE", self.ip_rate_limit_per_minute),
+            ("SENTINEL_HONEYPOT_EVENT_LIMIT_PER_MINUTE", self.honeypot_event_limit_per_minute),
             ("SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE", self.assessment_rate_limit_per_minute),
             ("SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE", self.secret_scan_rate_limit_per_minute),
         ):
