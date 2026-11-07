@@ -16,8 +16,6 @@ class ProductionConfigTests(unittest.TestCase):
                 api_key="short",
                 allowed_domains="",
                 database_url="postgresql+psycopg://user:pass@db/sentinel",
-            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
-            trusted_proxy_cidrs="172.30.240.0/24",
             )
 
     def test_production_rejects_sqlite_database(self):
@@ -35,6 +33,8 @@ class ProductionConfigTests(unittest.TestCase):
             api_key="S" * 40,
             allowed_domains="example.com",
             database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             cors_origins="https://console.example.com",
         )
         self.assertEqual(settings.allowed_domain_list, ["example.com"])
@@ -131,6 +131,8 @@ class ProductionConfigTests(unittest.TestCase):
             api_credentials_json=json.dumps(values),
             allowed_domains="example.com",
             database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            trusted_proxy_cidrs="172.30.240.0/24",
             cors_origins="https://console.example.com",
         )
         self.assertEqual(settings.process_role, "api")
