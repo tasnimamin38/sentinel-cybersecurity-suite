@@ -76,6 +76,8 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIn("assets", tables)
             self.assertIn("remediation_tasks", tables)
             self.assertIn("alembic_version", tables)
+            self.assertIn("api_credentials", tables)
+            self.assertIn("assessment_jobs", tables)
 
             assessment_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(assessments)").fetchall()
@@ -99,7 +101,7 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIsNone(audit[1])
             self.assertEqual(audit[2], 1)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0003_assessment_jobs")
+            self.assertEqual(revision[0], "0004_api_credentials")
             connection.close()
 
 

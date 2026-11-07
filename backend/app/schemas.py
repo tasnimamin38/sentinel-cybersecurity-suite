@@ -186,3 +186,56 @@ class RemediationResponse(BaseModel):
 
 class SecretScanRequest(BaseModel):
     content: str = Field(min_length=1, max_length=262_144)
+
+
+class CredentialCreate(BaseModel):
+    label: str = Field(min_length=2, max_length=80)
+    role: str = Field(pattern="^(admin|analyst|asset_manager|auditor|read_only)$")
+    expires_at: datetime | None = None
+
+    @field_validator("label")
+    @classmethod
+    def normalize_label(cls, value: str) -> str:
+        clean = value.strip()
+        if len(clean) < 2:
+            raise ValueError("Credential label must contain at least 2 non-space characters.")
+        return clean
+
+    @field_validator("expires_at")
+    @classmethod
+    def validate_credential_expiry(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Credential expiry must include a timezone.")
+        current = datetime.now(UTC)
+        if value <= current:
+            raise ValueError("Credential expiry must be in the future.")
+        if value > current + timedelta(days=365):
+            raise ValueError("Credential expiry cannot be more than 365 days ahead.")
+        return value
+
+
+class CredentialResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    label: str
+    role: str
+    key_prefix: str
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    created_by: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class CredentialCreatedResponse(BaseModel):
+    credential: CredentialResponse
+    secret: str
+
+
+class CredentialRevokeResponse(BaseModel):
+    id: str
+    status: str
+    revoked_at: datetime
