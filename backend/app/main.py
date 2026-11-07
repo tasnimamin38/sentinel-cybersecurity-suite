@@ -47,6 +47,7 @@ from app.services.secrets import scan_text
 from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
 from app.services.request_limits import RequestBodySizeLimitMiddleware
 from app.services.security_monitor import (
+    classify_honeypot_path,
     classify_security_response,
     persist_security_evidence,
     resolve_client_ip,
@@ -150,7 +151,9 @@ async def security_response_headers(request, call_next):
         trusted_proxy_cidrs=settings.trusted_proxy_cidr_list,
     )
 
-    if request.url.path.startswith("/api/v1/") and request.method.upper() != "OPTIONS":
+    is_api_request = request.url.path.startswith("/api/v1/") and request.method.upper() != "OPTIONS"
+    honeypot_rule = classify_honeypot_path(request.url.path)
+    if is_api_request or honeypot_rule:
         limiter = getattr(request.app.state, "rate_limiter", None)
         if limiter is None and settings.environment == "production":
             response = JSONResponse(
@@ -158,22 +161,32 @@ async def security_response_headers(request, call_next):
                 content={"detail": "Request protection is temporarily unavailable."},
             )
         elif limiter is not None:
-            supplied_key = request.headers.get("X-API-Key", "")
-            key_identity = hashlib.sha256(
-                (supplied_key if supplied_key else "anonymous:" + source_ip).encode("utf-8")
-            ).hexdigest()
             ip_identity = hashlib.sha256(source_ip.encode("utf-8")).hexdigest()
-            policies = [
-                ("ip", ip_identity, settings.ip_rate_limit_per_minute),
-                ("key", key_identity, settings.api_rate_limit_per_minute),
-            ]
-            if request.method.upper() == "POST" and request.url.path.endswith("/assessments"):
-                policies.append(
-                    ("assessment", key_identity, settings.assessment_rate_limit_per_minute)
+            policies = []
+            if is_api_request:
+                supplied_key = request.headers.get("X-API-Key", "")
+                key_identity = hashlib.sha256(
+                    (supplied_key if supplied_key else "anonymous:" + source_ip).encode("utf-8")
+                ).hexdigest()
+                policies.extend(
+                    [
+                        ("ip", ip_identity, settings.ip_rate_limit_per_minute),
+                        ("key", key_identity, settings.api_rate_limit_per_minute),
+                    ]
                 )
-            if request.method.upper() == "POST" and request.url.path.endswith("/secrets/scan"):
+                if request.method.upper() == "POST" and request.url.path.endswith("/assessments"):
+                    policies.append(
+                        ("assessment", key_identity, settings.assessment_rate_limit_per_minute)
+                    )
+                if request.method.upper() == "POST" and request.url.path.endswith("/secrets/scan"):
+                    policies.append(
+                        ("secret-scan", key_identity, settings.secret_scan_rate_limit_per_minute)
+                    )
+            else:
+                # Decoy paths bypass the /api prefix; cap evidence and alert
+                # volume separately so scanners cannot fill the audit journal.
                 policies.append(
-                    ("secret-scan", key_identity, settings.secret_scan_rate_limit_per_minute)
+                    ("honeypot", ip_identity, settings.honeypot_event_limit_per_minute)
                 )
             try:
                 for bucket, identity, limit in policies:
