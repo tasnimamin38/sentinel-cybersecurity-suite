@@ -5,7 +5,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM nginx:1.30.6-alpine
+FROM nginx:1.31.7-alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 RUN nginx -t
 COPY --from=build /app/dist /usr/share/nginx/html
