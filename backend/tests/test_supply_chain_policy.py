@@ -5,10 +5,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
 ACTION_LINE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 IMMUTABLE_ACTION_REF = re.compile(r"^[^@]+@[0-9a-f]{40}$")
-DEPENDENCY_REVIEW_ACTION = (
-    "actions/dependency-review-action@"
-    "a1d282b36b6f3519aa1f3fc636f609c47dddb294"
-)
+DEPENDENCY_REVIEW_ACTION = "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294"
 
 
 def test_every_workflow_action_uses_an_immutable_commit_sha():
