@@ -15,7 +15,7 @@ DEPENDENCY_REVIEW_ACTION = (
 def test_ci_produces_every_required_main_branch_context():
     workflow = (WORKFLOW_ROOT / "ci.yml").read_text(encoding="utf-8")
     required = (
-        "Backend security and tests (Python " + "$" + "{ matrix.python-version })",
+        "Backend security and tests (Python " + "$" + "{{ matrix.python-version }})",
         'python-version: ["3.12", "3.13"]',
         "Frontend security and build",
         "Container image and Compose validation",
