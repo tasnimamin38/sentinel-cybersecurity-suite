@@ -33,6 +33,12 @@ All `/api/v1/*` request bodies are limited before FastAPI parses JSON. The defau
 
 See the blueprint directory for target architecture, decision algorithms, threat model and roadmap.
 
+## Browser-to-API routing
+
+The browser console uses relative `/api` URLs. During development, Vite proxies those requests to the local FastAPI service. In Docker Compose, Nginx proxies them to the API over the internal `sentinel-web` network. This keeps browser traffic same-origin and avoids baking a deployment-specific API host into the frontend bundle.
+
+The API retains an explicit CORS allowlist for separate authorized integrations. `Idempotency-Key` is included in the allowed request headers so browser clients can submit idempotent assessment-job requests when they use a cross-origin integration.
+
 ## Current boundary
 
-The current release is a single-workspace engineering baseline. It does not include multi-user identity, RBAC, multi-tenant isolation, durable background workers, distributed rate limits, external immutable audit storage, egress gateway, metrics/tracing or independent penetration-testing evidence.
+The current release is a single-workspace engineering baseline. It does not include multi-user identity, RBAC, multi-tenant isolation, distributed rate limits, external immutable audit storage, a destination-enforcing egress gateway, metrics/tracing or independent penetration-testing evidence.
