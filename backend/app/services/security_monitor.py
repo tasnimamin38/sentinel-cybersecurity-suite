@@ -7,13 +7,13 @@ import hmac
 import json
 from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address, ip_network
+from urllib.parse import unquote
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import AuditEvent
 from app.services.audit import record_audit_event
-from urllib.parse import unquote
 
 
 _HONEYPOT_PATHS: tuple[tuple[str, str], ...] = (
