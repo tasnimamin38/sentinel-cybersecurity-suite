@@ -249,7 +249,6 @@ class ProductionConfigTests(unittest.TestCase):
             ["https://console.example.com", "https://admin.example.com:8443"],
         )
 
-
     def test_production_rejects_duplicate_legacy_api_keys(self):
         with self.assertRaises(ValidationError):
             Settings(
@@ -261,7 +260,6 @@ class ProductionConfigTests(unittest.TestCase):
                 trusted_proxy_cidrs="172.30.240.0/24",
                 cors_origins="https://console.example.com",
             )
-
 
 
 if __name__ == "__main__":
