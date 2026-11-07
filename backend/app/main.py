@@ -1,4 +1,5 @@
 import hashlib
+import httpx
 import json
 import logging
 import secrets
@@ -10,12 +11,11 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.background import BackgroundTask
 from redis.asyncio import Redis
-import httpx
 from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
@@ -42,10 +42,10 @@ from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event, verify_audit_chain
 from app.services.controls import CONTROL_CATALOG, controls_for_findings
 from app.services.posture import assess_domain
-from app.services.scope import ScopeViolation, authorize_domain
-from app.services.secrets import scan_text
 from app.services.rate_limit import RateLimiterUnavailable, RedisSlidingWindowLimiter
 from app.services.request_limits import RequestBodySizeLimitMiddleware
+from app.services.scope import ScopeViolation, authorize_domain
+from app.services.secrets import scan_text
 from app.services.security_monitor import (
     classify_honeypot_path,
     classify_security_response,
@@ -53,6 +53,7 @@ from app.services.security_monitor import (
     resolve_client_ip,
     sign_alert_payload,
 )
+
 
 logger = logging.getLogger(__name__)
 
