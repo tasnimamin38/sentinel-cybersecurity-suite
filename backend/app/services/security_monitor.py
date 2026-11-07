@@ -95,6 +95,10 @@ def classify_security_response(path: str, status_code: int) -> dict[str, str] | 
     """Classify defensive signals after routing/authentication has completed."""
     honeypot_rule = classify_honeypot_path(path)
     if honeypot_rule:
+        # Repeated decoy hits rejected by the honeypot Redis bucket are not
+        # persisted again; otherwise a blocked flood could still fill the DB.
+        if status_code == 429:
+            return None
         return {
             "event_type": "security.honeypot_probe",
             "severity": "high",
