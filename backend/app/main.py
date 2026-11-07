@@ -185,9 +185,7 @@ async def security_response_headers(request, call_next):
             else:
                 # Decoy paths bypass the /api prefix; cap evidence and alert
                 # volume separately so scanners cannot fill the audit journal.
-                policies.append(
-                    ("honeypot", ip_identity, settings.honeypot_event_limit_per_minute)
-                )
+                policies.append(("honeypot", ip_identity, settings.honeypot_event_limit_per_minute))
             try:
                 for bucket, identity, limit in policies:
                     decision = await limiter.check(
