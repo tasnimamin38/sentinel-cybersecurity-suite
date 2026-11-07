@@ -60,6 +60,30 @@ def test_protected_config_rejects_missing_api_key(client):
     assert response.status_code == 401
 
 
+def test_repeated_api_auth_failures_emit_one_brute_force_signal(monkeypatch):
+    monkeypatch.setattr(settings, "auth_failure_threshold", 3)
+    monkeypatch.setattr(settings, "auth_failure_window_seconds", 300)
+    with TestClient(app, client=("192.0.2.99", 43123)) as isolated_client:
+        for index in range(3):
+            response = isolated_client.get(
+                "/api/v1/config",
+                headers={"X-API-Key": f"invalid-test-key-{index}"},
+            )
+            assert response.status_code == 401
+
+        events = isolated_client.get("/api/v1/security/events", headers=API_HEADERS)
+        assert events.status_code == 200
+        brute_force = [
+            item for item in events.json()
+            if item["event_type"] == "security.brute_force_detected"
+            and item["source_ip"] == "192.0.2.99"
+        ]
+        assert len(brute_force) == 1
+        assert brute_force[0]["severity"] == "critical"
+        assert brute_force[0]["details"]["failure_count"] == 3
+        assert "invalid-test-key" not in str(brute_force[0])
+
+
 def test_honeypot_probe_is_audited_without_query_string_or_secret(client):
     response = client.get("/.env?token=never-store-this-query-secret")
     assert response.status_code == 404
