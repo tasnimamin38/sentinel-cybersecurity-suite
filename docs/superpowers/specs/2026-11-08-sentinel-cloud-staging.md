@@ -7,7 +7,7 @@ Deploy the existing SENTINEL console and API to hosted infrastructure without us
 - Host the static React console and FastAPI API in cloud services.
 - Store persistent application data in the dedicated Supabase Postgres database under a private, non-Data-API schema.
 - Keep the API database login separate from the schema owner and grant only required DML.
-- Provide a bounded, authenticated cloud worker trigger invoked by Supabase Cron/pg_net for low-volume staging.
+- Provide a bounded, authenticated cloud worker trigger invoked by an external Cloudflare Worker Cron Trigger for low-volume staging.
 - Store database and worker secrets in Supabase Vault and Render encrypted environment variables, never in Git.
 - Keep all service plans at $0 and stop if a provider quotes any charge.
 
@@ -24,13 +24,13 @@ Deploy the existing SENTINEL console and API to hosted infrastructure without us
 3. Fully provisioned Render API + dedicated background worker + persistent Redis/Postgres. Operationally closer to production but not free; excluded until a paid budget is explicitly approved.
 
 ## Selected design
-Approach 1. Supabase is the persistent data plane. Application tables live in a private `sentinel` schema, not exposed through the Supabase Data API. A restricted `sentinel_app` PostgreSQL login gets USAGE plus table/sequence DML only and no superuser, role creation, schema creation, or RLS bypass. FastAPI uses Supabase's IPv4 Shared Pooler session endpoint with TLS. Render Free hosts the API and static console; Render Free Key Value is a temporary Redis-compatible rate-limit store only. Supabase Vault holds the worker tick secret. Supabase Cron invokes an internal API route once per minute; each accepted tick processes at most one queued job.
+Cloud-only staging design. Supabase is the persistent data plane. Application tables live in a private `sentinel` schema, not exposed through the Supabase Data API. A restricted `sentinel_app` PostgreSQL login gets USAGE plus table/sequence DML only and no superuser, role creation, schema creation, or RLS bypass. FastAPI uses Supabase's IPv4 Shared Pooler session endpoint with TLS. Render Free hosts the API and static console; Render Free Key Value is a temporary Redis-compatible rate-limit store only. The shared worker tick secret is kept in Supabase Vault as an operator-controlled source copy and set separately as encrypted secrets in Render and Cloudflare. A Cloudflare Worker Cron Trigger sends one authenticated HTTPS request per minute to the API; each accepted tick processes at most one queued job. The managed pg_net extension was removed from the dedicated Supabase staging project because SENTINEL has no database-originated HTTP dependency.
 
 ## Safety / operational constraints
-- The worker route is disabled by default and requires a 256-bit random shared secret using constant-time comparison.
+- The worker route is disabled by default and requires a 256-bit random shared secret using constant-time comparison. The external Worker rejects non-HTTPS API origins and redirects, keeps the secret out of logs, and has no public fetch endpoint.
 - Worker ticks must be rate-limited through the shared Redis limiter and fail closed when it is unavailable in production.
 - The worker must reuse the existing asset authorization, expiry, DNS pinning and HTTPS probe checks; no new target-discovery capability is added.
 - Do not set real authorized target domains without an explicit owner-provided domain. Staging starts with a reserved `.invalid` scope and therefore cannot assess a real target.
-- A one-minute tick means at most one job processed each minute; it is deliberately a low-volume proof of deployment, not a scale solution.
+- A one-minute tick means at most one job processed per accepted API tick; it is deliberately a low-volume staging proof, not a scale solution. Cloudflare Cron Trigger and Workers Free plan limits must be rechecked before rollout.
 - Supabase Free project inactivity pause, Render Free cold starts/750-hour limit, no persistent free Redis, and one-instance limits are accepted only for staging. Monitor quotas and avoid storing sensitive production data.
 - Any paid upgrade or nonzero service quotation requires separate explicit approval.
