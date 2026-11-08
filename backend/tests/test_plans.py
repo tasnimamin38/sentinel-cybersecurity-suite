@@ -17,6 +17,7 @@ def test_new_workspaces_default_to_free_early_access_without_billing():
     assert catalog["launch_mode"] == "free_early_access"
     assert catalog["billing_enabled"] is False
     assert catalog["checkout_enabled"] is False
+    assert catalog["usage_limits_enforced"] is False
     assert BILLING_ENABLED is False
     assert CHECKOUT_ENABLED is False
     assert DEFAULT_PLAN_CODE == "free_early_access"
@@ -29,6 +30,8 @@ def test_free_early_access_unlocks_all_current_core_security_modules(workspace_t
     assert free["status"] == "active"
     assert free["price"]["amount_cents"] == 0
     assert free["purchasable"] is False
+    assert free["limits_enforced"] is False
+    assert free["limit_enforcement_status"] == "planned"
     assert set(free["feature_codes"]) == set(FREE_FEATURE_CODES)
     assert free["limits"]["workspace_type"] == workspace_type
 
