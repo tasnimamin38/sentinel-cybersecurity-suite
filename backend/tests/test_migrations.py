@@ -117,16 +117,19 @@ def _migration_environment(database_path: Path) -> dict[str, str]:
     return env
 
 
-def _run_migration(database_path: Path, revision: str) -> subprocess.CompletedProcess:
+def _run_migration(
+    database_path: Path,
+    command: str,
+    revision: str,
+) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "alembic", revision],
+        [sys.executable, "-m", "alembic", command, revision],
         cwd=BACKEND,
         env=_migration_environment(database_path),
         capture_output=True,
         text=True,
         check=False,
     )
-
 
 def _seed_legacy_operational_rows(database_path: Path) -> None:
     connection = sqlite3.connect(database_path)
@@ -190,32 +193,17 @@ def _seed_legacy_operational_rows(database_path: Path) -> None:
 
 
 class TenantRegistryMigrationTests(unittest.TestCase):
-    def _upgrade_to_0004(self, database_path: Path) -> None:
-        run = _run_migration(database_path, "upgrade")
+    def _create_legacy_database(self, database_path: Path) -> None:
+        run = _run_migration(database_path, "upgrade", "0004_api_credentials")
         self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
-        # Pin the pre-tenant schema so this fixture exercises the upgrade path
-        # from the existing production main branch.
-        run = _run_migration(database_path, "upgrade")
-        self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
+        _seed_legacy_operational_rows(database_path)
 
     def test_tenant_upgrade_backfills_all_legacy_rows_and_preserves_history(self):
         with tempfile.TemporaryDirectory(prefix="sentinel-tenant-migration-") as temp_dir:
             database_path = Path(temp_dir) / "legacy.sqlite"
-            run = _run_migration(database_path, "upgrade")
-            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
+            self._create_legacy_database(database_path)
 
-            # Force the database to the actual pre-tenant revision.
-            run = _run_migration(database_path, "downgrade")
-            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
-            run = _run_migration(database_path, "upgrade")
-            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
-
-            connection = sqlite3.connect(database_path)
-            connection.execute("PRAGMA foreign_keys = ON")
-            _seed_legacy_operational_rows(database_path)
-            connection.close()
-
-            run = _run_migration(database_path, "upgrade")
+            run = _run_migration(database_path, "upgrade", "head")
             self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
 
             connection = sqlite3.connect(database_path)
@@ -267,30 +255,30 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                 "a" * 64,
             )
             self.assertEqual(
-                connection.execute(
-                    "SELECT COUNT(*) FROM tenant_memberships"
-                ).fetchone()[0],
+                connection.execute("SELECT COUNT(*) FROM tenant_memberships").fetchone()[0],
                 0,
             )
+            revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+            self.assertEqual(revision[0], "0005_tenant_registry")
             connection.close()
 
     def test_tenant_scoped_hostname_and_idempotency_constraints_prevent_cross_tenant_links(self):
         with tempfile.TemporaryDirectory(prefix="sentinel-tenant-isolation-") as temp_dir:
             database_path = Path(temp_dir) / "legacy.sqlite"
-            run = _run_migration(database_path, "upgrade")
-            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
-            run = _run_migration(database_path, "upgrade")
+            self._create_legacy_database(database_path)
+            run = _run_migration(database_path, "upgrade", "head")
             self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
 
             connection = sqlite3.connect(database_path)
             connection.execute("PRAGMA foreign_keys = ON")
+            second_tenant = "00000000-0000-4000-8000-000000000002"
             connection.execute(
                 """
                 INSERT INTO tenants (id, slug, name, workspace_type, status, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    "00000000-0000-4000-8000-000000000002",
+                    second_tenant,
                     "second-company",
                     "Second Company",
                     "company",
@@ -310,7 +298,7 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                 """,
                 (
                     "asset-company-2",
-                    "00000000-0000-4000-8000-000000000002",
+                    second_tenant,
                     "app.example.com",
                     "Company copy",
                     "Security",
@@ -337,7 +325,7 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                     """,
                     (
                         "cross-tenant-assessment",
-                        "00000000-0000-4000-8000-000000000002",
+                        second_tenant,
                         "legacy-asset-1",
                         "app.example.com",
                         "completed",
@@ -349,14 +337,49 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                     ),
                 )
             connection.rollback()
+
+            connection.execute(
+                """
+                INSERT INTO assessment_jobs
+                    (id, tenant_id, asset_id, target, status, available_at,
+                     attempts, max_attempts, manual_retries, worker_id,
+                     lease_expires_at, heartbeat_at, cancel_requested_at,
+                     started_at, completed_at, assessment_id, idempotency_key_hash,
+                     last_error, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "job-company-2",
+                    second_tenant,
+                    "asset-company-2",
+                    "app.example.com",
+                    "succeeded",
+                    "2026-11-09 00:02:00",
+                    1,
+                    3,
+                    0,
+                    None,
+                    None,
+                    None,
+                    None,
+                    "2026-11-09 00:02:00",
+                    "2026-11-09 00:03:00",
+                    None,
+                    "legacy-idempotency-hash",
+                    None,
+                    "2026-11-09 00:02:00",
+                    "2026-11-09 00:03:00",
+                ),
+            )
+            connection.commit()
             connection.close()
 
     def test_tenant_migration_downgrade_refuses_to_remove_customer_workspaces(self):
         with tempfile.TemporaryDirectory(prefix="sentinel-tenant-downgrade-") as temp_dir:
             database_path = Path(temp_dir) / "legacy.sqlite"
-            run = _run_migration(database_path, "upgrade")
-            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
-            run = _run_migration(database_path, "upgrade")
+            self._create_legacy_database(database_path)
+            run = _run_migration(database_path, "upgrade", "head")
             self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
 
             connection = sqlite3.connect(database_path)
@@ -378,11 +401,49 @@ class TenantRegistryMigrationTests(unittest.TestCase):
             connection.commit()
             connection.close()
 
-            run = _run_migration(database_path, "downgrade")
-            self.assertNotEqual(run.returncode, 0, msg="downgrade must refuse customer tenant data")
+            run = _run_migration(database_path, "downgrade", "0004_api_credentials")
+            self.assertNotEqual(
+                run.returncode, 0, msg="downgrade must refuse customer tenant data"
+            )
             connection = sqlite3.connect(database_path)
             tenant_count = connection.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
             self.assertEqual(tenant_count, 2)
+            revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+            self.assertEqual(revision[0], "0005_tenant_registry")
+            connection.close()
+
+    def test_tenant_migration_downgrade_without_customer_workspaces_preserves_legacy_rows(self):
+        with tempfile.TemporaryDirectory(prefix="sentinel-tenant-safe-downgrade-") as temp_dir:
+            database_path = Path(temp_dir) / "legacy.sqlite"
+            self._create_legacy_database(database_path)
+            run = _run_migration(database_path, "upgrade", "head")
+            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
+
+            run = _run_migration(database_path, "downgrade", "0004_api_credentials")
+            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
+
+            connection = sqlite3.connect(database_path)
+            self.assertEqual(
+                connection.execute(
+                    "SELECT target, score FROM assessments WHERE id = 'legacy-assessment-1'"
+                ).fetchone(),
+                ("app.example.com", 42),
+            )
+            self.assertEqual(
+                connection.execute(
+                    "SELECT details FROM audit_events WHERE id = 'legacy-audit-1'"
+                ).fetchone()[0],
+                "legacy audit record",
+            )
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            self.assertNotIn("tenants", tables)
+            revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+            self.assertEqual(revision[0], "0004_api_credentials")
             connection.close()
 
 
