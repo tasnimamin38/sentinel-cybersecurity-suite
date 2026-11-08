@@ -1,3 +1,4 @@
+import asyncio
 import os
 import threading
 import time
@@ -96,6 +97,61 @@ def test_postgres_workers_never_claim_the_same_job():
         if queue_engine is not None:
             Base.metadata.drop_all(queue_engine)
             queue_engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        admin_engine.dispose()
+
+
+def test_postgres_worker_tick_allows_only_one_concurrent_executor(monkeypatch):
+    database_url = os.getenv("SENTINEL_TEST_POSTGRES_URL")
+    if not database_url:
+        pytest.skip("SENTINEL_TEST_POSTGRES_URL is not configured.")
+
+    from app import worker
+
+    schema = f"sentinel_tick_lock_test_{uuid4().hex}"
+    admin_engine = create_engine(database_url, pool_pre_ping=True)
+    tick_engine = None
+    try:
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+
+        tick_engine = create_engine(
+            database_url,
+            connect_args={"options": f"-csearch_path={schema}"},
+            pool_size=4,
+            max_overflow=0,
+            pool_pre_ping=True,
+        )
+        tick_sessions = sessionmaker(bind=tick_engine, expire_on_commit=False)
+        monkeypatch.setattr(worker, "SessionLocal", tick_sessions)
+        monkeypatch.setattr(worker, "engine", tick_engine)
+
+        claimed: list[str] = []
+
+        def claim_one(worker_id: str) -> str:
+            claimed.append(worker_id)
+            return f"job-{worker_id}"
+
+        async def process_one(job_id: str, worker_id: str) -> None:
+            await asyncio.sleep(0.15)
+
+        monkeypatch.setattr(worker, "_claim_job", claim_one)
+        monkeypatch.setattr(worker, "process_job", process_one)
+
+        async def run_ticks():
+            return await asyncio.gather(
+                worker.process_one_job(),
+                worker.process_one_job(),
+            )
+
+        results = asyncio.run(run_ticks())
+
+        assert len(claimed) == 1
+        assert sum(result is not None for result in results) == 1
+    finally:
+        if tick_engine is not None:
+            tick_engine.dispose()
         with admin_engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         admin_engine.dispose()

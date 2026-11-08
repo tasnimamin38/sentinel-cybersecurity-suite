@@ -50,16 +50,28 @@ def resolve_client_ip(
     peer_ip: str | None,
     x_real_ip: str | None,
     trusted_proxy_cidrs: list[str] | tuple[str, ...] = (),
+    cf_connecting_ip: str | None = None,
+    trust_cf_connecting_ip: bool = False,
 ) -> str:
-    """Trust X-Real-IP only when the immediate peer is in an operator allowlist.
+    """Resolve a client IP using an explicitly configured trusted ingress source.
 
-    X-Forwarded-For is deliberately not accepted. The reverse proxy must
-    overwrite X-Real-IP from its actual socket peer, never append caller input.
+    CF-Connecting-IP is accepted only when the operator opts in for an ingress
+    provider that overwrites the header (Render's Cloudflare edge). X-Real-IP
+    remains restricted to an allowlisted immediate proxy peer. X-Forwarded-For
+    is deliberately not accepted because intermediaries may append caller input.
     """
     try:
         peer = ip_address(peer_ip or "")
     except ValueError:
         return "unknown"
+
+    if trust_cf_connecting_ip and cf_connecting_ip:
+        try:
+            candidate = ip_address(cf_connecting_ip.strip())
+            if not candidate.is_unspecified and not candidate.is_multicast:
+                return candidate.compressed
+        except ValueError:
+            pass
 
     trusted = False
     for cidr in trusted_proxy_cidrs:

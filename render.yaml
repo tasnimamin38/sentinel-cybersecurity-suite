@@ -1,0 +1,59 @@
+# Cloud-only SENTINEL staging blueprint.
+# This blueprint references the existing authenticated Render Key Value instance.
+# It does not create or upgrade paid resources.
+services:
+  - type: web
+    name: sentinel-staging-api
+    runtime: docker
+    plan: free
+    region: singapore
+    repo: https://github.com/tasnimamin38/sentinel-cybersecurity-suite
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /readyz
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SENTINEL_ENVIRONMENT
+        value: production
+      - key: SENTINEL_PROCESS_ROLE
+        value: api
+      - key: SENTINEL_ALLOWED_DOMAINS
+        value: sentinel.invalid
+      - key: SENTINEL_CORS_ORIGINS
+        value: https://sentinel.toolixaai.com,https://sentinel-staging-console-mpir.onrender.com
+      - key: SENTINEL_TRUST_CLOUDFLARE_IP_HEADER
+        value: "true"
+      # Keep the internal worker tick disabled until the external Cloudflare scheduler is configured and verified.
+      - key: SENTINEL_WORKER_TICK_ENABLED
+        value: "false"
+      - key: SENTINEL_WORKER_TICK_RATE_LIMIT_PER_MINUTE
+        value: "1"
+      - key: SENTINEL_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: SENTINEL_MAX_PENDING_ASSESSMENT_JOBS
+        value: "250"
+      - key: SENTINEL_DATABASE_URL
+        sync: false
+      - key: SENTINEL_API_KEY
+        sync: false
+      - key: SENTINEL_WORKER_TICK_SECRET
+        sync: false
+      - key: SENTINEL_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sentinel-cybersecurity-suite-redis
+          property: connectionString
+
+  - type: web
+    name: sentinel-staging-console
+    runtime: static
+    repo: https://github.com/tasnimamin38/sentinel-cybersecurity-suite
+    branch: main
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://sentinel-staging-api-mpir.onrender.com

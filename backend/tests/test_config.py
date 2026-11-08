@@ -275,6 +275,46 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Settings(max_pending_assessment_jobs=100_001)
 
+    def test_production_worker_tick_requires_a_strong_shared_secret(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="S" * 40,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
+                cors_origins="https://console.example.com",
+                worker_tick_enabled=True,
+                worker_tick_secret="short",
+            )
+
+    def test_production_can_use_explicit_cloudflare_client_ip_trust_without_cidrs(self):
+        settings = Settings(
+            environment="production",
+            api_key="S" * 40,
+            allowed_domains="example.com",
+            database_url="postgresql+psycopg://user:pass@db/sentinel",
+            redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+            cors_origins="https://console.example.com",
+            trust_cloudflare_ip_header=True,
+            worker_tick_enabled=True,
+            worker_tick_secret="T" * 40,
+        )
+        self.assertTrue(settings.trust_cloudflare_ip_header)
+        self.assertEqual(settings.trusted_proxy_cidr_list, [])
+
+    def test_production_still_requires_a_trusted_client_ip_source(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="S" * 40,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                cors_origins="https://console.example.com",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
