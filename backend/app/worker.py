@@ -345,6 +345,16 @@ async def process_job(job_id: str, worker_id: str) -> None:
         )
 
 
+async def process_one_job() -> str | None:
+    """Claim and process at most one queued assessment job."""
+    worker_id = uuid4().hex
+    job_id = _claim_job(worker_id)
+    if job_id is None:
+        return None
+    await process_job(job_id, worker_id)
+    return job_id
+
+
 async def run_worker() -> None:
     worker_id = uuid4().hex
     LOGGER.info("SENTINEL assessment worker started: worker_id=%s", worker_id)
