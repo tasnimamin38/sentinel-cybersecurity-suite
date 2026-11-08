@@ -67,11 +67,11 @@ Expected:
 - `sentinel_app` has all five privileged flags false.
 - `can_use_schema` and DML privileges are true; both CREATE flags are false.
 
-Run Supabase security and performance advisors after applying the schema. The live project currently reports one warning because the managed `pg_net` extension is installed in `public`; it is non-relocatable. Its `net` schema and HTTP functions have been restricted to database administrator / scheduler roles through `restrict-pg-net-access.sql`. New-project setup should include this hardening migration immediately after enabling `pg_net`.
+Run Supabase security and performance advisors after applying the schema. The live project still reports the managed `pg_net` extension in `public`; Supabase documents it as non-relocatable. A revocation migration is recorded, but direct ACL inspection still shows `anon`, `authenticated`, and `sentinel_app` inheriting `USAGE`, request/response table `SELECT`, and `net.http_post` execution from grants made by `supabase_admin`. The connected `postgres` role cannot remove those grantor-owned permissions. Treat this as an unresolved managed-extension privilege issue, not a completed hardening step; keep `net` out of any Data API exposed-schema list and ask Supabase Support to restrict the grantor-owned ACLs. The worker must not be enabled until the exposure path has been reviewed.
 
 ## Scheduled worker
 
-Only after the API is healthy and its database/runtime secrets are set, apply `worker-tick.sql` as the owner. The live project currently has no `sentinel-worker-tick` cron job; this remains intentionally disabled until the API deploy passes readiness checks. It installs `pg_cron` and `pg_net`, then registers one job every minute. The cron command looks up its API origin and worker secret from Vault at execution time; it does not embed decrypted values in `cron.job.command`.
+Only after the API is healthy and its database/runtime secrets are set, apply `worker-tick.sql` as the owner. The live project currently has no `sentinel-worker-tick` cron job; this remains intentionally disabled until the API deploy passes readiness checks. It installs `pg_cron` and `pg_net`, then registers one job every minute. The cron command looks up its API origin and worker secret from Vault at execution time; it does not embed decrypted values in `cron.job.command`. The `pg_net` request queue itself may transiently hold the header value; the unresolved ACL issue above must be cleared before enabling this job.
 
 Each API tick can execute at most one queued job. A PostgreSQL session-level advisory lock prevents overlapping ticks from running separate jobs concurrently. The application still enforces its existing asset authorization, expiry, and outbound request controls.
 
