@@ -106,6 +106,7 @@
 - [ ] Create the free Key Value and inspect its private connection URL without printing credentials.
 - [ ] Create the API service with runtime DB URL, Redis URL, API bootstrap credential, worker tick secret, reserved `sentinel.invalid` scope, and exact HTTPS CORS origin.
 - [ ] Create the static console and set `VITE_API_BASE_URL` to the hosted API origin.
+- [ ] After API readiness, set Vercel Production `VITE_API_BASE_URL` to the verified API origin and redeploy `sentinel.toolixaai.com`; include the exact custom-domain origin in API CORS. Keep the Render static site as a separate staging smoke-test surface.
 - [ ] Verify Render reports healthy deployments, but do not claim uptime guarantees.
 
 ### Task 5: External scheduled tick and end-to-end staging validation
