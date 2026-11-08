@@ -45,3 +45,22 @@ class SecurityHeaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_csp_without_script_or_default_policy_is_reported_as_unrestricted(self):
+        findings = evaluate_security_headers(
+            {"content-security-policy": "frame-ancestors 'none'"}
+        )
+        codes = {finding["code"] for finding in findings}
+        self.assertIn("CSP_SCRIPT_POLICY_UNRESTRICTED", codes)
+
+    def test_frame_ancestors_text_inside_another_directive_is_not_protection(self):
+        findings = evaluate_security_headers(
+            {
+                "content-security-policy": (
+                    "default-src 'self'; report-uri https://reports.example.com/frame-ancestors"
+                )
+            }
+        )
+        codes = {finding["code"] for finding in findings}
+        self.assertIn("MISSING_FRAME_PROTECTION", codes)
