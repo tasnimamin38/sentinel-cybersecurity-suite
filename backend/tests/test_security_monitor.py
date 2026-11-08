@@ -115,4 +115,3 @@ def test_invalid_cloudflare_client_ip_falls_back_to_peer_ip():
         trust_cf_connecting_ip=True,
     )
     assert observed == "172.30.240.12"
-
