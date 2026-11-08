@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     honeypot_event_limit_per_minute: int = 10
     security_event_audit_limit_per_minute: int = 10
     assessment_rate_limit_per_minute: int = 10
+    assessment_job_rate_limit_per_minute: int = 5
+    max_pending_assessment_jobs: int = 250
     secret_scan_rate_limit_per_minute: int = 20
     auth_failure_threshold: int = 5
     auth_failure_window_seconds: int = 300
@@ -80,6 +82,8 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_REQUEST_TIMEOUT_SECONDS must be between 0.5 and 20.")
         if not 1 <= self.max_assessment_records <= 100_000:
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
+        if not 1 <= self.max_pending_assessment_jobs <= 100_000:
+            raise ValueError("SENTINEL_MAX_PENDING_ASSESSMENT_JOBS must be between 1 and 100000.")
         if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
             raise ValueError("SENTINEL_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760.")
         if not 1 <= self.rate_limit_window_seconds <= 86_400:
@@ -93,6 +97,10 @@ class Settings(BaseSettings):
                 self.security_event_audit_limit_per_minute,
             ),
             ("SENTINEL_ASSESSMENT_RATE_LIMIT_PER_MINUTE", self.assessment_rate_limit_per_minute),
+            (
+                "SENTINEL_ASSESSMENT_JOB_RATE_LIMIT_PER_MINUTE",
+                self.assessment_job_rate_limit_per_minute,
+            ),
             ("SENTINEL_SECRET_SCAN_RATE_LIMIT_PER_MINUTE", self.secret_scan_rate_limit_per_minute),
         ):
             if not 1 <= value <= 100_000:
