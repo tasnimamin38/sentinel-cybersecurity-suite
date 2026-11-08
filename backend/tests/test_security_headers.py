@@ -42,11 +42,6 @@ class SecurityHeaderTests(unittest.TestCase):
         )
         self.assertEqual(findings, [])
 
-
-if __name__ == "__main__":
-    unittest.main()
-
-
     def test_csp_without_script_or_default_policy_is_reported_as_unrestricted(self):
         findings = evaluate_security_headers(
             {"content-security-policy": "frame-ancestors 'none'"}
@@ -64,3 +59,7 @@ if __name__ == "__main__":
         )
         codes = {finding["code"] for finding in findings}
         self.assertIn("MISSING_FRAME_PROTECTION", codes)
+
+
+if __name__ == "__main__":
+    unittest.main()
