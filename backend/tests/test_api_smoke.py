@@ -15,7 +15,7 @@ os.environ["SENTINEL_CORS_ORIGINS"] = "http://localhost:5173"
 
 from fastapi.testclient import TestClient
 
-from app.auth import ROUTE_PERMISSIONS, require_api_key
+from app.auth import PUBLIC_API_ROUTES, ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
 from app.models import ApiCredential, Assessment, AssessmentJob, RemediationTask
@@ -656,10 +656,16 @@ def test_every_versioned_api_route_has_explicit_authentication_and_permission_po
         route_path = getattr(route, "path", "")
         if not route_path.startswith("/api/v1/"):
             continue
-        assert any(
-            dependency.call is require_api_key for dependency in route.dependant.dependencies
-        ), f"Missing authentication dependency: {route_path}"
         for method in route.methods or set():
+            if (method, route_path) in PUBLIC_API_ROUTES:
+                assert method == "GET", f"Public API routes must be read-only: {method} {route_path}"
+                assert not any(
+                    dependency.call is require_api_key for dependency in route.dependant.dependencies
+                ), f"Public API route unexpectedly requires an API key: {route_path}"
+                continue
+            assert any(
+                dependency.call is require_api_key for dependency in route.dependant.dependencies
+            ), f"Missing authentication dependency: {route_path}"
             assert (method, route_path) in ROUTE_PERMISSIONS, (
                 f"Missing role permission mapping: {method} {route_path}"
             )
