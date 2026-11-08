@@ -62,6 +62,16 @@ def test_protected_config_rejects_missing_api_key(client):
     assert response.status_code == 401
 
 
+def test_public_plan_catalog_is_available_without_an_api_key(client):
+    response = client.get("/api/v1/plans?workspace_type=personal")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["billing_enabled"] is False
+    assert payload["checkout_enabled"] is False
+    assert payload["default_plan_code"] == "free_early_access"
+    assert all(plan["purchasable"] is False for plan in payload["plans"])
+
+
 def test_repeated_api_auth_failures_emit_one_brute_force_signal(monkeypatch):
     monkeypatch.setattr(settings, "auth_failure_threshold", 3)
     monkeypatch.setattr(settings, "auth_failure_window_seconds", 300)
