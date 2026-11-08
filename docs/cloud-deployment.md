@@ -34,8 +34,8 @@ Render Free Web Service: sentinel-staging-api
 
 Expected default service origins after a successful Render sync:
 
-- Console: `https://sentinel-staging-console.onrender.com`
-- API: `https://sentinel-staging-api.onrender.com`
+- Console: `https://sentinel-staging-console-mpir.onrender.com`
+- API: `https://sentinel-staging-api-mpir.onrender.com`
 
 These origins are reserved in the Blueprint configuration; they are not proof of live deployments.
 
