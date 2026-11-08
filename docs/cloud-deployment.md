@@ -2,7 +2,7 @@
 
 ## Status
 
-This document describes the cloud-only staging configuration. It is not a production launch checklist. At the time of writing, the staging API and console have not been deployed. Keep PR #63 in Draft until the database bootstrap, Render plan, and end-to-end verification are complete.
+This document describes the cloud-only staging configuration. It is not a production launch checklist. At the time of writing, Supabase has been provisioned and the Render Blueprint plan is ready for owner review, but the API and console are not deployed. Keep PR #63 in Draft. Do not approve the Render sync until the pg_net ACL issue is resolved and the existing Redis internal-auth change is verified.
 
 - GitHub branch: `feat/cloud-scheduled-assessment-worker`
 - Supabase project: `sentinel-cybersecurity-suite` (`xyzxswnofcychlkgrdsn`)
@@ -16,11 +16,11 @@ This document describes the cloud-only staging configuration. It is not a produc
 Browser
   |
   v
-Render Static Site: sentinel-staging-console
+Render Static Site: sentinel-staging-console-mpir
   |
   | HTTPS + user-supplied SENTINEL_API_KEY
   v
-Render Free Web Service: sentinel-staging-api
+Render Free Web Service: sentinel-staging-api-mpir
   |                 |
   |                 +--> Render Key Value (private URL, internal auth)
   |
@@ -37,7 +37,7 @@ Expected default service origins after a successful Render sync:
 - Console: `https://sentinel-staging-console-mpir.onrender.com`
 - API: `https://sentinel-staging-api-mpir.onrender.com`
 
-These origins are reserved in the Blueprint configuration; they are not proof of live deployments.
+The Blueprint planning response reserved these service names and origins; they are not proof of live deployments. The plan has not yet been approved, so no API or console service exists from this plan.
 
 ## Resource and cost boundaries
 
@@ -69,7 +69,7 @@ Do not place these secret values in Git, logs, screenshots, or the browser bundl
 1. Wait for all PR #63 checks to pass on its exact current head.
 2. The dedicated Supabase project is already provisioned. Do not rerun `bootstrap.sql`; verify the current schema/role/revision using `deploy/supabase/README.md`.
 3. Confirm `sentinel_database_url`, `sentinel_bootstrap_admin_key`, and `sentinel_worker_tick_secret` exist in Vault. Their decrypted values must not be shown in logs or chat.
-4. Restrict `pg_net` HTTP functions to database-admin/scheduler roles with `deploy/supabase/restrict-pg-net-access.sql`. The live project has applied this hardening; the extension itself remains in `public` because it is not relocatable.
+4. Review `pg_net` privileges using the ACL queries in `deploy/supabase/README.md`. The revocation migration is recorded but did not change the grantor-owned ACLs; `anon`, `authenticated`, and `sentinel_app` still show access. Do not enable the cron tick until Supabase Support resolves this managed ACL limitation.
 5. Enable internal authentication on the existing Render Key Value. Do not deploy the API with an unauthenticated Redis URL.
 6. Review the Render Blueprint plan. It should create only one free API web service and one free static site; it must reuse the existing Key Value.
 7. Apply the reviewed Blueprint with the required Vault secrets set on the API service. If any nonzero cost appears, stop.
