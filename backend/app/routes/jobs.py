@@ -111,11 +111,14 @@ def create_assessment_job(
                 response.status_code = status.HTTP_200_OK
                 return existing
 
-        pending_jobs = db.scalar(
-            select(func.count())
-            .select_from(AssessmentJob)
-            .where(AssessmentJob.status.in_(("queued", "running", "cancel_requested")))
-        ) or 0
+        pending_jobs = (
+            db.scalar(
+                select(func.count())
+                .select_from(AssessmentJob)
+                .where(AssessmentJob.status.in_(("queued", "running", "cancel_requested")))
+            )
+            or 0
+        )
         if pending_jobs >= settings.max_pending_assessment_jobs:
             raise HTTPException(
                 status_code=429,
