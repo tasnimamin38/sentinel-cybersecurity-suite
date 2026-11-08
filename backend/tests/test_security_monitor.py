@@ -82,3 +82,36 @@ def test_webhook_payload_signature_is_stable_and_verifiable():
     body, signature = sign_alert_payload(payload, "K" * 40)
     expected = hmac.new(("K" * 40).encode(), body, hashlib.sha256).hexdigest()
     assert signature == "sha256=" + expected
+
+def test_cloudflare_client_ip_is_used_only_when_explicitly_trusted():
+    observed = resolve_client_ip(
+        peer_ip="172.30.240.12",
+        x_real_ip=None,
+        trusted_proxy_cidrs=[],
+        cf_connecting_ip="198.51.100.24",
+        trust_cf_connecting_ip=True,
+    )
+    assert observed == "198.51.100.24"
+
+
+def test_cloudflare_client_ip_is_ignored_when_trust_is_disabled():
+    observed = resolve_client_ip(
+        peer_ip="172.30.240.12",
+        x_real_ip=None,
+        trusted_proxy_cidrs=[],
+        cf_connecting_ip="198.51.100.24",
+        trust_cf_connecting_ip=False,
+    )
+    assert observed == "172.30.240.12"
+
+
+def test_invalid_cloudflare_client_ip_falls_back_to_peer_ip():
+    observed = resolve_client_ip(
+        peer_ip="172.30.240.12",
+        x_real_ip=None,
+        trusted_proxy_cidrs=[],
+        cf_connecting_ip="not-an-ip",
+        trust_cf_connecting_ip=True,
+    )
+    assert observed == "172.30.240.12"
+
