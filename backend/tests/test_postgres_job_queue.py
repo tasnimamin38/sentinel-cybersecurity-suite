@@ -126,6 +126,7 @@ def test_postgres_worker_tick_allows_only_one_concurrent_executor(monkeypatch):
         )
         tick_sessions = sessionmaker(bind=tick_engine, expire_on_commit=False)
         monkeypatch.setattr(worker, "SessionLocal", tick_sessions)
+        monkeypatch.setattr(worker, "engine", tick_engine)
 
         claimed: list[str] = []
 
