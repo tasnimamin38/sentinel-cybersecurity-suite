@@ -20,6 +20,15 @@ class ApiPrincipal:
     credential_source: str
 
 
+# Public API surface is intentionally tiny. These routes must remain
+# read-only and are protected by the global IP rate limiter in main.py.
+PUBLIC_API_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("GET", "/api/v1/plans"),
+    }
+)
+
+
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "admin": frozenset({"*"}),
     "analyst": frozenset(
