@@ -8,7 +8,7 @@ This project is dedicated to SENTINEL staging. Do not point unrelated apps at it
 
 ## Bootstrap
 
-**Live staging project status:** the current project is already provisioned. It has the private `sentinel` schema, six application tables plus `alembic_version`, the `sentinel_app` role, RLS policies, and Alembic revision `0004_api_credentials`. Four provisioning migrations are recorded in `supabase_migrations.schema_migrations`. Do not reapply `bootstrap.sql` to the existing project.
+**Live staging project status:** the current project is already provisioned. It has the private `sentinel` schema, six application tables plus `alembic_version`, the `sentinel_app` role, RLS policies, and Alembic revision `0004_api_credentials`. Seven migration entries are recorded in `supabase_migrations.schema_migrations`, including the verified `20261108205814_remove_unused_pg_net_extension` cleanup. The application Alembic revision remains `0004_api_credentials`. Do not reapply `bootstrap.sql` to the existing project.
 
 For a genuinely fresh, empty SENTINEL Supabase project only, apply `bootstrap.sql` once as its database owner. It:
 
@@ -67,23 +67,17 @@ Expected:
 - `sentinel_app` has all five privileged flags false.
 - `can_use_schema` and DML privileges are true; both CREATE flags are false.
 
-Run Supabase security and performance advisors after applying the schema. The live project still reports the managed `pg_net` extension in `public`; Supabase documents it as non-relocatable. A revocation migration is recorded, but direct ACL inspection still shows `anon`, `authenticated`, and `sentinel_app` inheriting `USAGE`, request/response table `SELECT`, and `net.http_post` execution from grants made by `supabase_admin`. The connected `postgres` role cannot remove those grantor-owned permissions. Treat this as an unresolved managed-extension privilege issue, not a completed hardening step; keep `net` out of any Data API exposed-schema list and ask Supabase Support to restrict the grantor-owned ACLs. The worker must not be enabled until the exposure path has been reviewed.
+Run Supabase security and performance advisors after applying the schema.
 
-## Scheduled worker
+## Extension and scheduler boundary
 
-Only after the API is healthy and its database/runtime secrets are set, apply `worker-tick.sql` as the owner. The live project currently has no `sentinel-worker-tick` cron job; this remains intentionally disabled until the API deploy passes readiness checks. It installs `pg_cron` and `pg_net`, then registers one job every minute. The cron command looks up its API origin and worker secret from Vault at execution time; it does not embed decrypted values in `cron.job.command`. The `pg_net` request queue itself may transiently hold the header value; the unresolved ACL issue above must be cleared before enabling this job.
+The managed pg_net extension was removed from the dedicated SENTINEL staging project by migration 20261108205814_remove_unused_pg_net_extension. Before removing it, the operator verified that the queue had zero pending requests, there were no stored responses, no Cron jobs, no database webhooks or pg_net-dependent triggers, and no application function called net.http_*. Afterward, a fresh SQL check confirmed that the extension, net schema, tables and routines were absent while the private sentinel schema and application tables remained available.
 
-Each API tick can execute at most one queued job. A PostgreSQL session-level advisory lock prevents overlapping ticks from running separate jobs concurrently. The application still enforces its existing asset authorization, expiry, and outbound request controls.
+This is intentional. Supabase documents that the managed pg_net objects and grants are owned by supabase_admin; ordinary project roles cannot revoke all inherited grants. SENTINEL does not need database-originated HTTP. Do not reinstall pg_net or apply the superseded restrict-pg-net-access.sql script.
 
-Inspect `cron.job` and `cron.job_run_details` for status only. Avoid selecting the Vault decrypted view or exposing request headers from `pg_net`.
+The scheduled API tick is designed to use a separate Cloudflare Worker Cron Trigger. The Worker calls the public HTTPS API endpoint POST /internal/worker/tick with X-Sentinel-Worker-Secret. The API keeps SENTINEL_WORKER_TICK_ENABLED=false until the Render API is healthy, Cloudflare Worker secrets are configured, the exact API origin has been checked, and the Worker Cron Trigger is deployed. The secret value must match between Render and Cloudflare and must never be committed or placed in the browser bundle. The Vault copy remains the operator-controlled source copy; never select vault.decrypted_secrets into logs or chat.
 
-To pause processing before rotating the secret or changing the API URL:
-
-```sql
-SELECT cron.unschedule(jobid)
-FROM cron.job
-WHERE jobname = 'sentinel-worker-tick';
-```
+Worker code and tests live in deploy/cloudflare/worker-tick/. The current one-minute trigger is a low-volume staging scheduler, not a durable distributed queue. Keep the application job leases, idempotency and single-flight protections as the source of truth.
 
 ## Operational boundaries
 
