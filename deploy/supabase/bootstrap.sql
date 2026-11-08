@@ -45,14 +45,14 @@ BEGIN
     SELECT decrypted_secret
       INTO admin_api_key
       FROM vault.decrypted_secrets
-     WHERE name = 'sentinel_admin_api_key';
+     WHERE name = 'sentinel_bootstrap_admin_key';
 
     IF admin_api_key IS NULL THEN
         admin_api_key := encode(extensions.gen_random_bytes(32), 'hex');
         PERFORM vault.create_secret(
             admin_api_key,
-            'sentinel_admin_api_key',
-            'SENTINEL staging bootstrap administrator API key'
+            'sentinel_bootstrap_admin_key',
+            'SENTINEL bootstrap administrator API key'
         );
     END IF;
 
@@ -281,6 +281,58 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA sentinel
     GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO sentinel_app;
 
 GRANT CONNECT ON DATABASE postgres TO sentinel_app;
+
+-- RLS stays enabled on the private tables. Only the isolated runtime login
+-- receives an application policy; anon/authenticated receive none.
+DO $rls$
+DECLARE
+    app_table text;
+    app_tables text[] := ARRAY[
+        'assets',
+        'assessments',
+        'remediation_tasks',
+        'audit_events',
+        'assessment_jobs',
+        'api_credentials'
+    ];
+BEGIN
+    FOREACH app_table IN ARRAY app_tables LOOP
+        EXECUTE format('ALTER TABLE sentinel.%I ENABLE ROW LEVEL SECURITY', app_table);
+        IF NOT EXISTS (
+            SELECT 1
+              FROM pg_policies
+             WHERE schemaname = 'sentinel'
+               AND tablename = app_table
+               AND policyname = 'sentinel_app_access'
+        ) THEN
+            EXECUTE format(
+                'CREATE POLICY sentinel_app_access ON sentinel.%I TO sentinel_app USING (true) WITH CHECK (true)',
+                app_table
+            );
+        END IF;
+    END LOOP;
+
+    ALTER TABLE sentinel.alembic_version ENABLE ROW LEVEL SECURITY;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_policies
+         WHERE schemaname = 'sentinel'
+           AND tablename = 'alembic_version'
+           AND policyname = 'sentinel_app_read_revision'
+    ) THEN
+        CREATE POLICY sentinel_app_read_revision
+            ON sentinel.alembic_version
+            FOR SELECT TO sentinel_app USING (true);
+    END IF;
+END
+$rls$;
+
+REVOKE ALL ON SCHEMA sentinel FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON ALL TABLES IN SCHEMA sentinel FROM PUBLIC, anon, authenticated;
+GRANT USAGE ON SCHEMA sentinel TO sentinel_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA sentinel TO sentinel_app;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA sentinel TO sentinel_app;
+REVOKE CREATE ON SCHEMA sentinel FROM sentinel_app;
 
 DO $assertions$
 DECLARE
