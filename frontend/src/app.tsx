@@ -74,7 +74,7 @@ type ApiCredential = {
 };
 type CreatedCredential = { credential: ApiCredential; secret: string };
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\\/+$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",
