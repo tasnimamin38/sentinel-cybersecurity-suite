@@ -51,7 +51,7 @@ services:
     branch: feat/cloud-scheduled-assessment-worker
     rootDir: frontend
     buildCommand: npm ci && npm run build
-    staticPublishPath: frontend/dist
+    staticPublishPath: dist
     autoDeployTrigger: off
     envVars:
       - key: VITE_API_BASE_URL
