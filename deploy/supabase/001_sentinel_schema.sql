@@ -125,3 +125,38 @@ insert into sentinel.alembic_version(version_num) values ('0004_api_credentials'
 
 grant select, insert, update, delete on all tables in schema sentinel to sentinel_app;
 grant usage, select, update on all sequences in schema sentinel to sentinel_app;
+
+
+-- Keep the schema private to the backend runtime role.
+revoke all on schema sentinel from public, anon, authenticated;
+revoke all on all tables in schema sentinel from public, anon, authenticated;
+grant usage on schema sentinel to sentinel_app;
+grant select, insert, update, delete on all tables in schema sentinel to sentinel_app;
+
+alter table sentinel.assets enable row level security;
+drop policy if exists sentinel_app_access on sentinel.assets;
+create policy sentinel_app_access on sentinel.assets to sentinel_app using (true) with check (true);
+
+alter table sentinel.assessments enable row level security;
+drop policy if exists sentinel_app_access on sentinel.assessments;
+create policy sentinel_app_access on sentinel.assessments to sentinel_app using (true) with check (true);
+
+alter table sentinel.remediation_tasks enable row level security;
+drop policy if exists sentinel_app_access on sentinel.remediation_tasks;
+create policy sentinel_app_access on sentinel.remediation_tasks to sentinel_app using (true) with check (true);
+
+alter table sentinel.audit_events enable row level security;
+drop policy if exists sentinel_app_access on sentinel.audit_events;
+create policy sentinel_app_access on sentinel.audit_events to sentinel_app using (true) with check (true);
+
+alter table sentinel.assessment_jobs enable row level security;
+drop policy if exists sentinel_app_access on sentinel.assessment_jobs;
+create policy sentinel_app_access on sentinel.assessment_jobs to sentinel_app using (true) with check (true);
+
+alter table sentinel.api_credentials enable row level security;
+drop policy if exists sentinel_app_access on sentinel.api_credentials;
+create policy sentinel_app_access on sentinel.api_credentials to sentinel_app using (true) with check (true);
+
+alter table sentinel.alembic_version enable row level security;
+drop policy if exists sentinel_app_read_revision on sentinel.alembic_version;
+create policy sentinel_app_read_revision on sentinel.alembic_version for select to sentinel_app using (true);
