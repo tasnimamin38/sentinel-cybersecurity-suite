@@ -8,11 +8,11 @@ services:
     plan: free
     region: singapore
     repo: https://github.com/tasnimamin38/sentinel-cybersecurity-suite
-    branch: feat/cloud-scheduled-assessment-worker
+    branch: main
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /readyz
-    autoDeployTrigger: off
+    autoDeployTrigger: checksPass
     envVars:
       - key: SENTINEL_ENVIRONMENT
         value: production
@@ -24,7 +24,7 @@ services:
         value: https://sentinel-staging-console-mpir.onrender.com
       - key: SENTINEL_TRUST_CLOUDFLARE_IP_HEADER
         value: "true"
-      # Keep the internal worker tick disabled until pg_net ACL access is resolved.
+      # Keep the internal worker tick disabled until the external Cloudflare scheduler is configured and verified.
       - key: SENTINEL_WORKER_TICK_ENABLED
         value: "false"
       - key: SENTINEL_WORKER_TICK_RATE_LIMIT_PER_MINUTE
@@ -49,11 +49,11 @@ services:
     name: sentinel-staging-console
     runtime: static
     repo: https://github.com/tasnimamin38/sentinel-cybersecurity-suite
-    branch: feat/cloud-scheduled-assessment-worker
+    branch: main
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
-    autoDeployTrigger: off
+    autoDeployTrigger: checksPass
     envVars:
       - key: VITE_API_BASE_URL
         value: https://sentinel-staging-api-mpir.onrender.com
