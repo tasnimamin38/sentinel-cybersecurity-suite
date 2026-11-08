@@ -6,7 +6,7 @@
 
 **Architecture:** The frontend is a Render static site with a build-time API base URL. The FastAPI backend is a Render Free Docker web service. Its persistent data is in the dedicated Supabase Postgres private schema `sentinel`; the API uses a restricted database role via the Supabase IPv4 session pooler. Supabase Cron calls a secret-protected internal API tick once each minute; a tick processes at most one existing authorized assessment job.
 
-**Tech Stack:** FastAPI, SQLAlchemy, Alembic, PostgreSQL 17, Supabase Vault/pg_cron/pg_net, Render Docker web service, Render static site, Render Key Value, GitHub Actions.
+**Tech Stack:** FastAPI, SQLAlchemy, Alembic, PostgreSQL 17, Supabase Vault, Cloudflare Workers Cron Trigger, Render Docker web service, Render static site, Render Key Value, GitHub Actions.
 
 **Spec:** `docs/superpowers/specs/2026-11-08-sentinel-cloud-staging.md`
 
@@ -108,23 +108,30 @@
 - [ ] Create the static console and set `VITE_API_BASE_URL` to the hosted API origin.
 - [ ] Verify Render reports healthy deployments, but do not claim uptime guarantees.
 
-### Task 5: Supabase scheduled tick and end-to-end staging validation
+### Task 5: External scheduled tick and end-to-end staging validation
 
 **Files:**
-- Create: `deploy/supabase/worker-tick.sql`
-- Modify: `docs/cloud-deployment.md`
+- Create: deploy/cloudflare/worker-tick/worker.js
+- Create: deploy/cloudflare/worker-tick/worker.test.mjs
+- Create: deploy/cloudflare/worker-tick/wrangler.toml
+- Create: deploy/supabase/migrations/20261108205814_remove_unused_pg_net_extension.sql
 
 **Interfaces:**
-- Store API URL and worker tick secret in Supabase Vault.
-- Schedule `cron` once per minute using `pg_net.http_post` to `/internal/worker/tick`.
-- Request body contains no target or credentials; it only triggers the server-side queue consumer.
-- Disable the cron job when the staging API is not healthy or before changing the tick secret.
+- Cloudflare Worker Cron Trigger runs once per minute with scheduled().
+- The Worker reads SENTINEL_API_URL as a non-secret HTTPS origin and SENTINEL_WORKER_TICK_SECRET as a secret binding.
+- It POSTs an empty JSON object to /internal/worker/tick; redirects are rejected and only status/error names (never secrets or bodies) may be logged.
+- The API's SENTINEL_WORKER_TICK_ENABLED remains false until API readiness, secret equality and scheduler deployment are verified.
+- The Supabase project no longer installs pg_net; external scheduling avoids database-originated HTTP and its managed ACL grant path.
 
-- [ ] Enable `pg_cron` and `pg_net` if available, without enabling public Data API access to internal tables.
-- [ ] Create Vault secrets without printing values.
-- [ ] Schedule the tick and verify run history and HTTP response status without logging the secret.
-- [ ] Verify health/readiness, API CORS, DB access, rate-limiter fail-closed behavior, enqueue one authorized test job only if an actual owned domain has been supplied, and confirm one job per tick.
-- [ ] Do not assess any third-party hostname or internet target until its owner authorization is configured.
+- [x] Verify the dedicated Supabase staging project had no pending pg_net requests/responses, no cron jobs, no webhooks, no pg_net-dependent triggers and no application routines referencing net.http_*.
+- [x] Remove unused pg_net in recorded migration 20261108205814_remove_unused_pg_net_extension; verify net objects disappear while sentinel remains intact.
+- [x] Add a Cloudflare Worker with HTTPS-only destination, fail-closed secret configuration, redirect rejection, bounded request timeout and sanitized logs.
+- [x] Add Node built-in tests for authenticated request shape and missing-binding/HTTPS failure behavior.
+- [ ] Run Cloudflare Worker tests in GitHub Actions on this PR head.
+- [ ] Provision the Render API and static console from main, verify /healthz and /readyz, and confirm $0 plans.
+- [ ] Set the same worker secret in Render and Cloudflare through encrypted secret bindings; never print or commit it.
+- [ ] Only after API health and secret parity are confirmed, configure the one-minute Cloudflare Cron Trigger and enable the API tick.
+- [ ] Verify scheduler HTTP status and one-job-per-tick behavior without real scan targets. Keep sentinel.invalid reserved.
 
 ### Task 6: Final review and release gate
 
