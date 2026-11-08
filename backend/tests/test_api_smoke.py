@@ -727,9 +727,11 @@ def test_assessment_job_creation_uses_a_dedicated_per_key_rate_limit(client, mon
 def test_assessment_job_queue_rejects_new_jobs_at_the_pending_capacity(client, monkeypatch):
     db = SessionLocal()
     try:
-        pending_before = db.query(AssessmentJob).filter(
-            AssessmentJob.status.in_(("queued", "running", "cancel_requested"))
-        ).count()
+        pending_before = (
+            db.query(AssessmentJob)
+            .filter(AssessmentJob.status.in_(("queued", "running", "cancel_requested")))
+            .count()
+        )
     finally:
         db.close()
 
