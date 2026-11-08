@@ -101,6 +101,7 @@ jobs:
       - name: Validate Compose interpolation and structure
         env:
           POSTGRES_PASSWORD: "ci-only-not-a-secret"
+          SENTINEL_DB_APP_PASSWORD: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
           REDIS_PASSWORD: "ci-only-redis-password"
           SENTINEL_API_KEY: "ci-only-placeholder-key-not-for-deployment"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
@@ -136,6 +137,7 @@ jobs:
       - name: Exercise same-origin console-to-API proxy in Compose
         env:
           POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db"
+          SENTINEL_DB_APP_PASSWORD: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
           REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"
@@ -162,10 +164,29 @@ jobs:
           else:
               raise SystemExit(f"Same-origin proxy smoke test failed: {last_error}")
           '
+          docker compose exec -T api python -c '
+          from sqlalchemy import text
+          from app.database import engine
+          with engine.connect() as connection:
+              role = connection.execute(text("SELECT current_user, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolbypassrls FROM pg_roles WHERE rolname = current_user")).one()
+              assert role[0] == "sentinel_app" and not any(role[1:]), role
+              assert not connection.scalar(text("SELECT has_schema_privilege(current_user, :schema, :privilege)"), {"schema": "public", "privilege": "CREATE"})
+          print("API uses the restricted, non-DDL PostgreSQL runtime role.")
+          '
+          docker compose exec -T worker python -c '
+          from sqlalchemy import text
+          from app.database import engine
+          with engine.connect() as connection:
+              role = connection.execute(text("SELECT current_user, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolbypassrls FROM pg_roles WHERE rolname = current_user")).one()
+              assert role[0] == "sentinel_app" and not any(role[1:]), role
+              assert not connection.scalar(text("SELECT has_schema_privilege(current_user, :schema, :privilege)"), {"schema": "public", "privilege": "CREATE"})
+          print("Worker uses the restricted, non-DDL PostgreSQL runtime role.")
+          '
       - name: Tear down Compose smoke stack
         if: always()
         env:
           POSTGRES_PASSWORD: "ci-db-ci-db-ci-db-ci-db-ci-db"
+          SENTINEL_DB_APP_PASSWORD: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
           REDIS_PASSWORD: "ci-redis-ci-redis-ci-redis-ci-redis"
           SENTINEL_API_KEY: "ci-api-ci-api-ci-api-ci-api-ci-api"
           SENTINEL_ALLOWED_DOMAINS: "example.com"

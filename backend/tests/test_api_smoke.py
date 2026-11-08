@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -16,7 +17,7 @@ from fastapi.testclient import TestClient
 from app.auth import ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import ApiCredential, Assessment, RemediationTask
+from app.models import ApiCredential, Assessment, AssessmentJob, RemediationTask
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -690,3 +691,76 @@ def test_cors_preflight_allows_assessment_idempotency_key(client):
     allowed_headers = response.headers["access-control-allow-headers"].lower()
     assert "x-api-key" in allowed_headers
     assert "idempotency-key" in allowed_headers
+
+
+def test_assessment_job_creation_uses_a_dedicated_per_key_rate_limit(client, monkeypatch):
+    class QueueRateLimiter:
+        def __init__(self):
+            self.keys = []
+
+        async def check(self, key, limit, window_seconds):
+            self.keys.append((key, limit, window_seconds))
+            if key.startswith("sentinel:rate:assessment-job:"):
+                return SimpleNamespace(allowed=False, retry_after_seconds=19)
+            return SimpleNamespace(allowed=True, retry_after_seconds=0)
+
+    limiter = QueueRateLimiter()
+    previous = getattr(app.state, "rate_limiter", None)
+    app.state.rate_limiter = limiter
+    try:
+        response = client.post(
+            "/api/v1/assessment-jobs",
+            headers=API_HEADERS,
+            json={"asset_id": "00000000-0000-0000-0000-000000000000"},
+        )
+    finally:
+        app.state.rate_limiter = previous
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "19"
+    queue_checks = [entry for entry in limiter.keys if ":assessment-job:" in entry[0]]
+    assert len(queue_checks) == 1
+    assert queue_checks[0][1] == settings.assessment_job_rate_limit_per_minute
+    assert "S" * 40 not in queue_checks[0][0]
+
+
+def test_assessment_job_queue_rejects_new_jobs_at_the_pending_capacity(client, monkeypatch):
+    db = SessionLocal()
+    try:
+        pending_before = (
+            db.query(AssessmentJob)
+            .filter(AssessmentJob.status.in_(("queued", "running", "cancel_requested")))
+            .count()
+        )
+    finally:
+        db.close()
+
+    monkeypatch.setattr(settings, "max_pending_assessment_jobs", pending_before + 1, raising=False)
+
+    first_asset = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"capacity-a-{uuid4().hex[:8]}.example.com"),
+    )
+    second_asset = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"capacity-b-{uuid4().hex[:8]}.example.com"),
+    )
+    assert first_asset.status_code == 201
+    assert second_asset.status_code == 201
+
+    first_job = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": first_asset.json()["id"]},
+    )
+    assert first_job.status_code == 202
+
+    rejected = client.post(
+        "/api/v1/assessment-jobs",
+        headers=API_HEADERS,
+        json={"asset_id": second_asset.json()["id"]},
+    )
+    assert rejected.status_code == 429
+    assert "queue is at capacity" in rejected.json()["detail"].lower()
