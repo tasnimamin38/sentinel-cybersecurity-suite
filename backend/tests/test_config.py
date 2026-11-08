@@ -261,6 +261,20 @@ class ProductionConfigTests(unittest.TestCase):
                 cors_origins="https://console.example.com",
             )
 
+    def test_assessment_job_limits_have_safe_defaults_and_validate_bounds(self):
+        settings = Settings()
+        self.assertEqual(settings.assessment_job_rate_limit_per_minute, 5)
+        self.assertEqual(settings.max_pending_assessment_jobs, 250)
+
+        with self.assertRaises(ValidationError):
+            Settings(assessment_job_rate_limit_per_minute=0)
+        with self.assertRaises(ValidationError):
+            Settings(assessment_job_rate_limit_per_minute=100_001)
+        with self.assertRaises(ValidationError):
+            Settings(max_pending_assessment_jobs=0)
+        with self.assertRaises(ValidationError):
+            Settings(max_pending_assessment_jobs=100_001)
+
 
 if __name__ == "__main__":
     unittest.main()
