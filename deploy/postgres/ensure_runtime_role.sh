@@ -36,7 +36,13 @@ ALTER ROLE sentinel_app
     WITH LOGIN PASSWORD :'app_password'
     NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT CONNECTION LIMIT 40;
 
-REVOKE sentinel FROM sentinel_app;
+-- Remove any pre-existing role memberships too; NOINHERIT alone does not prevent SET ROLE.
+SELECT format('REVOKE %I FROM sentinel_app', parent.rolname)
+FROM pg_auth_members AS membership
+JOIN pg_roles AS parent ON parent.oid = membership.roleid
+JOIN pg_roles AS member ON member.oid = membership.member
+WHERE member.rolname = 'sentinel_app'
+\\gexec
 
 GRANT CONNECT ON DATABASE sentinel TO sentinel_app;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
