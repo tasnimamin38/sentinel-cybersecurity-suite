@@ -84,6 +84,7 @@ Do not place these secret values in Git, logs, screenshots, or the browser bundl
 8. Verify the API `/healthz` and `/readyz` endpoints and the static console.
 9. After the API origin is healthy, set the Vercel Production environment variable `VITE_API_BASE_URL` to that exact HTTPS origin and redeploy the existing Vercel project. Verify the custom domain calls the API successfully with a customer-held API key.
 10. Do not schedule the Cloudflare Worker until the Render API `/readyz` endpoint is healthy, its encrypted `SENTINEL_WORKER_TICK_SECRET` matches the Cloudflare secret binding, and the API origin is verified. Then enable the API tick and create the one-minute Cron Trigger as a separate reviewed step. Verify HTTP status without logging the request header or response body.
+11. Leave `SENTINEL_ALLOWED_DOMAINS` at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
 11. Leave the allowed target list at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
 
 
