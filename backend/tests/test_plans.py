@@ -76,11 +76,11 @@ def test_invalid_workspace_type_is_rejected():
 
 
 def test_returned_catalog_cannot_mutate_the_shared_plan_definitions():
-    first = get_public_plan_catalog()
+    first = get_public_plan_catalog("personal")
     first["plans"][0]["feature_codes"].clear()
     first["plans"][0]["limits"]["max_assets"] = 0
 
-    second = get_public_plan_catalog()
+    second = get_public_plan_catalog("personal")
     free = next(plan for plan in second["plans"] if plan["code"] == "free_early_access")
     assert set(free["feature_codes"]) == set(FREE_FEATURE_CODES)
     assert free["limits"]["max_assets"] == 10
