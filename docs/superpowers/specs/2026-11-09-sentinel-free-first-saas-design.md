@@ -12,7 +12,7 @@ SENTINEL is a multi-tenant Security Operations SaaS. The launch model is **Free 
 - Personal and Company workspaces can use every currently shipped core security module without a paid feature gate.
 - Checkout, subscription charging, invoices, card collection and paid-plan enforcement are disabled.
 - Future plan prices are catalogue previews only and must never create a payment intent or entitlement change.
-- Fair-use limits protect shared infrastructure and assessment capacity. These are usage ceilings, not feature paywalls.
+- Personal/Company fair-use ceilings are the initial product targets. They are catalogue metadata only until the tenant usage ledger and atomic quota enforcement are implemented; do not describe them as enforced before that release gate passes. These are usage ceilings, not feature paywalls.
 - Existing API-key integrations remain supported during the human-identity rollout.
 - No production customer data is migrated or exposed until tenant isolation is fully enforced and independently tested.
 
@@ -77,7 +77,7 @@ The only selectable and active plan at launch is **Free Early Access — $0/mont
 
 Fair-use limits are applied by workspace type:
 
-| Resource | Personal Free Early Access | Company Free Early Access |
+| Resource | Personal Free Early Access target | Company Free Early Access target |
 |---|---:|---:|
 | Registered assets | 10 | 25 |
 | Completed assessments | 20 / calendar month | 50 / calendar month |
@@ -87,7 +87,7 @@ Fair-use limits are applied by workspace type:
 | Core security modules | All currently shipped modules | All currently shipped modules |
 | Billing/checkout | Disabled | Disabled |
 
-A quota response must state the resource, current usage, limit and reset time. Quota counters use the workspace time zone policy (UTC for the first release) and must be updated transactionally/idempotently. Usage caps may pause new work but must not delete existing evidence or bypass asset authorization.
+The current plan catalogue returns these values with `limits_enforced=false` and `usage_limits_enforced=false`. Until the usage ledger exists, the live API does not enforce these catalogue values. Before turning enforcement on, quota responses must state the resource, current usage, limit and reset time. Counters use UTC for the first release and must be updated transactionally/idempotently. Usage caps may pause new work but must not delete existing evidence or bypass asset authorization.
 
 ### Future catalogue previews — not for sale
 
