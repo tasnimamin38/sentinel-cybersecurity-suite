@@ -62,11 +62,24 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
             )
         )
     else:
-        directives = {}
+        directives: dict[str, list[str]] = {}
         for item in csp.split(";"):
             parts = item.strip().split()
             if parts:
-                directives[parts[0]] = parts[1:]
+                # CSP uses the first occurrence of a directive; ignore duplicates.
+                directives.setdefault(parts[0], parts[1:])
+
+        has_script_fallback = "script-src" in directives or "default-src" in directives
+        if not has_script_fallback:
+            findings.append(
+                _finding(
+                    "CSP_SCRIPT_POLICY_UNRESTRICTED",
+                    "CSP does not define a script-source fallback",
+                    "high",
+                    "Neither script-src nor default-src is present. Script requests not covered by a more specific script-src-elem directive may fall back to an unrestricted policy.",
+                    "Define a restrictive script-src directive, or a suitable default-src fallback, and separately review script-src-elem and script-src-attr where used.",
+                )
+            )
         script_sources = directives.get("script-src", directives.get("default-src", []))
         if "'unsafe-eval'" in script_sources:
             findings.append(
@@ -109,7 +122,8 @@ def evaluate_security_headers(headers: dict[str, str]) -> list[dict]:
                 "Set X-Content-Type-Options: nosniff.",
             )
         )
-    if "x-frame-options" not in normalized and "frame-ancestors" not in csp:
+    has_frame_ancestors = bool(directives.get("frame-ancestors")) if csp else False
+    if "x-frame-options" not in normalized and not has_frame_ancestors:
         findings.append(
             _finding(
                 "MISSING_FRAME_PROTECTION",
