@@ -769,6 +769,7 @@ def test_assessment_job_queue_rejects_new_jobs_at_the_pending_capacity(client, m
 
 def test_internal_worker_tick_runs_one_job_only_with_the_shared_secret(client, monkeypatch):
     worker = importlib.import_module("app.worker")
+    main_module = importlib.import_module("app.main")
     calls = []
 
     async def process_one_job():
@@ -776,9 +777,16 @@ def test_internal_worker_tick_runs_one_job_only_with_the_shared_secret(client, m
         return "opaque-job-id"
 
     monkeypatch.setattr(worker, "process_one_job", process_one_job, raising=False)
-    monkeypatch.setattr(settings, "worker_tick_enabled", True, raising=False)
-    monkeypatch.setattr(settings, "worker_tick_secret", "T" * 40, raising=False)
-    monkeypatch.setattr(settings, "environment", "test", raising=False)
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            environment="test",
+            trusted_proxy_cidr_list=[],
+            worker_tick_enabled=True,
+            worker_tick_secret="T" * 40,
+        ),
+    )
 
     response = client.post(
         "/internal/worker/tick",
@@ -792,8 +800,17 @@ def test_internal_worker_tick_runs_one_job_only_with_the_shared_secret(client, m
 
 
 def test_internal_worker_tick_rejects_a_wrong_secret(client, monkeypatch):
-    monkeypatch.setattr(settings, "worker_tick_enabled", True, raising=False)
-    monkeypatch.setattr(settings, "worker_tick_secret", "T" * 40, raising=False)
+    main_module = importlib.import_module("app.main")
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            environment="test",
+            trusted_proxy_cidr_list=[],
+            worker_tick_enabled=True,
+            worker_tick_secret="T" * 40,
+        ),
+    )
 
     response = client.post(
         "/internal/worker/tick",
