@@ -4,11 +4,11 @@ import {
   Activity, AlertTriangle, ArrowUpRight, Bell, CalendarClock, CheckCircle2, Download,
   ChevronDown, ChevronRight, CircleDot, ClipboardCheck, Database, Fingerprint,
   Globe2, KeyRound, Layers3, ListChecks, LockKeyhole, Plus, Radar, RefreshCw,
-  ScanLine, Search, Server, Settings2, Shield, ShieldAlert, ShieldCheck,
+  ScanLine, Search, Server, Settings2, Shield, ShieldAlert, ShieldCheck, CreditCard,
   Workflow, FileSearch,
 } from "lucide-react";
 
-type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials";
+type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials" | "plans";
 type Finding = {
   code: string; title: string; severity: string; description: string;
   recommendation: string; category?: string; confidence?: number;
@@ -106,6 +106,7 @@ const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",
   audit: "Audit integrity", security: "Threat monitor", secrets: "Secret hygiene", credentials: "API access control",
+  plans: "Plans & access",
 };
 const navGroups = [
   { label: "OPERATIONS", items: [
@@ -123,11 +124,14 @@ const navGroups = [
   { label: "ADMINISTRATION", items: [
     { id: "credentials" as View, label: "API access control", icon: KeyRound },
   ]},
+  { label: "ACCOUNT", items: [
+    { id: "plans" as View, label: "Plans & access", icon: CreditCard },
+  ]},
 ];
 const viewPermissions: Record<View, string> = {
   overview: "dashboard.read", assets: "asset.read", findings: "assessment.read",
   remediations: "remediation.read", controls: "controls.read", audit: "audit.read", security: "audit.read",
-  secrets: "secrets.scan", credentials: "credential.manage",
+  secrets: "secrets.scan", credentials: "credential.manage", plans: "plans.read",
 };
 
 function localDateTimeAfterDays(days: number) {
@@ -434,7 +438,7 @@ export default function App() {
   const latest = assessments[0];
   const environmentLabel = assets.some((asset) => asset.environment === "production") ? "PRODUCTION SCOPE" : "LOCAL WORKSPACE";
   const can = (permission: string) => identity?.role === "admin" || Boolean(identity?.permissions.includes(permission));
-  const visibleNavGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => can(viewPermissions[item.id])) })).filter((group) => group.items.length > 0);
+  const visibleNavGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => item.id === "plans" || can(viewPermissions[item.id])) })).filter((group) => group.items.length > 0);
 
   return (
     <div className="app-shell">
@@ -514,6 +518,7 @@ export default function App() {
             </>
           ) : (
             <>
+              {view === "plans" && <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />}
               {view === "overview" && (
                 <>
                   <section className="metric-grid">
