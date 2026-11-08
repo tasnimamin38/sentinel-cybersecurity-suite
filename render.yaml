@@ -21,7 +21,7 @@ services:
       - key: SENTINEL_ALLOWED_DOMAINS
         value: sentinel.invalid
       - key: SENTINEL_CORS_ORIGINS
-        value: https://sentinel.toolixaai.com,https://sentinel-staging-console-mpir.onrender.com
+        value: https://sentinel.toolixaai.com,https://sentinel-staging-console-q2nk.onrender.com
       - key: SENTINEL_TRUST_CLOUDFLARE_IP_HEADER
         value: "true"
       # Keep the internal worker tick disabled until the external Cloudflare scheduler is configured and verified.
@@ -56,4 +56,4 @@ services:
     autoDeployTrigger: checksPass
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://sentinel-staging-api-mpir.onrender.com
+        value: https://sentinel-staging-api-q2nk.onrender.com
