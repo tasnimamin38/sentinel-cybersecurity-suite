@@ -8,7 +8,7 @@ This document describes the cloud-only staging configuration. It is not a produc
 - Supabase project: `sentinel-cybersecurity-suite` (`xyzxswnofcychlkgrdsn`)
 - Render Key Value: `sentinel-cybersecurity-suite-redis` (`red-dbo9k7jm8hqs73fui9r0`)
 - Render workspace: `tea-d9tlmim5djic73a5ftr0`
-- Vercel project was linked separately but is not part of the selected staging path.
+- Vercel serves the existing public console at https://sentinel.toolixaai.com. After the Render API is healthy, set Production environment variable VITE_API_BASE_URL to the verified API origin and redeploy the Vercel project. The Render static console remains a separate staging smoke-test surface.
 
 ## Planned topology
 
@@ -62,7 +62,7 @@ Render Blueprint values:
 | `SENTINEL_ENVIRONMENT` | `production` (strict configuration and fail-closed rate limiting) |
 | `SENTINEL_PROCESS_ROLE` | `api` |
 | `SENTINEL_ALLOWED_DOMAINS` | `sentinel.invalid` until an owner-authorized domain is supplied |
-| `SENTINEL_CORS_ORIGINS` | Exact static-site HTTPS origin |
+| `SENTINEL_CORS_ORIGINS` | Comma-separated exact HTTPS origins: `https://sentinel.toolixaai.com` and the optional Render staging console origin |
 | `SENTINEL_TRUST_CLOUDFLARE_IP_HEADER` | `true` for the managed edge's client-IP header |
 | `SENTINEL_REDIS_URL` | Render Key Value `connectionString` service reference |
 | `SENTINEL_DATABASE_URL` | Vault secret `sentinel_database_url` |
@@ -77,13 +77,15 @@ Do not place these secret values in Git, logs, screenshots, or the browser bundl
 1. Wait for all PR #63 checks to pass on its exact current head.
 2. The dedicated Supabase project is already provisioned. Do not rerun `bootstrap.sql`; verify the current schema/role/revision using `deploy/supabase/README.md`.
 3. Confirm `sentinel_database_url`, `sentinel_bootstrap_admin_key`, and `sentinel_worker_tick_secret` exist in Vault. Their decrypted values must not be shown in logs or chat.
-4. Review `pg_net` privileges using the ACL queries in `deploy/supabase/README.md`. The revocation migration is recorded but did not change the grantor-owned ACLs; `anon`, `authenticated`, and `sentinel_app` still show access. Do not enable the worker tick or cron until Supabase Support resolves this managed ACL limitation or an owner explicitly records acceptance of the residual risk after review.
+4. Verify the extension cleanup migration 20261108205814_remove_unused_pg_net_extension is present in the Supabase migration history and confirm the net schema remains absent. Do not reinstall pg_net; scheduled HTTP is handled by the external Cloudflare Worker.
 5. Verify internal authentication on the existing Render Key Value. Do not deploy the API with an unauthenticated Redis URL.
 6. Review the Render Blueprint plan. It should create only one free API web service and one free static site; it must reuse the existing Key Value.
 7. Apply the reviewed Blueprint with the required Vault secrets set on the API service. Keep `SENTINEL_WORKER_TICK_ENABLED=false`. If any nonzero cost appears, stop.
 8. Verify the API `/healthz` and `/readyz` endpoints and the static console.
-9. Do not schedule the Cloudflare Worker until the Render API /readyz endpoint is healthy, its encrypted SENTINEL_WORKER_TICK_SECRET matches the Cloudflare secret binding, and the API origin is verified. Then enable the API tick and create the one-minute Cron Trigger as a separate reviewed step. Verify HTTP status without logging the request header or response body.
-10. Leave the allowed target list at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
+9. After the API origin is healthy, set the Vercel Production environment variable `VITE_API_BASE_URL` to that exact HTTPS origin and redeploy the existing Vercel project. Verify the custom domain calls the API successfully with a customer-held API key.
+10. Do not schedule the Cloudflare Worker until the Render API `/readyz` endpoint is healthy, its encrypted `SENTINEL_WORKER_TICK_SECRET` matches the Cloudflare secret binding, and the API origin is verified. Then enable the API tick and create the one-minute Cron Trigger as a separate reviewed step. Verify HTTP status without logging the request header or response body.
+11. Leave the allowed target list at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
+
 
 ## Staging limitations
 
