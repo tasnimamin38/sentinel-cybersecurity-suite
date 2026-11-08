@@ -163,7 +163,7 @@ def get_public_plan_catalog(workspace_type: str | None = None) -> dict[str, Any]
             "limits": free_limits,
             "notice": (
                 "All currently shipped core security modules are included. "
-                "Fair-use limits protect shared assessment capacity."
+                "Fair-use values are planned ceilings; enforcement is not enabled yet."
             ),
         }
     ]
@@ -175,6 +175,7 @@ def get_public_plan_catalog(workspace_type: str | None = None) -> dict[str, Any]
         "default_plan_code": DEFAULT_PLAN_CODE,
         "billing_enabled": BILLING_ENABLED,
         "checkout_enabled": CHECKOUT_ENABLED,
+        "usage_limits_enforced": False,
         "currency": "USD",
         "workspace_type": workspace_type,
         "plans": plans,
