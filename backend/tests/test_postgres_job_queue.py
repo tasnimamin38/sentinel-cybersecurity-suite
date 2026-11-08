@@ -102,7 +102,6 @@ def test_postgres_workers_never_claim_the_same_job():
         admin_engine.dispose()
 
 
-
 def test_postgres_worker_tick_allows_only_one_concurrent_executor(monkeypatch):
     database_url = os.getenv("SENTINEL_TEST_POSTGRES_URL")
     if not database_url:
