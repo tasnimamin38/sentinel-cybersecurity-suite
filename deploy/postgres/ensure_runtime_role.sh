@@ -42,7 +42,7 @@ FROM pg_auth_members AS membership
 JOIN pg_roles AS parent ON parent.oid = membership.roleid
 JOIN pg_roles AS member ON member.oid = membership.member
 WHERE member.rolname = 'sentinel_app'
-\\gexec
+\gexec
 
 GRANT CONNECT ON DATABASE sentinel TO sentinel_app;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
