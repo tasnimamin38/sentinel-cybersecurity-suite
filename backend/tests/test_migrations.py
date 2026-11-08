@@ -101,7 +101,7 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIsNone(audit[1])
             self.assertEqual(audit[2], 1)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0004_api_credentials")
+            self.assertEqual(revision[0], "0005_tenant_registry")
             connection.close()
 
 
@@ -133,7 +133,9 @@ def _run_migration(
 
 def _seed_legacy_operational_rows(database_path: Path) -> None:
     connection = sqlite3.connect(database_path)
-    connection.execute("PRAGMA foreign_keys = ON")
+    # The legacy tenant row is seeded by revision 0005, so old rows are
+    # inserted before enabling FK enforcement in this pre-migration fixture.
+    connection.execute("PRAGMA foreign_keys = OFF")
     connection.executescript(
         """
         INSERT INTO assets
