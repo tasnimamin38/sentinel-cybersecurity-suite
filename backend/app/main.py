@@ -178,6 +178,17 @@ async def security_response_headers(request, call_next):
                     policies.append(
                         ("assessment", key_identity, settings.assessment_rate_limit_per_minute)
                     )
+                if (
+                    request.method.upper() == "POST"
+                    and request.url.path == "/api/v1/assessment-jobs"
+                ):
+                    policies.append(
+                        (
+                            "assessment-job",
+                            key_identity,
+                            settings.assessment_job_rate_limit_per_minute,
+                        )
+                    )
                 if request.method.upper() == "POST" and request.url.path.endswith("/secrets/scan"):
                     policies.append(
                         ("secret-scan", key_identity, settings.secret_scan_rate_limit_per_minute)
