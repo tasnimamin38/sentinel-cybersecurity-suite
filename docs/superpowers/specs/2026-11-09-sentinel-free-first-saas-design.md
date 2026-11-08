@@ -75,7 +75,7 @@ A machine identity is a **workspace-owned service principal**, never a public hu
 
 The only selectable and active plan at launch is **Free Early Access — $0/month**. All currently shipped core security modules are available to both Personal and Company workspaces. No feature is withheld based on a future paid tier.
 
-Fair-use limits are applied by workspace type:
+Planned Free usage ceilings are listed by workspace type; the catalogue explicitly returns `limits_enforced=false` until Task 7 is implemented:
 
 | Resource | Personal Free Early Access target | Company Free Early Access target |
 |---|---:|---:|
