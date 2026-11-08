@@ -45,6 +45,12 @@ The selected Render API service and static site use the Free plan. The pre-creat
 
 No paid background worker, Render Postgres, persistent disk, or autoscaling service is included. The one-job-per-minute Supabase Cron trigger is a staging workaround, not a scalable job-processing system.
 
+## Supabase Data API exposure
+
+The app uses direct PostgreSQL connections and does not require Supabase REST/PostgREST. The current Data API settings expose only `public` and `extensions`; neither `sentinel` nor `net` is exposed. The dashboard showed `0 of 7 tables` and no exposed functions. The `Automatically expose new tables` setting was switched off and saved, so future tables are not granted to Data API roles automatically.
+
+The managed `pg_net` ACL warning remains: direct ACL inspection still shows `anon`, `authenticated`, and `sentinel_app` have privileges because the extension grants are owned by `supabase_admin` and could not be revoked by the connected `postgres` role. Since `net` is not Data API-exposed, public REST clients cannot query those objects through PostgREST. This does not solve direct database-role access; keep the scheduled HTTP tick disabled until Supabase Support resolves or explicitly accepts this residual risk.
+
 ## Required API environment
 
 Render Blueprint values:
