@@ -308,6 +308,13 @@ def _drop_legacy_global_uniqueness() -> None:
             with op.batch_alter_table("assets") as batch:
                 batch.drop_constraint(item["name"], type_="unique")
 
+    # Preserve the hostname lookup path after removing the old global unique index.
+    if not any(
+        item.get("column_names") == ["hostname"]
+        for item in _inspector().get_indexes("assets")
+    ):
+        op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=False)
+
     # Idempotency tokens are scoped to a workspace; the same token may be used
     # independently by another tenant.
     inspector = _inspector()
@@ -419,10 +426,21 @@ def downgrade() -> None:
 
     # Restore the legacy global uniqueness rules while only the legacy
     # workspace remains. All operational rows are retained.
-    if not any(
+    has_hostname_unique_index = any(
         item.get("unique") and item.get("column_names") == ["hostname"]
         for item in _inspector().get_indexes("assets")
-    ):
+    )
+    has_hostname_unique_constraint = any(
+        item.get("column_names") == ["hostname"]
+        for item in _inspector().get_unique_constraints("assets")
+    )
+    if not has_hostname_unique_index and not has_hostname_unique_constraint:
+        indexes = {
+            item["name"]: item
+            for item in _inspector().get_indexes("assets")
+        }
+        if "ix_assets_hostname" in indexes:
+            op.drop_index("ix_assets_hostname", table_name="assets")
         op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=True)
 
     _ensure_unique(
