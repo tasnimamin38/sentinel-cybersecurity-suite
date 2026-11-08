@@ -39,6 +39,7 @@ ALTER ROLE sentinel_app
 REVOKE sentinel FROM sentinel_app;
 
 GRANT CONNECT ON DATABASE sentinel TO sentinel_app;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO sentinel_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sentinel_app;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO sentinel_app;
