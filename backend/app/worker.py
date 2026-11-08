@@ -5,11 +5,11 @@ import time
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import SessionLocal
+from app.database import SessionLocal, engine
 from app.models import AssessmentJob, Asset
 from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event
@@ -345,14 +345,51 @@ async def process_job(job_id: str, worker_id: str) -> None:
         )
 
 
+WORKER_TICK_LOCK_KEY = 0x53454E54494E454C
+
+
+@contextlib.contextmanager
+def _worker_tick_single_flight():
+    """Hold a PostgreSQL session lock for the complete scheduled tick."""
+    if engine.dialect.name != "postgresql":
+        # Production configuration rejects SQLite; this keeps local tests usable.
+        yield True
+        return
+
+    with engine.connect() as connection:
+        acquired = bool(
+            connection.execute(
+                text("SELECT pg_try_advisory_lock(:lock_key)"),
+                {"lock_key": WORKER_TICK_LOCK_KEY},
+            ).scalar_one()
+        )
+        connection.commit()
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                try:
+                    connection.execute(
+                        text("SELECT pg_advisory_unlock(:lock_key)"),
+                        {"lock_key": WORKER_TICK_LOCK_KEY},
+                    ).scalar_one()
+                    connection.commit()
+                except Exception:
+                    connection.rollback()
+                    raise
+
+
 async def process_one_job() -> str | None:
-    """Claim and process at most one queued assessment job."""
-    worker_id = uuid4().hex
-    job_id = _claim_job(worker_id)
-    if job_id is None:
-        return None
-    await process_job(job_id, worker_id)
-    return job_id
+    """Claim and process one queued job only when no scheduled tick is active."""
+    with _worker_tick_single_flight() as acquired:
+        if not acquired:
+            return None
+        worker_id = uuid4().hex
+        job_id = _claim_job(worker_id)
+        if job_id is None:
+            return None
+        await process_job(job_id, worker_id)
+        return job_id
 
 
 async def run_worker() -> None:
