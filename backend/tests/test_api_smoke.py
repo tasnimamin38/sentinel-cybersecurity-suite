@@ -1,4 +1,5 @@
 import hashlib
+import importlib
 import json
 import os
 from datetime import UTC, datetime, timedelta
@@ -764,3 +765,40 @@ def test_assessment_job_queue_rejects_new_jobs_at_the_pending_capacity(client, m
     )
     assert rejected.status_code == 429
     assert "queue is at capacity" in rejected.json()["detail"].lower()
+
+
+def test_internal_worker_tick_runs_one_job_only_with_the_shared_secret(client, monkeypatch):
+    worker = importlib.import_module("app.worker")
+    calls = []
+
+    async def process_one_job():
+        calls.append("tick")
+        return "opaque-job-id"
+
+    monkeypatch.setattr(worker, "process_one_job", process_one_job, raising=False)
+    monkeypatch.setattr(settings, "worker_tick_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "worker_tick_secret", "T" * 40, raising=False)
+    monkeypatch.setattr(settings, "environment", "test", raising=False)
+
+    response = client.post(
+        "/internal/worker/tick",
+        headers={"X-Sentinel-Worker-Secret": "T" * 40},
+        json={},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"processed": True}
+    assert calls == ["tick"]
+
+
+def test_internal_worker_tick_rejects_a_wrong_secret(client, monkeypatch):
+    monkeypatch.setattr(settings, "worker_tick_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "worker_tick_secret", "T" * 40, raising=False)
+
+    response = client.post(
+        "/internal/worker/tick",
+        headers={"X-Sentinel-Worker-Secret": "W" * 40},
+        json={},
+    )
+
+    assert response.status_code == 404
