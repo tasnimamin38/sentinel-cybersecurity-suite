@@ -170,7 +170,7 @@ jobs:
           with engine.connect() as connection:
               role = connection.execute(text("SELECT current_user, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolbypassrls FROM pg_roles WHERE rolname = current_user")).one()
               assert role[0] == "sentinel_app" and not any(role[1:]), role
-              assert not connection.scalar(text("SELECT has_schema_privilege(current_user, \'public\', \'CREATE\')"))
+              assert not connection.scalar(text("SELECT has_schema_privilege(current_user, :schema, :privilege)"), {"schema": "public", "privilege": "CREATE"})
           print("API uses the restricted, non-DDL PostgreSQL runtime role.")
           '
           docker compose exec -T worker python -c '
@@ -179,7 +179,7 @@ jobs:
           with engine.connect() as connection:
               role = connection.execute(text("SELECT current_user, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolbypassrls FROM pg_roles WHERE rolname = current_user")).one()
               assert role[0] == "sentinel_app" and not any(role[1:]), role
-              assert not connection.scalar(text("SELECT has_schema_privilege(current_user, \'public\', \'CREATE\')"))
+              assert not connection.scalar(text("SELECT has_schema_privilege(current_user, :schema, :privilege)"), {"schema": "public", "privilege": "CREATE"})
           print("Worker uses the restricted, non-DDL PostgreSQL runtime role.")
           '
       - name: Tear down Compose smoke stack
