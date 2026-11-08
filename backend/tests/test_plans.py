@@ -56,9 +56,7 @@ def test_personal_and_company_free_usage_limits_are_different():
 def test_future_paid_plans_are_visible_as_previews_but_never_purchasable():
     catalog = get_public_plan_catalog()
     previews = {
-        plan["code"]: plan
-        for plan in catalog["plans"]
-        if plan["code"] != "free_early_access"
+        plan["code"]: plan for plan in catalog["plans"] if plan["code"] != "free_early_access"
     }
 
     assert set(previews) == {"pro", "team", "business", "enterprise"}
