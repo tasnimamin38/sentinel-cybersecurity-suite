@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     assessment_rate_limit_per_minute: int = 10
     assessment_job_rate_limit_per_minute: int = 5
     max_pending_assessment_jobs: int = 250
+    worker_tick_enabled: bool = False
+    worker_tick_secret: str = ""
+    worker_tick_rate_limit_per_minute: int = 1
     secret_scan_rate_limit_per_minute: int = 20
     auth_failure_threshold: int = 5
     auth_failure_window_seconds: int = 300
@@ -84,6 +87,8 @@ class Settings(BaseSettings):
             raise ValueError("SENTINEL_MAX_ASSESSMENT_RECORDS must be between 1 and 100000.")
         if not 1 <= self.max_pending_assessment_jobs <= 100_000:
             raise ValueError("SENTINEL_MAX_PENDING_ASSESSMENT_JOBS must be between 1 and 100000.")
+        if not 1 <= self.worker_tick_rate_limit_per_minute <= 60:
+            raise ValueError("SENTINEL_WORKER_TICK_RATE_LIMIT_PER_MINUTE must be between 1 and 60.")
         if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
             raise ValueError("SENTINEL_MAX_REQUEST_BODY_BYTES must be between 1024 and 10485760.")
         if not 1 <= self.rate_limit_window_seconds <= 86_400:
@@ -181,6 +186,16 @@ class Settings(BaseSettings):
         if self.environment == "production":
             errors = []
             keys = self.configured_api_keys
+            if self.worker_tick_enabled:
+                if self.process_role != "api":
+                    errors.append("Worker tick must be enabled only on the API process")
+                if len(self.worker_tick_secret) < 32 or any(
+                    marker in self.worker_tick_secret.lower()
+                    for marker in ("replace-with", "change-me", "placeholder", "example")
+                ):
+                    errors.append(
+                        "SENTINEL_WORKER_TICK_SECRET must contain at least 32 non-placeholder characters"
+                    )
             if self.process_role == "api":
                 if (
                     not keys and not any(item["role"] == "admin" for item in role_credentials)
