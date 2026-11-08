@@ -275,6 +275,20 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Settings(max_pending_assessment_jobs=100_001)
 
+    def test_production_worker_tick_requires_a_strong_shared_secret(self):
+        with self.assertRaises(ValidationError):
+            Settings(
+                environment="production",
+                api_key="S" * 40,
+                allowed_domains="example.com",
+                database_url="postgresql+psycopg://user:pass@db/sentinel",
+                redis_url="redis://:" + "R" * 40 + "@redis:6379/0",
+                trusted_proxy_cidrs="172.30.240.0/24",
+                cors_origins="https://console.example.com",
+                worker_tick_enabled=True,
+                worker_tick_secret="short",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
