@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
@@ -152,8 +152,11 @@ async def security_response_headers(request, call_next):
     )
 
     is_api_request = request.url.path.startswith("/api/v1/") and request.method.upper() != "OPTIONS"
+    is_worker_tick_request = (
+        request.url.path == "/internal/worker/tick" and request.method.upper() != "OPTIONS"
+    )
     honeypot_rule = classify_honeypot_path(request.url.path)
-    if is_api_request or honeypot_rule:
+    if is_api_request or is_worker_tick_request or honeypot_rule:
         limiter = getattr(request.app.state, "rate_limiter", None)
         if limiter is None and settings.environment == "production":
             response = JSONResponse(
@@ -193,6 +196,25 @@ async def security_response_headers(request, call_next):
                     policies.append(
                         ("secret-scan", key_identity, settings.secret_scan_rate_limit_per_minute)
                     )
+            elif is_worker_tick_request:
+                supplied_secret = request.headers.get("X-Sentinel-Worker-Secret", "")
+                secret_identity = hashlib.sha256(
+                    (
+                        supplied_secret
+                        if supplied_secret
+                        else "anonymous:" + source_ip
+                    ).encode("utf-8")
+                ).hexdigest()
+                policies.extend(
+                    [
+                        ("worker-tick-ip", ip_identity, settings.ip_rate_limit_per_minute),
+                        (
+                            "worker-tick",
+                            secret_identity,
+                            settings.worker_tick_rate_limit_per_minute,
+                        ),
+                    ]
+                )
             else:
                 # Decoy paths bypass the /api prefix; cap evidence and alert
                 # volume separately so scanners cannot fill the audit journal.
@@ -278,6 +300,28 @@ async def security_response_headers(request, call_next):
             logger.exception("Unable to persist SENTINEL security evidence.")
 
     return response
+
+
+@app.post("/internal/worker/tick", include_in_schema=False)
+async def internal_worker_tick(
+    x_sentinel_worker_secret: str | None = Header(
+        default=None,
+        alias="X-Sentinel-Worker-Secret",
+    ),
+):
+    """Process one queued assessment from a trusted cloud scheduler."""
+    if (
+        not settings.worker_tick_enabled
+        or not settings.worker_tick_secret
+        or not x_sentinel_worker_secret
+        or not secrets.compare_digest(x_sentinel_worker_secret, settings.worker_tick_secret)
+    ):
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    from app.worker import process_one_job
+
+    job_id = await process_one_job()
+    return {"processed": job_id is not None}
 
 
 app.include_router(assessment_jobs_router)
