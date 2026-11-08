@@ -693,7 +693,6 @@ def test_cors_preflight_allows_assessment_idempotency_key(client):
     assert "idempotency-key" in allowed_headers
 
 
-
 def test_assessment_job_creation_uses_a_dedicated_per_key_rate_limit(client, monkeypatch):
     class QueueRateLimiter:
         def __init__(self):
@@ -737,10 +736,14 @@ def test_assessment_job_queue_rejects_new_jobs_at_the_pending_capacity(client, m
     monkeypatch.setattr(settings, "max_pending_assessment_jobs", pending_before + 1, raising=False)
 
     first_asset = client.post(
-        "/api/v1/assets", headers=API_HEADERS, json=_asset_payload(f"capacity-a-{uuid4().hex[:8]}.example.com")
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"capacity-a-{uuid4().hex[:8]}.example.com"),
     )
     second_asset = client.post(
-        "/api/v1/assets", headers=API_HEADERS, json=_asset_payload(f"capacity-b-{uuid4().hex[:8]}.example.com")
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"capacity-b-{uuid4().hex[:8]}.example.com"),
     )
     assert first_asset.status_code == 201
     assert second_asset.status_code == 201
