@@ -2,7 +2,7 @@
 
 ## Status
 
-This document describes the cloud-only staging configuration. It is not a production launch checklist. At the time of writing, Supabase has been provisioned and the Render Blueprint plan is ready for owner review, but the API and console are not deployed. Keep PR #63 in Draft. Do not approve the Render sync until the pg_net ACL issue is resolved and the existing Redis internal-auth change is verified.
+This document describes the cloud-only staging configuration. It is not a production launch checklist. Supabase staging is provisioned and the unused pg_net extension has been removed safely. The Render Blueprint is still a plan only; the API and console services have not been created. Keep the worker tick disabled until the Render API is healthy and the Cloudflare scheduler is configured. The existing Render Key Value internal authentication must remain enabled.
 
 - GitHub branch: `feat/cloud-scheduled-assessment-worker`
 - Supabase project: `sentinel-cybersecurity-suite` (`xyzxswnofcychlkgrdsn`)
@@ -29,7 +29,7 @@ Render Free Web Service: sentinel-staging-api-mpir
           +--> private schema: sentinel
           +--> restricted role: sentinel_app
           +--> Vault secrets
-          +--> pg_cron + pg_net (DISABLED pending ACL resolution)
+          +--> Cloudflare Worker Cron Trigger (HTTPS + shared secret)
 ```
 
 Expected default service origins after a successful Render sync:
@@ -49,7 +49,9 @@ No paid background worker, Render Postgres, persistent disk, or autoscaling serv
 
 The app uses direct PostgreSQL connections and does not require Supabase REST/PostgREST. The current Data API settings expose only `public` and `extensions`; neither `sentinel` nor `net` is exposed. The dashboard showed `0 of 7 tables` and no exposed functions. The `Automatically expose new tables` setting was switched off and saved, so future tables are not granted to Data API roles automatically.
 
-The managed `pg_net` ACL warning remains: direct ACL inspection still shows `anon`, `authenticated`, and `sentinel_app` have privileges because the extension grants are owned by `supabase_admin` and could not be revoked by the connected `postgres` role. Since `net` is not Data API-exposed, public REST clients cannot query those objects through PostgREST. This does not solve direct database-role access. Keep both the internal worker tick and cron job disabled until Supabase Support resolves or the owner explicitly accepts the residual risk after review. The Blueprint sets `SENTINEL_WORKER_TICK_ENABLED=false` as a fail-safe default.
+The dedicated staging project no longer has the pg_net extension. It was removed through the recorded Supabase migration after verifying that its request queue and response table were empty, there were no Cron jobs or database webhooks, and no application routine depended on it. A post-migration SQL check confirmed the net schema, tables and routines are gone while the private sentinel schema remains intact.
+
+Scheduled processing is external to Postgres. deploy/cloudflare/worker-tick/worker.js runs from a Cloudflare Cron Trigger and sends a single authenticated HTTPS request to POST /internal/worker/tick. It uses the SENTINEL_API_URL variable and secret binding SENTINEL_WORKER_TICK_SECRET. It rejects non-HTTPS origins and redirects, does not log secret values or response bodies, and returns quickly while the request runs in ctx.waitUntil. Keep the API worker tick disabled until the API is healthy and the external Worker is configured and reviewed.
 
 ## Required API environment
 
@@ -65,7 +67,7 @@ Render Blueprint values:
 | `SENTINEL_REDIS_URL` | Render Key Value `connectionString` service reference |
 | `SENTINEL_DATABASE_URL` | Vault secret `sentinel_database_url` |
 | `SENTINEL_API_KEY` | Vault secret `sentinel_bootstrap_admin_key`; used by the console operator |
-| `SENTINEL_WORKER_TICK_ENABLED` | `false` (mandatory until the pg_net ACL gate is cleared) |
+| `SENTINEL_WORKER_TICK_ENABLED` | `false` until the external Cloudflare Worker has been configured and verified |
 | `SENTINEL_WORKER_TICK_SECRET` | Vault secret `sentinel_worker_tick_secret`; never expose it to the static site |
 
 Do not place these secret values in Git, logs, screenshots, or the browser bundle. The static site must never receive the database URL, Redis URL, worker secret, or service-role API key.
@@ -80,7 +82,7 @@ Do not place these secret values in Git, logs, screenshots, or the browser bundl
 6. Review the Render Blueprint plan. It should create only one free API web service and one free static site; it must reuse the existing Key Value.
 7. Apply the reviewed Blueprint with the required Vault secrets set on the API service. Keep `SENTINEL_WORKER_TICK_ENABLED=false`. If any nonzero cost appears, stop.
 8. Verify the API `/healthz` and `/readyz` endpoints and the static console.
-9. Do not apply `deploy/supabase/worker-tick.sql` in the current state. Only after the pg_net ACL issue is resolved (or the residual risk is explicitly accepted by the owner), repeat the database ACL checks, review the API tick endpoint configuration, then separately approve enabling `SENTINEL_WORKER_TICK_ENABLED` and applying the cron SQL. Verify cron run status and HTTP result without exposing the request header.
+9. Do not schedule the Cloudflare Worker until the Render API /readyz endpoint is healthy, its encrypted SENTINEL_WORKER_TICK_SECRET matches the Cloudflare secret binding, and the API origin is verified. Then enable the API tick and create the one-minute Cron Trigger as a separate reviewed step. Verify HTTP status without logging the request header or response body.
 10. Leave the allowed target list at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
 
 ## Staging limitations
