@@ -157,6 +157,8 @@ def get_public_plan_catalog(workspace_type: str | None = None) -> dict[str, Any]
             "default_for_new_workspaces": True,
             "purchasable": False,
             "checkout_enabled": False,
+            "limits_enforced": False,
+            "limit_enforcement_status": "planned",
             "feature_codes": list(FREE_FEATURE_CODES),
             "limits": free_limits,
             "notice": (
