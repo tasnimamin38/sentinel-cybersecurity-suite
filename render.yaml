@@ -21,7 +21,7 @@ services:
       - key: SENTINEL_ALLOWED_DOMAINS
         value: sentinel.invalid
       - key: SENTINEL_CORS_ORIGINS
-        value: https://sentinel-staging-console.onrender.com
+        value: https://sentinel-staging-console-mpir.onrender.com
       - key: SENTINEL_TRUST_CLOUDFLARE_IP_HEADER
         value: "true"
       - key: SENTINEL_WORKER_TICK_ENABLED
@@ -55,4 +55,4 @@ services:
     autoDeployTrigger: off
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://sentinel-staging-api.onrender.com
+        value: https://sentinel-staging-api-mpir.onrender.com
