@@ -24,8 +24,9 @@ services:
         value: https://sentinel-staging-console-mpir.onrender.com
       - key: SENTINEL_TRUST_CLOUDFLARE_IP_HEADER
         value: "true"
+      # Keep the internal worker tick disabled until pg_net ACL access is resolved.
       - key: SENTINEL_WORKER_TICK_ENABLED
-        value: "true"
+        value: "false"
       - key: SENTINEL_WORKER_TICK_RATE_LIMIT_PER_MINUTE
         value: "1"
       - key: SENTINEL_RATE_LIMIT_WINDOW_SECONDS
