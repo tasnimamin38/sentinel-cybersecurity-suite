@@ -2,6 +2,7 @@
 -- This SQL is applied once to the dedicated Supabase project.
 -- Secrets are generated server-side and stored only in Supabase Vault.
 -- Never SELECT vault.decrypted_secrets into a shared log or commit plaintext values.
+-- pg_net ACL revokes below are best-effort only; verify the live ACL separately.
 
 CREATE SCHEMA IF NOT EXISTS sentinel AUTHORIZATION postgres;
 REVOKE ALL ON SCHEMA sentinel FROM PUBLIC;
