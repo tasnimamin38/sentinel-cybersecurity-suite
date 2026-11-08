@@ -1,14 +1,14 @@
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowUpRight, Bell, CalendarClock, CheckCircle2, Download,
   ChevronDown, ChevronRight, CircleDot, ClipboardCheck, Database, Fingerprint,
   Globe2, KeyRound, Layers3, ListChecks, LockKeyhole, Plus, Radar, RefreshCw,
-  ScanLine, Search, Server, Settings2, Shield, ShieldAlert, ShieldCheck,
+  ScanLine, Search, Server, Settings2, Shield, ShieldAlert, ShieldCheck, CreditCard,
   Workflow, FileSearch,
 } from "lucide-react";
 
-type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials";
+type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials" | "plans";
 type Finding = {
   code: string; title: string; severity: string; description: string;
   recommendation: string; category?: string; confidence?: number;
@@ -73,12 +73,40 @@ type ApiCredential = {
   revoked_at?: string | null; created_by: string; created_at: string; last_used_at?: string | null;
 };
 type CreatedCredential = { credential: ApiCredential; secret: string };
+type PublicPlan = {
+  code: string;
+  name: string;
+  status: "active" | "preview";
+  price: { amount_cents: number | null; currency: string; interval: string; display: string };
+  default_for_new_workspaces?: boolean;
+  purchasable: boolean;
+  checkout_enabled: boolean;
+  feature_codes?: string[];
+  limits?: Record<string, unknown>;
+  limits_enforced?: boolean;
+  limit_enforcement_status?: string;
+  capacity_preview?: Record<string, number> | null;
+  planned_for?: string;
+  notice?: string;
+};
+type PublicPlanCatalog = {
+  catalog_version: number;
+  launch_mode: string;
+  default_plan_code: string;
+  billing_enabled: boolean;
+  checkout_enabled: boolean;
+  usage_limits_enforced: boolean;
+  workspace_type: "personal" | "company" | null;
+  plans: PublicPlan[];
+  notice: string;
+};
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",
   audit: "Audit integrity", security: "Threat monitor", secrets: "Secret hygiene", credentials: "API access control",
+  plans: "Plans & access",
 };
 const navGroups = [
   { label: "OPERATIONS", items: [
@@ -96,11 +124,14 @@ const navGroups = [
   { label: "ADMINISTRATION", items: [
     { id: "credentials" as View, label: "API access control", icon: KeyRound },
   ]},
+  { label: "ACCOUNT", items: [
+    { id: "plans" as View, label: "Plans & access", icon: CreditCard },
+  ]},
 ];
 const viewPermissions: Record<View, string> = {
   overview: "dashboard.read", assets: "asset.read", findings: "assessment.read",
   remediations: "remediation.read", controls: "controls.read", audit: "audit.read", security: "audit.read",
-  secrets: "secrets.scan", credentials: "credential.manage",
+  secrets: "secrets.scan", credentials: "credential.manage", plans: "plans.read",
 };
 
 function localDateTimeAfterDays(days: number) {
@@ -130,6 +161,9 @@ function isAuthorizationExpired(value: string) {
 }
 
 export default function App() {
+  const [planCatalog, setPlanCatalog] = useState<PublicPlanCatalog | null>(null);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -159,6 +193,27 @@ export default function App() {
     criticality: "1.0", authorization_expires_at: localDateTimeAfterDays(90),
     authorization_reference: "", tags: "internet-facing",
   });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(API_BASE + "/api/v1/plans", { signal: controller.signal, headers: { Accept: "application/json" } })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Plan catalogue is temporarily unavailable.");
+        return response.json() as Promise<PublicPlanCatalog>;
+      })
+      .then((catalog) => {
+        if (!controller.signal.aborted) setPlanCatalog(catalog);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setPlansError(error instanceof Error ? error.message : "Could not load the plan catalogue.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPlansLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
@@ -383,7 +438,7 @@ export default function App() {
   const latest = assessments[0];
   const environmentLabel = assets.some((asset) => asset.environment === "production") ? "PRODUCTION SCOPE" : "LOCAL WORKSPACE";
   const can = (permission: string) => identity?.role === "admin" || Boolean(identity?.permissions.includes(permission));
-  const visibleNavGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => can(viewPermissions[item.id])) })).filter((group) => group.items.length > 0);
+  const visibleNavGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => item.id === "plans" || can(viewPermissions[item.id])) })).filter((group) => group.items.length > 0);
 
   return (
     <div className="app-shell">
@@ -454,12 +509,16 @@ export default function App() {
           {toast && <div className={"toast-line " + toastKind}><span className="toast-icon">{toastKind === "error" ? <AlertTriangle size={14} /> : toastKind === "success" ? <CheckCircle2 size={14} /> : <Activity size={14} />}</span>{toast}<button onClick={() => setToast("")}>×</button></div>}
 
           {!connected ? (
-            <section className="disconnected-panel">
-              <div className="disconnected-visual"><div className="radar-ring r1" /><div className="radar-ring r2" /><div className="radar-ring r3" /><div className="radar-center"><Shield size={36} /></div><div className="radar-sweep" /></div>
-              <div><div className="eyebrow">CONTROL PLANE NOT AUTHENTICATED</div><h2>Live telemetry is locked.</h2><p>Connect the API to reveal registered assets, security findings, task status, control coverage and audit-chain integrity. No demo metrics are shown.</p><div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div></div>
-            </section>
+            <>
+              <section className="disconnected-panel">
+                <div className="disconnected-visual"><div className="radar-ring r1" /><div className="radar-ring r2" /><div className="radar-ring r3" /><div className="radar-center"><Shield size={36} /></div><div className="radar-sweep" /></div>
+                <div><div className="eyebrow">CONTROL PLANE NOT AUTHENTICATED</div><h2>Live telemetry is locked.</h2><p>Connect the API to reveal registered assets, security findings, task status, control coverage and audit-chain integrity. No demo metrics are shown.</p><div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div></div>
+              </section>
+              <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />
+            </>
           ) : (
             <>
+              {view === "plans" && <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />}
               {view === "overview" && (
                 <>
                   <section className="metric-grid">
@@ -653,6 +712,64 @@ export default function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+ 
+function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog | null; loading: boolean; error: string }) {
+  return (
+    <section className="plans-section" aria-labelledby="plans-heading">
+      <div className="plans-heading">
+        <div>
+          <div className="eyebrow"><span className="eyebrow-square" /> FREE-FIRST SAAS · EARLY ACCESS</div>
+          <h2 id="plans-heading">Security operations for every team.</h2>
+          <p>Every currently shipped core security module is included in Free Early Access. Future plans are previews only; billing and checkout are disabled.</p>
+        </div>
+        <div className="plans-billing-state"><span className="live-dot" /> BILLING DISABLED</div>
+      </div>
+      {loading && <div className="plans-status">Loading the live plan catalogue…</div>}
+      {error && <div className="plans-status plans-error">{error}</div>}
+      {catalog && (
+        <>
+          <div className="plans-grid">
+            {catalog.plans.map((plan) => {
+              const limits = plan.limits?.by_workspace_type as Record<string, Record<string, number | string>> | undefined;
+              const personal = limits?.personal;
+              const company = limits?.company;
+              return (
+                <article className={"plan-card " + (plan.code === catalog.default_plan_code ? "plan-card-featured" : "")} key={plan.code}>
+                  <div className="plan-card-top">
+                    <span className={"plan-status " + (plan.status === "active" ? "active" : "preview")}>{plan.status === "active" ? "AVAILABLE NOW" : "FUTURE PREVIEW"}</span>
+                    {plan.default_for_new_workspaces && <span className="plan-default">DEFAULT</span>}
+                  </div>
+                  <h3>{plan.name}</h3>
+                  <div className="plan-price">{plan.price.display}<small>{plan.price.interval === "month" ? "/ month" : ""}</small></div>
+                  <p className="plan-description">{plan.notice ?? plan.planned_for}</p>
+                  {plan.code === "free_early_access" && (
+                    <div className="plan-limits">
+                      <div><b>Personal target</b><span>{personal?.max_assets ?? "—"} assets · {personal?.assessments_per_month ?? "—"} assessments/mo</span></div>
+                      <div><b>Company target</b><span>{company?.max_assets ?? "—"} assets · {company?.assessments_per_month ?? "—"} assessments/mo</span></div>
+                      <small>Usage ceilings are published targets; enforcement is not enabled yet.</small>
+                    </div>
+                  )}
+                  {plan.capacity_preview && (
+                    <div className="plan-limits">
+                      <div><b>Planned capacity</b><span>{plan.capacity_preview.max_assets.toLocaleString()} assets · {plan.capacity_preview.assessments_per_month.toLocaleString()} assessments/mo</span></div>
+                      <div><b>Workspace</b><span>{plan.capacity_preview.max_members} human seats · {plan.capacity_preview.max_machine_identities} machine identities</span></div>
+                    </div>
+                  )}
+                  <div className="plan-card-footer">
+                    <span>{plan.code === "free_early_access" ? (plan.feature_codes?.length ?? 0) + " core modules included" : plan.planned_for}</span>
+                    <span className="plan-no-checkout">{plan.purchasable || plan.checkout_enabled ? "PURCHASE AVAILABLE" : "NO CHECKOUT"}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <p className="plans-footnote">{catalog.notice} Plan catalogue v{catalog.catalog_version}. All plan details are supplied by the live SENTINEL API.</p>
+        </>
+      )}
+    </section>
   );
 }
 

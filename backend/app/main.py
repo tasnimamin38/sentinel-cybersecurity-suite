@@ -5,6 +5,7 @@ import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import httpx
@@ -21,6 +22,7 @@ from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
+from app.plans import get_public_plan_catalog
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
     AssessmentRequest,
@@ -507,6 +509,14 @@ def readyz(db: Session = Depends(get_db)):
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database readiness check failed.") from exc
     return {"status": "ready", "database": "reachable"}
+
+
+@app.get("/api/v1/plans")
+def read_public_plan_catalog(
+    workspace_type: Literal["personal", "company"] | None = Query(default=None),
+):
+    """Return public Free Early Access and future plan previews without authentication."""
+    return get_public_plan_catalog(workspace_type)
 
 
 @app.get("/api/v1/config", dependencies=[Depends(require_api_key)])
