@@ -505,11 +505,13 @@ export default function App() {
           {toast && <div className={"toast-line " + toastKind}><span className="toast-icon">{toastKind === "error" ? <AlertTriangle size={14} /> : toastKind === "success" ? <CheckCircle2 size={14} /> : <Activity size={14} />}</span>{toast}<button onClick={() => setToast("")}>×</button></div>}
 
           {!connected ? (
-            <section className="disconnected-panel">
-              <div className="disconnected-visual"><div className="radar-ring r1" /><div className="radar-ring r2" /><div className="radar-ring r3" /><div className="radar-center"><Shield size={36} /></div><div className="radar-sweep" /></div>
-              <div><div className="eyebrow">CONTROL PLANE NOT AUTHENTICATED</div><h2>Live telemetry is locked.</h2><p>Connect the API to reveal registered assets, security findings, task status, control coverage and audit-chain integrity. No demo metrics are shown.</p><div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div></div>
-            </section>
-            <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />
+            <>
+              <section className="disconnected-panel">
+                <div className="disconnected-visual"><div className="radar-ring r1" /><div className="radar-ring r2" /><div className="radar-ring r3" /><div className="radar-center"><Shield size={36} /></div><div className="radar-sweep" /></div>
+                <div><div className="eyebrow">CONTROL PLANE NOT AUTHENTICATED</div><h2>Live telemetry is locked.</h2><p>Connect the API to reveal registered assets, security findings, task status, control coverage and audit-chain integrity. No demo metrics are shown.</p><div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div></div>
+              </section>
+              <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />
+            </>
           ) : (
             <>
               {view === "overview" && (
