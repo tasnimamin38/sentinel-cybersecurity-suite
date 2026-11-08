@@ -783,6 +783,7 @@ def test_internal_worker_tick_runs_one_job_only_with_the_shared_secret(client, m
         SimpleNamespace(
             environment="test",
             trusted_proxy_cidr_list=[],
+            trust_cloudflare_ip_header=False,
             worker_tick_enabled=True,
             worker_tick_secret="T" * 40,
         ),
@@ -807,6 +808,7 @@ def test_internal_worker_tick_rejects_a_wrong_secret(client, monkeypatch):
         SimpleNamespace(
             environment="test",
             trusted_proxy_cidr_list=[],
+            trust_cloudflare_ip_header=False,
             worker_tick_enabled=True,
             worker_tick_secret="T" * 40,
         ),
