@@ -58,7 +58,7 @@ Render Blueprint values:
 | `SENTINEL_TRUST_CLOUDFLARE_IP_HEADER` | `true` for the managed edge's client-IP header |
 | `SENTINEL_REDIS_URL` | Render Key Value `connectionString` service reference |
 | `SENTINEL_DATABASE_URL` | Vault secret `sentinel_database_url` |
-| `SENTINEL_API_KEY` | Vault secret `sentinel_admin_api_key`; used by the console operator |
+| `SENTINEL_API_KEY` | Vault secret `sentinel_bootstrap_admin_key`; used by the console operator |
 | `SENTINEL_WORKER_TICK_ENABLED` | `true` |
 | `SENTINEL_WORKER_TICK_SECRET` | Vault secret `sentinel_worker_tick_secret` |
 
@@ -67,14 +67,15 @@ Do not place these secret values in Git, logs, screenshots, or the browser bundl
 ## Deploy order
 
 1. Wait for all PR #63 checks to pass on its exact current head.
-2. Apply `deploy/supabase/bootstrap.sql` to the dedicated Supabase project as the database owner.
-3. Verify table definitions, grants, private-schema isolation, and the Alembic revision as described in `deploy/supabase/README.md`.
-4. Enable internal authentication on the existing Render Key Value. Do not deploy the API with an unauthenticated Redis URL.
-5. Review the Render Blueprint plan. It should create only one free API web service and one free static site; it must reuse the existing Key Value.
-6. Apply the reviewed Blueprint with the required Vault secrets set on the API service. If any nonzero cost appears, stop.
-7. Verify the API `/healthz` and `/readyz` endpoints and the static console.
-8. Apply `deploy/supabase/worker-tick.sql` only after the API is healthy. Check cron run status and HTTP result without exposing the request header.
-9. Leave the allowed target list at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
+2. The dedicated Supabase project is already provisioned. Do not rerun `bootstrap.sql`; verify the current schema/role/revision using `deploy/supabase/README.md`.
+3. Confirm `sentinel_database_url`, `sentinel_bootstrap_admin_key`, and `sentinel_worker_tick_secret` exist in Vault. Their decrypted values must not be shown in logs or chat.
+4. Restrict `pg_net` HTTP functions to database-admin/scheduler roles with `deploy/supabase/restrict-pg-net-access.sql`. The live project has applied this hardening; the extension itself remains in `public` because it is not relocatable.
+5. Enable internal authentication on the existing Render Key Value. Do not deploy the API with an unauthenticated Redis URL.
+6. Review the Render Blueprint plan. It should create only one free API web service and one free static site; it must reuse the existing Key Value.
+7. Apply the reviewed Blueprint with the required Vault secrets set on the API service. If any nonzero cost appears, stop.
+8. Verify the API `/healthz` and `/readyz` endpoints and the static console.
+9. Apply `deploy/supabase/worker-tick.sql` only after the API is healthy. Check cron run status and HTTP result without exposing the request header.
+10. Leave the allowed target list at `sentinel.invalid`; do not create a real assessment job without an explicitly authorized domain.
 
 ## Staging limitations
 
