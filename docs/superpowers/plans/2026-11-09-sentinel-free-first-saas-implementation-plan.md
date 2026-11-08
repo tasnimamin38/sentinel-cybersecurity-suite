@@ -13,9 +13,9 @@
 - New human accounts and workspaces default to `free_early_access`.
 - `BILLING_ENABLED=false`; no checkout, card capture, invoice generation, payment SDK, paid-plan purchase or automatic conversion is allowed in this release.
 - Future plan prices are preview values only: Pro $29/month, Team $99/month, Business $299/month and Enterprise custom. Every response/UI must mark them not purchasable.
-- Every currently shipped core security module is available in Free Early Access. Fair-use usage limits protect shared compute; they do not hide product features.
-- Personal Free limits: 10 assets, 20 completed assessments per UTC calendar month, 1 human seat, 2 machine identities and 30-day evidence retention.
-- Company Free limits: 25 assets, 50 completed assessments per UTC calendar month, 5 human seats, 3 machine identities and 30-day evidence retention.
+- Every currently shipped core security module is available in Free Early Access. Personal/Company fair-use ceilings are planned targets, not yet enforced by the current operational API; they must remain labelled as planned until Task 7's usage ledger and atomic reservations are live.
+- Personal Free target: 10 assets, 20 completed assessments per UTC calendar month, 1 human seat, 2 machine identities and 30-day evidence retention.
+- Company Free target: 25 assets, 50 completed assessments per UTC calendar month, 5 human seats, 3 machine identities and 30-day evidence retention.
 - The future plan capacity previews are not active entitlements: Pro 100 assets/300 assessments/3 seats/10 machine identities/90-day retention; Team 500/1,500/15/30/180; Business 2,000/8,000/50/100/365; Enterprise negotiated.
 - Plan IDs, tenant IDs, role claims and feature flags sent by the browser are never authorization inputs.
 - Human identities and machine/service identities are separate. No self-signup path can create an administrator machine identity.
