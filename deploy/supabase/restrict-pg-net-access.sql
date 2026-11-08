@@ -1,15 +1,19 @@
--- Keep the pg_net HTTP client private to database administrators.
+-- Best-effort pg_net permission restriction. Verify ACLs after applying.
 -- Supabase Cron runs jobs as their owner (postgres); the SENTINEL scheduler
 -- only needs postgres and Supabase's internal administration roles.
 --
 -- pg_net is installed in public by the managed Supabase extension and is
 -- not relocatable. The net schema is not exposed to the Data API. These
--- grants add a second line of defense by denying application roles from
--- issuing arbitrary outbound database HTTP requests.
+-- the connected database role may not be able to revoke grants owned by
+-- supabase_admin. Do not assume this script worked without ACL verification.
+-- If has_schema_privilege/has_table_privilege still return true for app roles,
+-- contact Supabase Support; the extension's managed ACL owner must revoke them.
 
-REVOKE USAGE ON SCHEMA net FROM PUBLIC, anon, authenticated, service_role;
+REVOKE USAGE ON SCHEMA net FROM PUBLIC, anon, authenticated, service_role, sentinel_app;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA net
-    FROM PUBLIC, anon, authenticated, service_role;
+    FROM PUBLIC, anon, authenticated, service_role, sentinel_app;
+REVOKE ALL ON ALL TABLES IN SCHEMA net
+    FROM PUBLIC, anon, authenticated, service_role, sentinel_app;
 
 GRANT USAGE ON SCHEMA net
     TO postgres, supabase_admin, supabase_functions_admin;
