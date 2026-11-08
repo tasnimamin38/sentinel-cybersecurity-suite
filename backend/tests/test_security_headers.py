@@ -44,7 +44,9 @@ class SecurityHeaderTests(unittest.TestCase):
 
     def test_csp_without_script_or_default_policy_is_reported_as_unrestricted(self):
         findings = evaluate_security_headers(
-            {"content-security-policy": "frame-ancestors 'none'"}
+            {
+                "content-security-policy": "frame-ancestors 'none'",
+            }
         )
         codes = {finding["code"] for finding in findings}
         self.assertIn("CSP_SCRIPT_POLICY_UNRESTRICTED", codes)
