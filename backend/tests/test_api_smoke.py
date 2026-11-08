@@ -658,9 +658,12 @@ def test_every_versioned_api_route_has_explicit_authentication_and_permission_po
             continue
         for method in route.methods or set():
             if (method, route_path) in PUBLIC_API_ROUTES:
-                assert method == "GET", f"Public API routes must be read-only: {method} {route_path}"
+                assert method == "GET", (
+                    f"Public API routes must be read-only: {method} {route_path}"
+                )
                 assert not any(
-                    dependency.call is require_api_key for dependency in route.dependant.dependencies
+                    dependency.call is require_api_key
+                    for dependency in route.dependant.dependencies
                 ), f"Public API route unexpectedly requires an API key: {route_path}"
                 continue
             assert any(
