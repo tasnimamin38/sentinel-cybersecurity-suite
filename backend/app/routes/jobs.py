@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -86,19 +86,43 @@ def create_assessment_job(
                 detail="Idempotency-Key must contain 8–128 visible ASCII characters.",
             )
         digest = hashlib.sha256(idempotency_key.encode("ascii")).hexdigest()
-        existing = db.scalar(
-            select(AssessmentJob).where(AssessmentJob.idempotency_key_hash == digest)
-        )
-        if existing is not None:
-            if existing.asset_id != asset.id:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Idempotency-Key was already used for a different asset.",
-                )
-            response.status_code = status.HTTP_200_OK
-            return existing
 
     try:
+        # Serialize admission checks across API instances so concurrent requests
+        # cannot all observe the same free queue slot and exceed the global cap.
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(:lock_id)"),
+                {"lock_id": 0x53454E54494E454C},
+            )
+
+        # Check idempotency only after acquiring the admission lock. A retry of an
+        # existing request must remain successful even when the queue is full.
+        if digest:
+            existing = db.scalar(
+                select(AssessmentJob).where(AssessmentJob.idempotency_key_hash == digest)
+            )
+            if existing is not None:
+                if existing.asset_id != asset.id:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Idempotency-Key was already used for a different asset.",
+                    )
+                response.status_code = status.HTTP_200_OK
+                return existing
+
+        pending_jobs = db.scalar(
+            select(func.count())
+            .select_from(AssessmentJob)
+            .where(AssessmentJob.status.in_(("queued", "running", "cancel_requested")))
+        ) or 0
+        if pending_jobs >= settings.max_pending_assessment_jobs:
+            raise HTTPException(
+                status_code=429,
+                detail="Assessment queue is at capacity. Retry later.",
+                headers={"Retry-After": str(settings.rate_limit_window_seconds)},
+            )
+
         item = enqueue_assessment_job(
             db,
             asset,
