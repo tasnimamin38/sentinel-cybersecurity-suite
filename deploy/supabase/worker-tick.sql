@@ -23,6 +23,20 @@ BEGIN
         RAISE EXCEPTION 'Required SENTINEL database URL is missing from Vault';
     END IF;
 
+    -- Do not schedule HTTP requests while the managed pg_net ACL remains
+    -- readable/executable by API roles. This is a hard fail-closed deployment gate.
+    IF has_schema_privilege('anon', 'net', 'USAGE')
+       OR has_schema_privilege('authenticated', 'net', 'USAGE')
+       OR has_schema_privilege('sentinel_app', 'net', 'USAGE')
+       OR has_table_privilege('anon', 'net.http_request_queue', 'SELECT')
+       OR has_table_privilege('authenticated', 'net.http_request_queue', 'SELECT')
+       OR has_table_privilege('sentinel_app', 'net.http_request_queue', 'SELECT')
+       OR has_function_privilege('anon', 'net.http_post(text,jsonb,jsonb,jsonb,integer)', 'EXECUTE')
+       OR has_function_privilege('authenticated', 'net.http_post(text,jsonb,jsonb,jsonb,integer)', 'EXECUTE')
+       OR has_function_privilege('sentinel_app', 'net.http_post(text,jsonb,jsonb,jsonb,integer)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'pg_net privileges remain accessible to application roles; resolve the managed ACL issue before enabling SENTINEL cron';
+    END IF;
+
     IF NOT EXISTS (
         SELECT 1 FROM vault.decrypted_secrets
          WHERE name = 'sentinel_api_base_url'
