@@ -28,7 +28,7 @@ BEGIN
          WHERE name = 'sentinel_api_base_url'
     ) THEN
         PERFORM vault.create_secret(
-            'https://sentinel-staging-api.onrender.com',
+            'https://sentinel-staging-api-mpir.onrender.com',
             'sentinel_api_base_url',
             'SENTINEL staging API origin used by the scheduled worker trigger'
         );
