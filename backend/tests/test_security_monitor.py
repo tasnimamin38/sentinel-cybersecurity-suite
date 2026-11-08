@@ -83,6 +83,7 @@ def test_webhook_payload_signature_is_stable_and_verifiable():
     expected = hmac.new(("K" * 40).encode(), body, hashlib.sha256).hexdigest()
     assert signature == "sha256=" + expected
 
+
 def test_cloudflare_client_ip_is_used_only_when_explicitly_trusted():
     observed = resolve_client_ip(
         peer_ip="172.30.240.12",
