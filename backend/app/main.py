@@ -149,6 +149,8 @@ async def security_response_headers(request, call_next):
         peer_ip=request.client.host if request.client else None,
         x_real_ip=request.headers.get("X-Real-IP"),
         trusted_proxy_cidrs=settings.trusted_proxy_cidr_list,
+        cf_connecting_ip=request.headers.get("CF-Connecting-IP"),
+        trust_cf_connecting_ip=settings.trust_cloudflare_ip_header,
     )
 
     is_api_request = request.url.path.startswith("/api/v1/") and request.method.upper() != "OPTIONS"
