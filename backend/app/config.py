@@ -48,7 +48,7 @@ class Settings(BaseSettings):
         values = [item.strip() for item in self.api_keys.split(",") if item.strip()]
         if not values and self.api_key.strip():
             values = [self.api_key.strip()]
-        return list(dict.fromkeys(values))
+        return values
 
     @property
     def configured_role_credentials(self) -> list[dict[str, str]]:
