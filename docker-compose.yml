@@ -20,6 +20,12 @@ services:
   db-init:
     image: postgres:16-alpine
     restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       SENTINEL_DB_APP_PASSWORD: ${SENTINEL_DB_APP_PASSWORD:?Set SENTINEL_DB_APP_PASSWORD in .env}
@@ -60,6 +66,12 @@ services:
       dockerfile: backend/Dockerfile
     command: ["alembic", "upgrade", "head"]
     restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     environment:
       SENTINEL_ENVIRONMENT: production
       SENTINEL_PROCESS_ROLE: worker
