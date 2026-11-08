@@ -13,6 +13,8 @@ DECLARE
     database_url text;
     worker_secret text;
     admin_api_key text;
+    granted_role name;
+    app_table name;
 BEGIN
     SELECT decrypted_secret
       INTO app_password
@@ -67,6 +69,17 @@ BEGIN
             app_password
         );
     END IF;
+
+    -- A NOINHERIT role can still explicitly SET ROLE into an inherited parent.
+    -- Remove every membership so sentinel_app remains a standalone login.
+    FOR granted_role IN
+        SELECT parent.rolname
+          FROM pg_auth_members membership
+          JOIN pg_roles parent ON parent.oid = membership.roleid
+         WHERE membership.member = 'sentinel_app'::regrole
+    LOOP
+        EXECUTE format('REVOKE %I FROM sentinel_app', granted_role);
+    END LOOP;
 
     database_url :=
         'postgresql+psycopg://sentinel_app.xyzxswnofcychlkgrdsn:' ||
