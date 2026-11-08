@@ -289,7 +289,6 @@ class ProductionConfigTests(unittest.TestCase):
                 worker_tick_secret="short",
             )
 
-
     def test_production_can_use_explicit_cloudflare_client_ip_trust_without_cidrs(self):
         settings = Settings(
             environment="production",
