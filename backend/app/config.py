@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     process_role: str = "api"
     redis_url: str = ""
     trusted_proxy_cidrs: str = ""
+    trust_cloudflare_ip_header: bool = False
     rate_limit_window_seconds: int = 60
     api_rate_limit_per_minute: int = 120
     ip_rate_limit_per_minute: int = 300
@@ -266,9 +267,10 @@ class Settings(BaseSettings):
                     errors.append(
                         "SENTINEL_REDIS_URL must configure authenticated shared Redis rate-limit storage"
                     )
-                if not self.trusted_proxy_cidr_list:
+                if not self.trusted_proxy_cidr_list and not self.trust_cloudflare_ip_header:
                     errors.append(
-                        "SENTINEL_TRUSTED_PROXY_CIDRS must identify the reverse-proxy network"
+                        "Configure SENTINEL_TRUSTED_PROXY_CIDRS or explicitly trust the "
+                        "managed Cloudflare client-IP header"
                     )
             if errors:
                 raise ValueError("Production configuration rejected: " + "; ".join(errors))
