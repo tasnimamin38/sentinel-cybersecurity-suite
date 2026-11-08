@@ -199,11 +199,9 @@ async def security_response_headers(request, call_next):
             elif is_worker_tick_request:
                 supplied_secret = request.headers.get("X-Sentinel-Worker-Secret", "")
                 secret_identity = hashlib.sha256(
-                    (
-                        supplied_secret
-                        if supplied_secret
-                        else "anonymous:" + source_ip
-                    ).encode("utf-8")
+                    (supplied_secret if supplied_secret else "anonymous:" + source_ip).encode(
+                        "utf-8"
+                    )
                 ).hexdigest()
                 policies.extend(
                     [
