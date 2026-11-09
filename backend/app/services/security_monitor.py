@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import AuditEvent
 from app.services.audit import record_audit_event
+from app.tenant_scope import set_tenant_context
 
 _HONEYPOT_PATHS: tuple[tuple[str, str], ...] = (
     ("/.env", "sensitive_file_probe"),
@@ -157,6 +158,9 @@ def persist_security_evidence(
     user-agent label and a request correlation ID are stored. Request bodies,
     cookies and credential values are deliberately excluded.
     """
+    if tenant_id:
+        set_tenant_context(db, tenant_id)
+
     now = datetime.now(UTC)
     safe = {
         "rule_id": signal["rule_id"][:80],
