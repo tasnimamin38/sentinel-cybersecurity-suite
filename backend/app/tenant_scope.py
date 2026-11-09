@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session, with_loader_criteria
 
 from app.models import (
     ApiCredential,
-    Asset,
     Assessment,
     AssessmentJob,
+    Asset,
     AuditEvent,
     CompanyDomainChallenge,
     CompanyProfile,
