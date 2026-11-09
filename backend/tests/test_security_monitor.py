@@ -3,11 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.database import Base
 from app.models import AuditEvent, Tenant
-from app.services.security_monitor import persist_security_evidence
-
 from app.services.security_monitor import (
     classify_honeypot_path,
     classify_security_response,
+    persist_security_evidence,
     resolve_client_ip,
     sanitize_user_agent,
     sign_alert_payload,
