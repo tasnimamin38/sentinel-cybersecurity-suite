@@ -1,3 +1,10 @@
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
+from app.database import Base
+from app.models import AuditEvent, Tenant
+from app.services.security_monitor import persist_security_evidence
+
 from app.services.security_monitor import (
     classify_honeypot_path,
     classify_security_response,
@@ -115,3 +122,45 @@ def test_invalid_cloudflare_client_ip_falls_back_to_peer_ip():
         trust_cf_connecting_ip=True,
     )
     assert observed == "172.30.240.12"
+
+
+def test_authenticated_security_evidence_is_written_to_its_own_tenant():
+    tenant_id = "00000000-0000-4000-8000-00000000000d"
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as db:
+            db.add(
+                Tenant(
+                    id=tenant_id,
+                    slug="security-company",
+                    name="Security Company",
+                    workspace_type="company",
+                    status="active",
+                )
+            )
+            db.commit()
+
+            persist_security_evidence(
+                db,
+                signal={
+                    "event_type": "security.api_auth_failure",
+                    "rule_id": "API_AUTH_FAILURE",
+                    "severity": "high",
+                },
+                source_ip="198.51.100.42",
+                path="/api/v1/assets",
+                method="GET",
+                user_agent="test-agent",
+                request_id="tenant-event-test",
+                tenant_id=tenant_id,
+            )
+            db.commit()
+
+            events = db.scalars(select(AuditEvent)).all()
+            assert len(events) == 1
+            assert events[0].tenant_id == tenant_id
+            assert events[0].event_type == "security.api_auth_failure"
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
