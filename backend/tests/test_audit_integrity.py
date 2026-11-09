@@ -23,6 +23,34 @@ class AuditIntegrityTests(unittest.TestCase):
     def tearDown(self):
         self.engine.dispose()
 
+    def test_audit_helper_uses_the_authenticated_session_tenant_by_default(self):
+        from app.models import Tenant
+
+        tenant_id = "00000000-0000-4000-8000-00000000000c"
+        with Session(self.engine) as db:
+            db.add(
+                Tenant(
+                    id=tenant_id,
+                    slug="audit-company",
+                    name="Audit Company",
+                    workspace_type="company",
+                    status="active",
+                )
+            )
+            db.commit()
+            db.info["tenant_id"] = tenant_id
+            item = record_audit_event(
+                db,
+                event_type="workspace.activity",
+                subject="company-only",
+            )
+            db.commit()
+
+            self.assertEqual(item.tenant_id, tenant_id)
+            result = verify_audit_chain(db)
+            self.assertTrue(result["integrity_valid"])
+            self.assertEqual(result["total_events"], 1)
+
     def test_new_hash_linked_events_verify(self):
         with Session(self.engine) as db:
             db.add(record_audit_event(db, event_type="test.created", subject="unit-test"))
