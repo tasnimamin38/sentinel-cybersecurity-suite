@@ -138,6 +138,7 @@ def test_postgres_worker_tick_allows_only_one_concurrent_executor(monkeypatch):
             max_overflow=0,
             pool_pre_ping=True,
         )
+        Base.metadata.create_all(tick_engine)
         tick_sessions = sessionmaker(bind=tick_engine, expire_on_commit=False)
         _seed_legacy_tenant(tick_sessions)
         monkeypatch.setattr(worker, "SessionLocal", tick_sessions)
