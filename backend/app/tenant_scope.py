@@ -88,6 +88,13 @@ def _apply_tenant_criteria(execute_state) -> None:
         )
         for model in TENANT_SCOPED_MODELS
     ]
+    criteria.append(
+        with_loader_criteria(
+            Tenant,
+            lambda row: row.id == tenant_id,
+            include_aliases=True,
+        )
+    )
     execute_state.statement = execute_state.statement.options(*criteria)
 
 
@@ -105,6 +112,12 @@ def _enforce_tenant_on_flush(
         raise TenantScopeViolation("A tenant-scoped session is missing its tenant context.")
 
     for instance in session.new.union(session.dirty).union(session.deleted):
+        if isinstance(instance, Tenant):
+            if instance in session.new or instance.id != tenant_id:
+                raise TenantScopeViolation(
+                    "Tenant registry writes require the privileged workspace provisioning service."
+                )
+            continue
         if not isinstance(instance, TENANT_SCOPED_MODELS):
             continue
 
