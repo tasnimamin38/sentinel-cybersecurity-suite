@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal, engine
 from app.models import AssessmentJob, Asset
+from app import tenant_scope  # noqa: F401 - scopes worker sessions to the legacy tenant
 from app.services.assessment_store import add_assessment_result
 from app.services.audit import record_audit_event
 from app.services.jobs import (
