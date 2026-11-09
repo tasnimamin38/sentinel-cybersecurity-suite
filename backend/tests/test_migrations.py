@@ -314,7 +314,35 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                     "2026-11-09 00:00:00",
                 ),
             )
+            connection.execute(
+                """
+                INSERT INTO audit_events
+                    (id, tenant_id, event_type, subject, result, details,
+                     sequence_no, previous_hash, event_hash, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "company-2-audit-1",
+                    second_tenant,
+                    "workspace.created",
+                    "second company",
+                    "success",
+                    "first event for tenant two",
+                    1,
+                    "0" * 64,
+                    "b" * 64,
+                    "2026-11-09 00:00:01",
+                ),
+            )
             connection.commit()
+
+            self.assertEqual(
+                connection.execute(
+                    "SELECT COUNT(*) FROM audit_events WHERE sequence_no = 1"
+                ).fetchone()[0],
+                2,
+            )
 
             with self.assertRaises(sqlite3.IntegrityError):
                 connection.execute(
