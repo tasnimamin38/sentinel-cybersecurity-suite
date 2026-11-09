@@ -11,8 +11,22 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import AssessmentJob, Asset
+from app.models import LEGACY_TENANT_ID, AssessmentJob, Asset, Tenant
 from app.services.jobs import claim_next_job, enqueue_assessment_job
+
+
+def _seed_legacy_tenant(session_factory) -> None:
+    with session_factory() as db:
+        db.add(
+            Tenant(
+                id=LEGACY_TENANT_ID,
+                slug="legacy-installation",
+                name="Legacy Installation",
+                workspace_type="legacy",
+                status="active",
+            )
+        )
+        db.commit()
 
 
 def test_postgres_workers_never_claim_the_same_job():
@@ -40,6 +54,7 @@ def test_postgres_workers_never_claim_the_same_job():
             autoflush=False,
             expire_on_commit=False,
         )
+        _seed_legacy_tenant(Session)
 
         with Session() as db:
             asset = Asset(
@@ -123,7 +138,9 @@ def test_postgres_worker_tick_allows_only_one_concurrent_executor(monkeypatch):
             max_overflow=0,
             pool_pre_ping=True,
         )
+        Base.metadata.create_all(tick_engine)
         tick_sessions = sessionmaker(bind=tick_engine, expire_on_commit=False)
+        _seed_legacy_tenant(tick_sessions)
         monkeypatch.setattr(worker, "SessionLocal", tick_sessions)
         monkeypatch.setattr(worker, "engine", tick_engine)
 

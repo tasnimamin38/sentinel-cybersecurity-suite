@@ -74,6 +74,61 @@ class AuditIntegrityTests(unittest.TestCase):
             self.assertFalse(result["integrity_valid"])
             self.assertEqual(result["verification_status"], "empty")
 
+    def test_each_tenant_has_an_independent_hash_chain_and_sequence(self):
+        from app.models import LEGACY_TENANT_ID
+
+        second_tenant_id = "00000000-0000-4000-8000-000000000002"
+        with Session(self.engine) as db:
+            for tenant_id, label in (
+                (LEGACY_TENANT_ID, "legacy"),
+                (second_tenant_id, "company"),
+            ):
+                db.add(
+                    record_audit_event(
+                        db,
+                        tenant_id=tenant_id,
+                        event_type="workspace.created",
+                        subject=label,
+                    )
+                )
+                db.commit()
+                db.add(
+                    record_audit_event(
+                        db,
+                        tenant_id=tenant_id,
+                        event_type="workspace.updated",
+                        subject=label,
+                    )
+                )
+                db.commit()
+
+            legacy_events = (
+                db.query(AuditEvent)
+                .filter(AuditEvent.tenant_id == LEGACY_TENANT_ID)
+                .order_by(AuditEvent.sequence_no)
+                .all()
+            )
+            company_events = (
+                db.query(AuditEvent)
+                .filter(AuditEvent.tenant_id == second_tenant_id)
+                .order_by(AuditEvent.sequence_no)
+                .all()
+            )
+            self.assertEqual([event.sequence_no for event in legacy_events], [1, 2])
+            self.assertEqual([event.sequence_no for event in company_events], [1, 2])
+
+            legacy_result = verify_audit_chain(db, tenant_id=LEGACY_TENANT_ID)
+            company_result = verify_audit_chain(db, tenant_id=second_tenant_id)
+            self.assertTrue(legacy_result["integrity_valid"])
+            self.assertTrue(company_result["integrity_valid"])
+            self.assertEqual(legacy_result["total_events"], 2)
+            self.assertEqual(company_result["total_events"], 2)
+            self.assertEqual(
+                legacy_events[0].previous_hash,
+                company_events[0].previous_hash,
+            )
+            self.assertNotEqual(legacy_events[0].event_hash, company_events[0].event_hash)
+
 
 if __name__ == "__main__":
     unittest.main()
