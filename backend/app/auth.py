@@ -219,7 +219,7 @@ def require_api_key(
         )
 
     set_tenant_context(db, principal.tenant_id)
-    _authorize_role(principal.role, request)
     request.state.tenant_id = principal.tenant_id
     request.state.api_principal = principal
+    _authorize_role(principal.role, request)
     return principal
