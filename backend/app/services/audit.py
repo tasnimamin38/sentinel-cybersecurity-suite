@@ -58,9 +58,7 @@ def record_audit_event(
 
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         lock_key = _POSTGRES_AUDIT_LOCK_NAMESPACE ^ _tenant_lock_key(tenant_id)
-        db.execute(
-            text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key}
-        )
+        db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
 
     latest = db.scalar(
         select(AuditEvent)
