@@ -138,6 +138,34 @@ class TenantScopedSessionTests(unittest.TestCase):
         with self.ScopedSessionB() as db:
             self.assertIsNone(db.get(Asset, "asset-a-new"))
 
+    def test_bulk_update_cannot_reassign_a_row_to_another_tenant(self):
+        with self.ScopedSessionA() as db:
+            with self.assertRaises(TenantScopeViolation):
+                db.execute(
+                    update(Asset)
+                    .where(Asset.id == "asset-a")
+                    .values(tenant_id=TENANT_B)
+                )
+
+    def test_bulk_orm_insert_is_rejected_in_a_tenant_scoped_session(self):
+        with self.ScopedSessionA() as db:
+            with self.assertRaises(TenantScopeViolation):
+                db.execute(
+                    Asset.__table__.insert().values(
+                        id="asset-bulk",
+                        tenant_id=TENANT_B,
+                        hostname="bulk.example.com",
+                        name="Bulk insert",
+                        owner="Security",
+                        environment="production",
+                        criticality=1.0,
+                        authorization_expires_at="2030-01-01",
+                        authorization_reference="approved",
+                        status="active",
+                        tags="[]",
+                    )
+                )
+
     def test_session_cannot_insert_or_mutate_another_tenants_object(self):
         with self.ScopedSessionA() as db:
             foreign = make_asset(
