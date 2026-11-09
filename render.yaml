@@ -11,9 +11,6 @@ services:
     branch: main
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
-    # Render Free does not support preDeployCommand; run the additive Alembic migration
-    # before Uvicorn starts. If a migration fails, the API process must not start.
-    startCommand: "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
     healthCheckPath: /readyz
     autoDeployTrigger: checksPass
     envVars:
