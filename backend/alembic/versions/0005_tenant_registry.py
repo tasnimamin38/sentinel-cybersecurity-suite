@@ -173,7 +173,9 @@ def _ensure_legacy_tenant() -> None:
     ).first()
     if existing is not None:
         if existing.slug != LEGACY_SLUG or existing.workspace_type != "legacy":
-            raise RuntimeError("The deterministic legacy tenant ID is already used by another tenant.")
+            raise RuntimeError(
+                "The deterministic legacy tenant ID is already used by another tenant."
+            )
         return
 
     slug_owner = bind.execute(
@@ -200,7 +202,9 @@ def _ensure_legacy_tenant() -> None:
     )
 
 
-def _has_foreign_key(table: str, columns: list[str], referred_table: str, referred_columns: list[str]) -> bool:
+def _has_foreign_key(
+    table: str, columns: list[str], referred_table: str, referred_columns: list[str]
+) -> bool:
     for foreign_key in _inspector().get_foreign_keys(table):
         if (
             foreign_key.get("constrained_columns") == columns
@@ -213,10 +217,7 @@ def _has_foreign_key(table: str, columns: list[str], referred_table: str, referr
 
 def _has_unique(table: str, columns: list[str]) -> bool:
     inspector = _inspector()
-    if any(
-        item.get("column_names") == columns
-        for item in inspector.get_unique_constraints(table)
-    ):
+    if any(item.get("column_names") == columns for item in inspector.get_unique_constraints(table)):
         return True
     return any(
         item.get("unique") and item.get("column_names") == columns
@@ -268,9 +269,7 @@ def _ensure_tenant_column(table: str) -> None:
         {"tenant_id": LEGACY_TENANT_ID},
     )
 
-    column = next(
-        item for item in _inspector().get_columns(table) if item["name"] == "tenant_id"
-    )
+    column = next(item for item in _inspector().get_columns(table) if item["name"] == "tenant_id")
     if column.get("nullable", True) or column.get("default") is None:
         with op.batch_alter_table(table) as batch:
             batch.alter_column(
@@ -289,10 +288,7 @@ def _ensure_tenant_column(table: str) -> None:
         ondelete="RESTRICT",
     )
     indexes = _inspector().get_indexes(table)
-    if not any(
-        item.get("column_names") == ["tenant_id"]
-        for item in indexes
-    ):
+    if not any(item.get("column_names") == ["tenant_id"] for item in indexes):
         op.create_index(f"ix_{table}_tenant_id", table, ["tenant_id"], unique=False)
 
 
@@ -318,8 +314,7 @@ def _drop_legacy_global_uniqueness() -> None:
     # These keys become unique inside a workspace, not globally.
     _drop_global_unique("assets", "hostname")
     if not any(
-        item.get("column_names") == ["hostname"]
-        for item in _inspector().get_indexes("assets")
+        item.get("column_names") == ["hostname"] for item in _inspector().get_indexes("assets")
     ):
         op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=False)
 
@@ -414,9 +409,8 @@ def _drop_tenant_artifacts(table: str) -> None:
         # PostgreSQL may report an index backing a named UNIQUE constraint.
         # Let batch.drop_constraint remove those rather than dropping the
         # constraint-owned index directly.
-        if (
-            "tenant_id" in (item.get("column_names") or [])
-            and not item.get("duplicates_constraint")
+        if "tenant_id" in (item.get("column_names") or []) and not item.get(
+            "duplicates_constraint"
         ):
             op.drop_index(item["name"], table_name=table)
 
@@ -457,7 +451,12 @@ def downgrade() -> None:
     if non_legacy_tenants:
         raise RuntimeError("Refusing tenant downgrade: customer workspaces already exist.")
 
-    for table in ("tenant_memberships", "human_profiles", "company_profiles", "company_domain_challenges"):
+    for table in (
+        "tenant_memberships",
+        "human_profiles",
+        "company_profiles",
+        "company_domain_challenges",
+    ):
         if table in tables:
             count = bind.execute(sa.text(f'SELECT COUNT(*) FROM "{table}"')).scalar_one()
             if count:
@@ -485,9 +484,7 @@ def downgrade() -> None:
 
     # Restore the legacy global uniqueness rules after all tenant-scoped
     # constraints/indexes and tenant_id columns have been removed.
-    asset_indexes = {
-        item["name"]: item for item in _inspector().get_indexes("assets")
-    }
+    asset_indexes = {item["name"]: item for item in _inspector().get_indexes("assets")}
     if "ix_assets_hostname" in asset_indexes:
         op.drop_index("ix_assets_hostname", table_name="assets")
     op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=True)
@@ -498,9 +495,7 @@ def downgrade() -> None:
         ["idempotency_key_hash"],
     )
 
-    audit_indexes = {
-        item["name"]: item for item in _inspector().get_indexes("audit_events")
-    }
+    audit_indexes = {item["name"]: item for item in _inspector().get_indexes("audit_events")}
     if "ix_audit_events_sequence_no" in audit_indexes:
         op.drop_index("ix_audit_events_sequence_no", table_name="audit_events")
     op.create_index(
