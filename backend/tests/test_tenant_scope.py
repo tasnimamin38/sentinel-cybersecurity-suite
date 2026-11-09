@@ -179,10 +179,17 @@ class TenantScopedSessionTests(unittest.TestCase):
                 db.flush()
             db.rollback()
 
-        with self.UnscopedSession() as db:
-            foreign = db.get(Asset, "asset-b")
+        with self.ScopedSessionA() as db:
+            foreign = db.scalar(
+                select(Asset)
+                .where(Asset.id == "asset-b")
+                .execution_options(skip_tenant_scope=True)
+            )
+            self.assertIsNotNone(foreign)
             foreign.name = "Attempted cross-tenant edit"
-            db.commit()
+            with self.assertRaises(TenantScopeViolation):
+                db.flush()
+            db.rollback()
 
         with self.UnscopedSession() as db:
             self.assertEqual(db.get(Asset, "asset-b").name, "Company B asset")
