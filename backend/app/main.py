@@ -337,6 +337,7 @@ def read_api_identity(principal: ApiPrincipal = Depends(require_api_key)):
         "credential_id": principal.credential_id,
         "role": principal.role,
         "credential_source": principal.credential_source,
+        "tenant_id": principal.tenant_id,
         "permissions": sorted(permissions),
     }
 
