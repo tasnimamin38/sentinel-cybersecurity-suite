@@ -162,7 +162,7 @@ class Asset(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        ForeignKey("tenants.id", ondelete="RESTRICT", name="fk_assets_tenant_id_tenants"),
         nullable=False,
         default=LEGACY_TENANT_ID,
         server_default=_LEGACY_TENANT_DEFAULT,
@@ -201,7 +201,7 @@ class Assessment(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        ForeignKey("tenants.id", ondelete="RESTRICT", name="fk_assessments_tenant_id_tenants"),
         nullable=False,
         default=LEGACY_TENANT_ID,
         server_default=_LEGACY_TENANT_DEFAULT,
@@ -240,7 +240,7 @@ class RemediationTask(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        ForeignKey("tenants.id", ondelete="RESTRICT", name="fk_remediation_tasks_tenant_id_tenants"),
         nullable=False,
         default=LEGACY_TENANT_ID,
         server_default=_LEGACY_TENANT_DEFAULT,
@@ -283,7 +283,7 @@ class AuditEvent(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        ForeignKey("tenants.id", ondelete="RESTRICT", name="fk_audit_events_tenant_id_tenants"),
         nullable=False,
         default=LEGACY_TENANT_ID,
         server_default=_LEGACY_TENANT_DEFAULT,
@@ -327,7 +327,7 @@ class AssessmentJob(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        ForeignKey("tenants.id", ondelete="RESTRICT", name="fk_assessment_jobs_tenant_id_tenants"),
         nullable=False,
         default=LEGACY_TENANT_ID,
         server_default=_LEGACY_TENANT_DEFAULT,
@@ -374,7 +374,7 @@ class ApiCredential(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        ForeignKey("tenants.id", ondelete="RESTRICT", name="fk_api_credentials_tenant_id_tenants"),
         nullable=False,
         default=LEGACY_TENANT_ID,
         server_default=_LEGACY_TENANT_DEFAULT,
