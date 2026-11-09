@@ -131,6 +131,7 @@ def _run_migration(
         check=False,
     )
 
+
 def _seed_legacy_operational_rows(database_path: Path) -> None:
     connection = sqlite3.connect(database_path)
     # The legacy tenant row is seeded by revision 0005, so old rows are
