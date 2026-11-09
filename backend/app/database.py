@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import get_settings
+from app.tenant_constants import LEGACY_TENANT_ID
 
 
 class Base(DeclarativeBase):
@@ -24,7 +25,16 @@ def build_engine():
 
 
 engine = build_engine()
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+    info={
+        "tenant_id": LEGACY_TENANT_ID,
+        "tenant_isolation_required": True,
+    },
+)
 
 
 def get_db():
