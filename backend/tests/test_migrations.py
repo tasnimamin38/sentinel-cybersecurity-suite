@@ -190,6 +190,15 @@ def _seed_legacy_operational_rows(database_path: Path) -> None:
              'legacy-prefix', NULL, NULL, 'bootstrap', '2026-11-05 12:06:00', NULL);
         """
     )
+    connection.executescript(
+        """
+        CREATE UNIQUE INDEX legacy_global_hostname_unique ON assets (hostname);
+        CREATE UNIQUE INDEX legacy_global_idempotency_unique
+            ON assessment_jobs (idempotency_key_hash);
+        CREATE UNIQUE INDEX legacy_global_audit_sequence_unique
+            ON audit_events (sequence_no);
+        """
+    )
     connection.commit()
     connection.close()
 
@@ -347,6 +356,35 @@ class TenantRegistryMigrationTests(unittest.TestCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 connection.execute(
                     """
+                    INSERT INTO assets
+                        (id, tenant_id, hostname, name, owner, environment, criticality,
+                         authorization_expires_at, authorization_reference, status,
+                         tags, created_at, updated_at)
+                    VALUES
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "asset-company-2-duplicate",
+                        second_tenant,
+                        "app.example.com",
+                        "Duplicate",
+                        "Security",
+                        "production",
+                        1.0,
+                        "2030-01-01 00:00:00",
+                        "approved",
+                        "active",
+                        "[]",
+                        "2026-11-09 00:00:02",
+                        "2026-11-09 00:00:02",
+                    ),
+                )
+            connection.rollback()
+            connection.commit()
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute(
+                    """
                     INSERT INTO assessments
                         (id, tenant_id, asset_id, target, status, score, risk_level,
                          findings, evidence, created_at)
@@ -403,6 +441,43 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                 ),
             )
             connection.commit()
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute(
+                    """
+                    INSERT INTO assessment_jobs
+                        (id, tenant_id, asset_id, target, status, available_at,
+                         attempts, max_attempts, manual_retries, worker_id,
+                         lease_expires_at, heartbeat_at, cancel_requested_at,
+                         started_at, completed_at, assessment_id, idempotency_key_hash,
+                         last_error, created_at, updated_at)
+                    VALUES
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "job-company-2-duplicate",
+                        second_tenant,
+                        "asset-company-2",
+                        "app.example.com",
+                        "succeeded",
+                        "2026-11-09 00:02:10",
+                        1,
+                        3,
+                        0,
+                        None,
+                        None,
+                        None,
+                        None,
+                        "2026-11-09 00:02:10",
+                        "2026-11-09 00:02:11",
+                        None,
+                        "legacy-idempotency-hash",
+                        None,
+                        "2026-11-09 00:02:10",
+                        "2026-11-09 00:02:11",
+                    ),
+                )
+            connection.rollback()
             connection.close()
 
     def test_tenant_migration_downgrade_refuses_to_remove_customer_workspaces(self):
