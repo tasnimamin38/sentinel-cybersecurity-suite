@@ -485,8 +485,6 @@ def downgrade() -> None:
 
     # Restore the legacy global uniqueness rules after all tenant-scoped
     # constraints/indexes and tenant_id columns have been removed.
-    # Restore the legacy global uniqueness rules after tenant-scoped
-    # constraints/indexes and tenant_id columns have been removed.
     asset_indexes = {
         item["name"]: item for item in _inspector().get_indexes("assets")
     }
