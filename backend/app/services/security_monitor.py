@@ -151,6 +151,7 @@ def persist_security_evidence(
     request_id: str,
     auth_failure_threshold: int = 5,
     auth_failure_window_seconds: int = 300,
+    tenant_id: str | None = None,
 ) -> list[dict[str, str | int]]:
     """Append sanitized security signals to the existing hash-linked audit chain.
 
