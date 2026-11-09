@@ -308,15 +308,14 @@ def _drop_legacy_global_uniqueness() -> None:
             with op.batch_alter_table("assets") as batch:
                 batch.drop_constraint(item["name"], type_="unique")
 
-    # Preserve the hostname lookup path after removing the old global unique index.
     if not any(
         item.get("column_names") == ["hostname"]
         for item in _inspector().get_indexes("assets")
     ):
         op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=False)
 
-    # Audit sequence numbers restart inside each workspace. Existing global
-    # sequence uniqueness must be relaxed before the composite tenant constraint.
+    # Audit sequence numbers restart in each workspace. Replace the old global
+    # unique index with a normal lookup index; 0005 adds tenant-scoped uniqueness.
     inspector = _inspector()
     for item in inspector.get_indexes("audit_events"):
         if item.get("unique") and item.get("column_names") == ["sequence_no"]:
@@ -332,26 +331,7 @@ def _drop_legacy_global_uniqueness() -> None:
             unique=False,
         )
 
-    # Audit sequences restart for each workspace. Remove the old global unique
-    # index and retain a non-unique lookup index plus tenant-scoped uniqueness.
-    inspector = _inspector()
-    for item in inspector.get_indexes("audit_events"):
-        if item.get("unique") and item.get("column_names") == ["sequence_no"]:
-            op.drop_index(item["name"], table_name="audit_events")
-    audit_indexes = _inspector().get_indexes("audit_events")
-    if not any(
-        item.get("column_names") == ["sequence_no"]
-        for item in audit_indexes
-    ):
-        op.create_index(
-            "ix_audit_events_sequence_no",
-            "audit_events",
-            ["sequence_no"],
-            unique=False,
-        )
-
-    # Idempotency tokens are scoped to a workspace; the same token may be used
-    # independently by another tenant.
+    # Idempotency tokens are scoped to a workspace.
     inspector = _inspector()
     for item in inspector.get_indexes("assessment_jobs"):
         if item.get("unique") and item.get("column_names") == ["idempotency_key_hash"]:
@@ -384,11 +364,6 @@ def upgrade() -> None:
         "assessment_jobs",
         "uq_assessment_jobs_tenant_idempotency_key_hash",
         ["tenant_id", "idempotency_key_hash"],
-    )
-    _ensure_unique(
-        "audit_events",
-        "uq_audit_events_tenant_sequence",
-        ["tenant_id", "sequence_no"],
     )
     _ensure_unique(
         "audit_events",
@@ -433,39 +408,6 @@ def upgrade() -> None:
         "assessments",
         ["tenant_id", "id"],
     )
-
-
-def _drop_tenant_artifacts(table: str) -> None:
-    inspector = _inspector()
-
-    # Drop every index that depends on tenant_id before SQLite batch mode
-    # rebuilds the table without that column.
-    for item in inspector.get_indexes(table):
-        if "tenant_id" in (item.get("column_names") or []):
-            op.drop_index(item["name"], table_name=table)
-
-    inspector = _inspector()
-    foreign_keys = [
-        item
-        for item in inspector.get_foreign_keys(table)
-        if "tenant_id" in (item.get("constrained_columns") or [])
-    ]
-    unique_constraints = [
-        item
-        for item in inspector.get_unique_constraints(table)
-        if "tenant_id" in (item.get("column_names") or [])
-    ]
-
-    with op.batch_alter_table(table) as batch:
-        for item in foreign_keys:
-            name = item.get("name")
-            if name:
-                batch.drop_constraint(name, type_="foreignkey")
-        for item in unique_constraints:
-            name = item.get("name")
-            if name:
-                batch.drop_constraint(name, type_="unique")
-        batch.drop_column("tenant_id")
 
 
 def _drop_tenant_artifacts(table: str) -> None:
