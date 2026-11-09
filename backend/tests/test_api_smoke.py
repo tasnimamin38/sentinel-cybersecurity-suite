@@ -14,11 +14,20 @@ os.environ["SENTINEL_DATABASE_URL"] = f"sqlite:///./sentinel_api_tests_{uuid4().
 os.environ["SENTINEL_CORS_ORIGINS"] = "http://localhost:5173"
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.auth import PUBLIC_API_ROUTES, ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import ApiCredential, Assessment, AssessmentJob, RemediationTask
+from app.models import (
+    LEGACY_TENANT_ID,
+    ApiCredential,
+    Assessment,
+    AssessmentJob,
+    Asset,
+    RemediationTask,
+    Tenant,
+)
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -840,3 +849,84 @@ def test_internal_worker_tick_rejects_a_wrong_secret(client, monkeypatch):
     )
 
     assert response.status_code == 404
+
+
+def test_managed_api_key_is_isolated_to_its_database_tenant(client):
+    tenant_id = "00000000-0000-4000-8000-0000000000b7"
+    legacy_asset_id = "legacy-tenant-api-isolation-asset"
+    company_asset_id = "company-b-api-isolation-asset"
+    secret = "tenant-b-managed-api-key-secret-000000000000"
+
+    with Session(bind=SessionLocal.kw["bind"]) as db:
+        db.add(
+            Tenant(
+                id=tenant_id,
+                slug="company-b-api-isolation-test",
+                name="Company B API Isolation Test",
+                workspace_type="company",
+                status="active",
+            )
+        )
+        db.flush()
+        db.add_all(
+            [
+                Asset(
+                    id=legacy_asset_id,
+                    tenant_id=LEGACY_TENANT_ID,
+                    hostname="legacy.example.com",
+                    name="Legacy private asset",
+                    owner="Legacy Security",
+                    environment="production",
+                    criticality=1.0,
+                    authorization_expires_at=datetime.now(UTC) + timedelta(days=30),
+                    authorization_reference="LEGACY-TEST-SCOPE",
+                    status="active",
+                    tags=[],
+                ),
+                Asset(
+                    id=company_asset_id,
+                    tenant_id=tenant_id,
+                    hostname="company-b.example.com",
+                    name="Company B private asset",
+                    owner="Company B Security",
+                    environment="production",
+                    criticality=1.0,
+                    authorization_expires_at=datetime.now(UTC) + timedelta(days=30),
+                    authorization_reference="COMPANY-B-TEST-SCOPE",
+                    status="active",
+                    tags=[],
+                ),
+                ApiCredential(
+                    id="company-b-isolation-test-credential",
+                    tenant_id=tenant_id,
+                    label="Company B isolation test",
+                    role="admin",
+                    key_hash=hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+                    key_prefix=secret[:12],
+                    expires_at=datetime.now(UTC) + timedelta(days=30),
+                    created_by="tenant-isolation-test",
+                ),
+            ]
+        )
+        db.commit()
+
+    headers = {"X-API-Key": secret}
+    identity = client.get("/api/v1/me", headers=headers)
+    assert identity.status_code == 200
+    assert identity.json()["tenant_id"] == tenant_id
+
+    listed = client.get("/api/v1/assets", headers=headers)
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()] == [company_asset_id]
+
+    foreign_update = client.patch(
+        f"/api/v1/assets/{legacy_asset_id}",
+        headers=headers,
+        json={"name": "Attempted cross-tenant mutation"},
+    )
+    assert foreign_update.status_code == 404
+
+    with Session(bind=SessionLocal.kw["bind"]) as db:
+        legacy_asset = db.get(Asset, legacy_asset_id)
+        assert legacy_asset is not None
+        assert legacy_asset.name == "Legacy private asset"
