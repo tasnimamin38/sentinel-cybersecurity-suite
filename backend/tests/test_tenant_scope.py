@@ -141,11 +141,7 @@ class TenantScopedSessionTests(unittest.TestCase):
     def test_bulk_update_cannot_reassign_a_row_to_another_tenant(self):
         with self.ScopedSessionA() as db:
             with self.assertRaises(TenantScopeViolation):
-                db.execute(
-                    update(Asset)
-                    .where(Asset.id == "asset-a")
-                    .values(tenant_id=TENANT_B)
-                )
+                db.execute(update(Asset).where(Asset.id == "asset-a").values(tenant_id=TENANT_B))
 
     def test_bulk_orm_insert_is_rejected_in_a_tenant_scoped_session(self):
         with self.ScopedSessionA() as db:
@@ -181,9 +177,7 @@ class TenantScopedSessionTests(unittest.TestCase):
 
         with self.ScopedSessionA() as db:
             foreign = db.scalar(
-                select(Asset)
-                .where(Asset.id == "asset-b")
-                .execution_options(skip_tenant_scope=True)
+                select(Asset).where(Asset.id == "asset-b").execution_options(skip_tenant_scope=True)
             )
             self.assertIsNotNone(foreign)
             foreign.name = "Attempted cross-tenant edit"
