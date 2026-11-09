@@ -287,6 +287,7 @@ async def security_response_headers(request, call_next):
                     request_id=request_id,
                     auth_failure_threshold=settings.auth_failure_threshold,
                     auth_failure_window_seconds=settings.auth_failure_window_seconds,
+                    tenant_id=getattr(request.state, "tenant_id", None),
                 )
                 db.commit()
             if settings.security_alert_webhook_url and settings.security_alert_webhook_secret:
