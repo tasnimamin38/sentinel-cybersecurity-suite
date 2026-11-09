@@ -507,9 +507,7 @@ class TenantRegistryMigrationTests(unittest.TestCase):
             connection.close()
 
             run = _run_migration(database_path, "downgrade", "0004_api_credentials")
-            self.assertNotEqual(
-                run.returncode, 0, msg="downgrade must refuse customer tenant data"
-            )
+            self.assertNotEqual(run.returncode, 0, msg="downgrade must refuse customer tenant data")
             connection = sqlite3.connect(database_path)
             tenant_count = connection.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
             self.assertEqual(tenant_count, 2)
