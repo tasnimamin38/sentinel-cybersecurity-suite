@@ -415,7 +415,13 @@ def _drop_tenant_artifacts(table: str) -> None:
 
     # Drop indexes that depend on tenant_id before a SQLite batch table rebuild.
     for item in inspector.get_indexes(table):
-        if "tenant_id" in (item.get("column_names") or []):
+        # PostgreSQL may report an index backing a named UNIQUE constraint.
+        # Let batch.drop_constraint remove those rather than dropping the
+        # constraint-owned index directly.
+        if (
+            "tenant_id" in (item.get("column_names") or [])
+            and not item.get("duplicates_constraint")
+        ):
             op.drop_index(item["name"], table_name=table)
 
     inspector = _inspector()
