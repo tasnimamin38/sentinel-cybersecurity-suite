@@ -22,6 +22,7 @@ from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, get_db
 from app.models import ApiCredential, Assessment, Asset, AuditEvent, RemediationTask
+from app import tenant_scope  # noqa: F401 - registers fail-closed ORM tenant filters
 from app.plans import get_public_plan_catalog
 from app.routes.jobs import router as assessment_jobs_router
 from app.schemas import (
