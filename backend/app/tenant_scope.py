@@ -20,6 +20,7 @@ from app.models import (
     CompanyDomainChallenge,
     CompanyProfile,
     RemediationTask,
+    Tenant,
     TenantMembership,
 )
 
