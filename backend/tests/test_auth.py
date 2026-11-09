@@ -34,6 +34,7 @@ class ApiKeyAuthTests(unittest.TestCase):
 
     def setUp(self):
         self.db = MagicMock()
+        self.db.info = {}
         self.db.scalar.return_value = None
 
     def test_valid_legacy_admin_key_is_accepted(self):
