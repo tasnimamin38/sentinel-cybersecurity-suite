@@ -1,6 +1,6 @@
 import unittest
 
-from sqlalchemy import create_engine, delete, select, update
+from sqlalchemy import create_engine, delete, insert, select, update
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -151,7 +151,7 @@ class TenantScopedSessionTests(unittest.TestCase):
         with self.ScopedSessionA() as db:
             with self.assertRaises(TenantScopeViolation):
                 db.execute(
-                    Asset.__table__.insert().values(
+                    insert(Asset).values(
                         id="asset-bulk",
                         tenant_id=TENANT_B,
                         hostname="bulk.example.com",
