@@ -315,6 +315,23 @@ def _drop_legacy_global_uniqueness() -> None:
     ):
         op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=False)
 
+    # Audit sequence numbers restart inside each workspace. Existing global
+    # sequence uniqueness must be relaxed before the composite tenant constraint.
+    inspector = _inspector()
+    for item in inspector.get_indexes("audit_events"):
+        if item.get("unique") and item.get("column_names") == ["sequence_no"]:
+            op.drop_index(item["name"], table_name="audit_events")
+    if not any(
+        item.get("column_names") == ["sequence_no"]
+        for item in _inspector().get_indexes("audit_events")
+    ):
+        op.create_index(
+            "ix_audit_events_sequence_no",
+            "audit_events",
+            ["sequence_no"],
+            unique=False,
+        )
+
     # Idempotency tokens are scoped to a workspace; the same token may be used
     # independently by another tenant.
     inspector = _inspector()
@@ -349,6 +366,11 @@ def upgrade() -> None:
         "assessment_jobs",
         "uq_assessment_jobs_tenant_idempotency_key_hash",
         ["tenant_id", "idempotency_key_hash"],
+    )
+    _ensure_unique(
+        "audit_events",
+        "uq_audit_events_tenant_sequence",
+        ["tenant_id", "sequence_no"],
     )
 
     # Composite foreign keys are the database-level guard against linking a
@@ -390,6 +412,39 @@ def upgrade() -> None:
     )
 
 
+def _drop_tenant_artifacts(table: str) -> None:
+    inspector = _inspector()
+
+    # Drop every index that depends on tenant_id before SQLite batch mode
+    # rebuilds the table without that column.
+    for item in inspector.get_indexes(table):
+        if "tenant_id" in (item.get("column_names") or []):
+            op.drop_index(item["name"], table_name=table)
+
+    inspector = _inspector()
+    foreign_keys = [
+        item
+        for item in inspector.get_foreign_keys(table)
+        if "tenant_id" in (item.get("constrained_columns") or [])
+    ]
+    unique_constraints = [
+        item
+        for item in inspector.get_unique_constraints(table)
+        if "tenant_id" in (item.get("column_names") or [])
+    ]
+
+    with op.batch_alter_table(table) as batch:
+        for item in foreign_keys:
+            name = item.get("name")
+            if name:
+                batch.drop_constraint(name, type_="foreignkey")
+        for item in unique_constraints:
+            name = item.get("name")
+            if name:
+                batch.drop_constraint(name, type_="unique")
+        batch.drop_column("tenant_id")
+
+
 def downgrade() -> None:
     bind = op.get_bind()
     tables = set(_inspector().get_table_names())
@@ -424,35 +479,39 @@ def downgrade() -> None:
                     f"Refusing tenant downgrade: {table} contains non-legacy workspace data."
                 )
 
-    # Restore the legacy global uniqueness rules while only the legacy
-    # workspace remains. All operational rows are retained.
-    has_hostname_unique_index = any(
-        item.get("unique") and item.get("column_names") == ["hostname"]
-        for item in _inspector().get_indexes("assets")
-    )
-    has_hostname_unique_constraint = any(
-        item.get("column_names") == ["hostname"]
-        for item in _inspector().get_unique_constraints("assets")
-    )
-    if not has_hostname_unique_index and not has_hostname_unique_constraint:
-        indexes = {
-            item["name"]: item
-            for item in _inspector().get_indexes("assets")
-        }
-        if "ix_assets_hostname" in indexes:
-            op.drop_index("ix_assets_hostname", table_name="assets")
-        op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=True)
+    # Drop child tables' tenant constraints before parent tables' tenant keys.
+    for table in reversed(CORE_TABLES):
+        if table in set(_inspector().get_table_names()):
+            _drop_tenant_artifacts(table)
 
+    # Restore the old global uniqueness behavior after tenant-scoped
+    # constraints and indexes have been removed.
+    indexes = {item["name"]: item for item in _inspector().get_indexes("assets")}
+    if "ix_assets_hostname" in indexes:
+        op.drop_index("ix_assets_hostname", table_name="assets")
+    op.create_index("ix_assets_hostname", "assets", ["hostname"], unique=True)
+
+    indexes = {item["name"]: item for item in _inspector().get_indexes("assessment_jobs")}
+    if "uq_assessment_jobs_idempotency_key_hash" in indexes:
+        op.drop_index(
+            "uq_assessment_jobs_idempotency_key_hash",
+            table_name="assessment_jobs",
+        )
     _ensure_unique(
         "assessment_jobs",
         "uq_assessment_jobs_idempotency_key_hash",
         ["idempotency_key_hash"],
     )
 
-    for table in reversed(CORE_TABLES):
-        if table in set(_inspector().get_table_names()):
-            with op.batch_alter_table(table) as batch:
-                batch.drop_column("tenant_id")
+    indexes = {item["name"]: item for item in _inspector().get_indexes("audit_events")}
+    if "ix_audit_events_sequence_no" in indexes:
+        op.drop_index("ix_audit_events_sequence_no", table_name="audit_events")
+    op.create_index(
+        "ix_audit_events_sequence_no",
+        "audit_events",
+        ["sequence_no"],
+        unique=True,
+    )
 
     for table in (
         "company_domain_challenges",
