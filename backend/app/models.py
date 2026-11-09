@@ -271,7 +271,14 @@ class RemediationTask(Base):
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
-    __table_args__ = (UniqueConstraint("tenant_id", "id", name="uq_audit_events_tenant_id"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_audit_events_tenant_id"),
+        UniqueConstraint(
+            "tenant_id",
+            "sequence_no",
+            name="uq_audit_events_tenant_sequence",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     tenant_id: Mapped[str] = mapped_column(
@@ -286,7 +293,7 @@ class AuditEvent(Base):
     subject: Mapped[str] = mapped_column(String(253), default="")
     result: Mapped[str] = mapped_column(String(24), default="success")
     details: Mapped[str] = mapped_column(Text, default="")
-    sequence_no: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True, index=True)
+    sequence_no: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     previous_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     event_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
