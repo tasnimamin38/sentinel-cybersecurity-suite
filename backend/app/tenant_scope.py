@@ -63,8 +63,18 @@ def _apply_tenant_criteria(execute_state) -> None:
         return
     if not execute_state.is_orm_statement:
         return
+    if execute_state.is_insert:
+        raise TenantScopeViolation(
+            "Bulk ORM inserts are disabled; persist tenant-owned objects through the scoped session."
+        )
     if not (execute_state.is_select or execute_state.is_update or execute_state.is_delete):
         return
+
+    if execute_state.is_update:
+        assigned_columns = getattr(execute_state.statement, "_values", None) or {}
+        for column in assigned_columns:
+            if getattr(column, "key", None) == "tenant_id" or str(column) == "tenant_id":
+                raise TenantScopeViolation("A tenant-owned row cannot change its tenant_id.")
 
     tenant_id = session.info.get("tenant_id")
     if not isinstance(tenant_id, str) or not tenant_id:
