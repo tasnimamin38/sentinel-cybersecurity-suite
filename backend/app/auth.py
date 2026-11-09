@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.models import ApiCredential
+from app.tenant_constants import LEGACY_TENANT_ID
+from app.tenant_scope import set_tenant_context
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,7 @@ class ApiPrincipal:
     credential_id: str
     role: str
     credential_source: str
+    tenant_id: str
 
 
 # Public API surface is intentionally tiny. These routes must remain
@@ -178,25 +181,35 @@ def require_api_key(
     if matches:
         # Configuration validation prevents duplicate key material and IDs.
         credential_id, role, source = matches[0]
-        principal = ApiPrincipal(credential_id=credential_id, role=role, credential_source=source)
+        principal = ApiPrincipal(
+            credential_id=credential_id,
+            role=role,
+            credential_source=source,
+            tenant_id=LEGACY_TENANT_ID,
+        )
     elif supplied:
         # This verifier is for a uniformly random 48-byte bearer token, not a user
         # password. Its 384 bits of entropy make a fast digest suitable for indexed
         # lookup; slow password KDFs are designed for low-entropy human passwords.
         digest = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
         managed = db.scalar(
-            select(ApiCredential).where(ApiCredential.key_hash == digest).with_for_update()
+            select(ApiCredential)
+            .where(ApiCredential.key_hash == digest)
+            .execution_options(skip_tenant_scope=True)
+            .with_for_update()
         )
         if managed is not None and hmac.compare_digest(managed.key_hash, digest):
             now = datetime.now(UTC)
             expires = _as_utc(managed.expires_at) if managed.expires_at is not None else None
             if managed.revoked_at is None and (expires is None or expires > now):
                 managed.last_used_at = now
+                set_tenant_context(db, managed.tenant_id)
                 db.commit()
                 principal = ApiPrincipal(
                     credential_id=managed.id,
                     role=managed.role,
                     credential_source="database",
+                    tenant_id=managed.tenant_id,
                 )
 
     if principal is None:
@@ -205,6 +218,8 @@ def require_api_key(
             detail="Invalid, expired, revoked or missing API key.",
         )
 
+    set_tenant_context(db, principal.tenant_id)
     _authorize_role(principal.role, request)
+    request.state.tenant_id = principal.tenant_id
     request.state.api_principal = principal
     return principal
