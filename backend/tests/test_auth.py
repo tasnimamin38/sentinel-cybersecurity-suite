@@ -49,6 +49,13 @@ class ApiKeyAuthTests(unittest.TestCase):
         self.assertEqual(principal.tenant_id, "00000000-0000-4000-8000-000000000001")
         self.assertEqual(self.db.info["tenant_id"], principal.tenant_id)
 
+    def test_session_cannot_switch_tenants_after_authentication(self):
+        from app.tenant_scope import TenantScopeViolation, set_tenant_context
+
+        set_tenant_context(self.db, "00000000-0000-4000-8000-00000000000a")
+        with self.assertRaises(TenantScopeViolation):
+            set_tenant_context(self.db, "00000000-0000-4000-8000-00000000000b")
+
     def test_managed_api_key_selects_its_own_tenant_context(self):
         import hashlib
 
