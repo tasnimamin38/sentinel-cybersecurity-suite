@@ -46,7 +46,7 @@ def record_audit_event(
     subject: str = "",
     result: str = "success",
     details: str = "",
-    tenant_id: str = LEGACY_TENANT_ID,
+    tenant_id: str | None = None,
 ) -> AuditEvent:
     """Append a sequence-numbered, hash-linked event.
 
