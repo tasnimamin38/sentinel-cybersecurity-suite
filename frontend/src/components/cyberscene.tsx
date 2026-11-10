@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { shouldAnimateScene } from "./scenemotion.js";
 
 type CyberSceneProps = {
   status: string;
@@ -369,43 +370,22 @@ export default function CyberScene({ status, compact = false }: CyberSceneProps)
     ambientRing.position.y = -0.15;
     root.add(ambientRing);
 
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reducedMotion = motionQuery.matches;
+    let documentVisible = document.visibilityState === "visible";
+    let sceneVisible = true;
     let frame = 0;
     let elapsed = 0;
-    let visible = true;
     let previousTime = 0;
 
-    const resize = () => {
-      const width = host.clientWidth;
-      const height = host.clientHeight;
-      if (!width || !height) return;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.25 : 1.6));
-      renderer.render(scene, camera);
+    const canAnimate = () => shouldAnimateScene({ reducedMotion, documentVisible, sceneVisible });
+    const stopAnimation = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
     };
-
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(host);
-
-    const intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        visible = entries[0]?.isIntersecting ?? true;
-        if (visible && !reducedMotion) previousTime = 0;
-      },
-      { threshold: 0.02 },
-    );
-    intersectionObserver.observe(host);
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState !== "visible") visible = false;
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
     const animate = (time: number) => {
-      frame = window.requestAnimationFrame(animate);
-      if (!visible || document.visibilityState !== "visible" || reducedMotion) return;
+      frame = 0;
+      if (!canAnimate()) return;
       const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 0;
       previousTime = time;
       elapsed += delta;
@@ -425,17 +405,64 @@ export default function CyberScene({ status, compact = false }: CyberSceneProps)
         node.scale.setScalar(pulse);
       });
       renderer.render(scene, camera);
+      if (canAnimate()) frame = window.requestAnimationFrame(animate);
+    };
+    const updateAnimation = () => {
+      if (!canAnimate()) {
+        stopAnimation();
+        renderer.render(scene, camera);
+        return;
+      }
+      if (!frame) {
+        previousTime = 0;
+        frame = window.requestAnimationFrame(animate);
+      }
     };
 
+    const resize = () => {
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      if (!width || !height) return;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1.25 : 1.6));
+      renderer.render(scene, camera);
+    };
+
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(host);
+
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        sceneVisible = entries[0]?.isIntersecting ?? false;
+        updateAnimation();
+      },
+      { threshold: 0.02 },
+    );
+    intersectionObserver.observe(host);
+
+    const onVisibilityChange = () => {
+      documentVisible = document.visibilityState === "visible";
+      updateAnimation();
+    };
+    const onMotionPreferenceChange = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+      updateAnimation();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    motionQuery.addEventListener("change", onMotionPreferenceChange);
+
     resize();
-    if (!reducedMotion) frame = window.requestAnimationFrame(animate);
-    else renderer.render(scene, camera);
+    renderer.render(scene, camera);
+    updateAnimation();
 
     return () => {
-      window.cancelAnimationFrame(frame);
+      stopAnimation();
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      motionQuery.removeEventListener("change", onMotionPreferenceChange);
       scene.traverse((object) => {
         const renderable = object as THREE.Mesh;
         if (renderable.geometry instanceof THREE.BufferGeometry) renderable.geometry.dispose();

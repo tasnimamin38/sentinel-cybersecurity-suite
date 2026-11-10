@@ -1,5 +1,7 @@
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { API_BASE } from "./shared/apibase";
+import type { PublicPlanCatalog } from "./shared/plantypes";
 import {
   Activity, AlertTriangle, ArrowUpRight, Bell, CalendarClock, CheckCircle2, Download,
   ChevronDown, ChevronRight, CircleDot, ClipboardCheck, Database, Fingerprint,
@@ -8,7 +10,7 @@ import {
   Workflow, FileSearch,
 } from "lucide-react";
 
-const CyberScene = lazy(() => import("./components/CyberScene"));
+const CyberScene = lazy(() => import("./components/cyberscene"));
 
 type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials" | "plans";
 type Finding = {
@@ -75,42 +77,7 @@ type ApiCredential = {
   revoked_at?: string | null; created_by: string; created_at: string; last_used_at?: string | null;
 };
 type CreatedCredential = { credential: ApiCredential; secret: string };
-type PublicPlan = {
-  code: string;
-  name: string;
-  status: "active" | "preview";
-  price: { amount_cents: number | null; currency: string; interval: string; display: string };
-  default_for_new_workspaces?: boolean;
-  purchasable: boolean;
-  checkout_enabled: boolean;
-  feature_codes?: string[];
-  limits?: Record<string, unknown>;
-  limits_enforced?: boolean;
-  limit_enforcement_status?: string;
-  capacity_preview?: Record<string, number> | null;
-  planned_for?: string;
-  notice?: string;
-};
-type PublicPlanCatalog = {
-  catalog_version: number;
-  launch_mode: string;
-  default_plan_code: string;
-  billing_enabled: boolean;
-  checkout_enabled: boolean;
-  usage_limits_enforced: boolean;
-  workspace_type: "personal" | "company" | null;
-  feature_catalog?: {
-    code: string;
-    name: string;
-    category: string;
-    description: string;
-    status: "available";
-  }[];
-  plans: PublicPlan[];
-  notice: string;
-};
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 const viewLabels: Record<View, string> = {
   overview: "Command center", assets: "Asset inventory", findings: "Security findings",
   remediations: "Remediation queue", controls: "Control coverage",
