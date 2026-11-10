@@ -518,8 +518,44 @@ export default function App() {
           {!connected ? (
             <>
               <section className="disconnected-panel">
-                <div className="disconnected-visual"><div className="radar-ring r1" /><div className="radar-ring r2" /><div className="radar-ring r3" /><div className="radar-center"><Shield size={36} /></div><div className="radar-sweep" /></div>
-                <div><div className="eyebrow">CONTROL PLANE NOT AUTHENTICATED</div><h2>Live telemetry is locked.</h2><p>Connect the API to reveal registered assets, security findings, task status, control coverage and audit-chain integrity. No demo metrics are shown.</p><div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div></div>
+                <div className="cyber-scene" aria-hidden="true">
+                  <div className="cyber-scene-grid" />
+                  <div className="cyber-scene-halo halo-one" />
+                  <div className="cyber-scene-halo halo-two" />
+                  <div className="cyber-stage">
+                    <div className="cyber-platform platform-base" />
+                    <div className="cyber-platform platform-mid" />
+                    <div className="cyber-platform platform-top" />
+                    <div className="cyber-orbit orbit-a"><i /><i /><i /></div>
+                    <div className="cyber-orbit orbit-b"><i /><i /></div>
+                    <div className="cyber-core">
+                      <div className="cyber-core-aura" />
+                      <div className="cyber-cube">
+                        <div className="cyber-cube-face face-front"><Shield size={39} strokeWidth={1.35} /><small>SENTINEL CORE</small></div>
+                        <div className="cyber-cube-face face-back" />
+                        <div className="cyber-cube-face face-right" />
+                        <div className="cyber-cube-face face-left" />
+                        <div className="cyber-cube-face face-top" />
+                        <div className="cyber-cube-face face-bottom" />
+                      </div>
+                      <div className="cyber-core-scanline" />
+                    </div>
+                    <div className="cyber-node node-one" />
+                    <div className="cyber-node node-two" />
+                    <div className="cyber-node node-three" />
+                  </div>
+                  <div className="cyber-data-chip chip-left"><span>IDENTITY GATE</span><b>API KEY REQUIRED</b></div>
+                  <div className="cyber-data-chip chip-right"><span>ASSESSMENT SCOPE</span><b>ALLOWLIST ENFORCED</b></div>
+                  <div className="cyber-data-chip chip-bottom"><span>DATA MODE</span><b>LIVE API · NO DEMO</b></div>
+                  <div className="cyber-scene-caption"><span className="scene-caption-dot" /> DEFENSIVE CONTROL ARCHITECTURE <span> / 01</span></div>
+                </div>
+                <div className="disconnected-copy">
+                  <div className="eyebrow"><span className="eyebrow-square" /> CONTROL PLANE · AUTHENTICATION REQUIRED</div>
+                  <h2>Your security command layer.</h2>
+                  <p>Connect a workspace API key to unlock real inventory, assessments, remediation and audit data. SENTINEL never fills an empty dashboard with demo metrics or fabricated telemetry.</p>
+                  <div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div>
+                  <div className="cyber-copy-foot"><span>01 / IDENTITY</span><span>02 / AUTHORIZATION</span><span>03 / EVIDENCE</span></div>
+                </div>
               </section>
               <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />
             </>
