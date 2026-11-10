@@ -83,3 +83,59 @@ def test_returned_catalog_cannot_mutate_the_shared_plan_definitions():
     free = next(plan for plan in second["plans"] if plan["code"] == "free_early_access")
     assert set(free["feature_codes"]) == set(FREE_FEATURE_CODES)
     assert free["limits"]["max_assets"] == 10
+
+
+EXPECTED_LAUNCH_FEATURE_CODES = {
+    "asset_inventory",
+    "authorized_domain_assessments",
+    "dns_tls_posture",
+    "security_header_analysis",
+    "assessment_jobs",
+    "scheduled_assessments",
+    "security_findings",
+    "remediation_workflows",
+    "security_controls",
+    "audit_integrity",
+    "csv_exports",
+    "security_event_monitoring",
+    "secret_scanning",
+    "api_credential_management",
+    "role_based_access_control",
+    "shared_rate_limiting",
+    "signed_alert_webhooks",
+}
+
+
+@pytest.mark.parametrize("workspace_type", [None, "personal", "company"])
+def test_every_shipped_core_security_module_is_in_free_launch_catalog(workspace_type):
+    catalog = get_public_plan_catalog(workspace_type)
+
+    assert set(feature["code"] for feature in catalog["feature_catalog"]) == (
+        EXPECTED_LAUNCH_FEATURE_CODES
+    )
+    assert all(feature["status"] == "available" for feature in catalog["feature_catalog"])
+
+    free = next(plan for plan in catalog["plans"] if plan["code"] == DEFAULT_PLAN_CODE)
+    assert set(free["feature_codes"]) == EXPECTED_LAUNCH_FEATURE_CODES
+
+
+def test_free_launch_includes_all_features_without_subscription_quota_or_checkout():
+    catalog = get_public_plan_catalog()
+
+    assert catalog["billing_enabled"] is False
+    assert catalog["checkout_enabled"] is False
+    assert catalog["usage_limits_enforced"] is False
+
+    free = next(plan for plan in catalog["plans"] if plan["code"] == DEFAULT_PLAN_CODE)
+    assert free["limits_enforced"] is False
+    assert free["purchasable"] is False
+    assert free["checkout_enabled"] is False
+    assert free["limit_enforcement_status"] == "not_enforced"
+
+
+def test_feature_catalog_is_a_defensive_copy():
+    catalog = get_public_plan_catalog()
+    catalog["feature_catalog"][0]["name"] = "mutated"
+
+    next_catalog = get_public_plan_catalog()
+    assert next_catalog["feature_catalog"][0]["name"] != "mutated"
