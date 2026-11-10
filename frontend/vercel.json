@@ -1,5 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://sentinel-staging-api-q2nk.onrender.com/api/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/"
