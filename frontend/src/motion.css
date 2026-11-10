@@ -87,3 +87,20 @@
   from { transform: rotateY(0deg) rotateX(0deg); }
   to { transform: rotateY(360deg) rotateX(7deg); }
 }
+
+
+/* Keep the hologram fully inside compact viewports while retaining the float. */
+@media (max-width: 760px) {
+  .cyber-stage { animation-name: sentinel-stage-float-mobile; }
+}
+@keyframes sentinel-stage-float-mobile {
+  0%, 100% { transform: translate(-50%, -50%) scale(.83) rotateX(53deg) rotateZ(-22deg) translateY(0); }
+  50% { transform: translate(-50%, -50%) scale(.83) rotateX(53deg) rotateZ(-22deg) translateY(-6px); }
+}
+@media (max-width: 390px) {
+  .cyber-stage { animation-name: sentinel-stage-float-compact; }
+}
+@keyframes sentinel-stage-float-compact {
+  0%, 100% { transform: translate(-50%, -50%) scale(.7) rotateX(53deg) rotateZ(-22deg) translateY(0); }
+  50% { transform: translate(-50%, -50%) scale(.7) rotateX(53deg) rotateZ(-22deg) translateY(-5px); }
+}
