@@ -97,6 +97,13 @@ type PublicPlanCatalog = {
   checkout_enabled: boolean;
   usage_limits_enforced: boolean;
   workspace_type: "personal" | "company" | null;
+  feature_catalog: {
+    code: string;
+    name: string;
+    category: string;
+    description: string;
+    status: "available";
+  }[];
   plans: PublicPlan[];
   notice: string;
 };
@@ -733,9 +740,6 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
         <>
           <div className="plans-grid">
             {catalog.plans.map((plan) => {
-              const limits = plan.limits?.by_workspace_type as Record<string, Record<string, number | string>> | undefined;
-              const personal = limits?.personal;
-              const company = limits?.company;
               return (
                 <article className={"plan-card " + (plan.code === catalog.default_plan_code ? "plan-card-featured" : "")} key={plan.code}>
                   <div className="plan-card-top">
