@@ -97,7 +97,7 @@ type PublicPlanCatalog = {
   checkout_enabled: boolean;
   usage_limits_enforced: boolean;
   workspace_type: "personal" | "company" | null;
-  feature_catalog: {
+  feature_catalog?: {
     code: string;
     name: string;
     category: string;
@@ -770,23 +770,31 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
               );
             })}
           </div>
-          <section className="launch-feature-catalog" aria-labelledby="launch-feature-heading">
-            <div className="launch-feature-heading">
-              <div className="eyebrow"><span className="eyebrow-square" /> INCLUDED IN FREE EARLY ACCESS</div>
-              <h3 id="launch-feature-heading">The current SENTINEL toolkit, available to everyone.</h3>
-              <p>These are implemented product capabilities, not roadmap promises. Platform safety controls apply equally to every workspace.</p>
+          {catalog.feature_catalog?.length ? (
+            <section className="launch-feature-catalog" aria-labelledby="launch-feature-heading">
+              <div className="launch-feature-heading">
+                <div className="eyebrow"><span className="eyebrow-square" /> INCLUDED IN FREE EARLY ACCESS</div>
+                <h3 id="launch-feature-heading">The current SENTINEL toolkit, available to everyone.</h3>
+                <p>These are implemented product capabilities, not roadmap promises. Platform safety controls apply equally to every workspace.</p>
+              </div>
+              <div className="launch-feature-grid">
+                {catalog.feature_catalog
+                  .filter((feature) => feature.status === "available" && catalog.plans.find((plan) => plan.code === catalog.default_plan_code)?.feature_codes?.includes(feature.code))
+                  .map((feature) => (
+                    <article className="launch-feature-item" key={feature.code}>
+                      <span className="launch-feature-icon"><CheckCircle2 size={14} /></span>
+                      <div><b>{feature.name}</b><small>{feature.description}</small></div>
+                    </article>
+                  ))}
+              </div>
+            </section>
+  
+          ) : (
+            <div className="plans-status">
+              Detailed feature descriptions are not available from this API version yet.
+              Free Early Access remains the default and checkout stays disabled.
             </div>
-            <div className="launch-feature-grid">
-              {catalog.feature_catalog
-                .filter((feature) => feature.status === "available" && catalog.plans.find((plan) => plan.code === catalog.default_plan_code)?.feature_codes?.includes(feature.code))
-                .map((feature) => (
-                  <article className="launch-feature-item" key={feature.code}>
-                    <span className="launch-feature-icon"><CheckCircle2 size={14} /></span>
-                    <div><b>{feature.name}</b><small>{feature.description}</small></div>
-                  </article>
-                ))}
-            </div>
-          </section>
+          )}
           <p className="plans-footnote">{catalog.notice} Plan catalogue v{catalog.catalog_version}. All plan details are supplied by the live SENTINEL API.</p>
         </>
       )}
