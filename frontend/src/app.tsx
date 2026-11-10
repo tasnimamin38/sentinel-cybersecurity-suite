@@ -97,6 +97,13 @@ type PublicPlanCatalog = {
   checkout_enabled: boolean;
   usage_limits_enforced: boolean;
   workspace_type: "personal" | "company" | null;
+  feature_catalog: {
+    code: string;
+    name: string;
+    category: string;
+    description: string;
+    status: "available";
+  }[];
   plans: PublicPlan[];
   notice: string;
 };
@@ -722,10 +729,10 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
       <div className="plans-heading">
         <div>
           <div className="eyebrow"><span className="eyebrow-square" /> FREE-FIRST SAAS · EARLY ACCESS</div>
-          <h2 id="plans-heading">Security operations for every team.</h2>
-          <p>Every currently shipped core security module is included in Free Early Access. Future plans are previews only; billing and checkout are disabled.</p>
+          <h2 id="plans-heading">Every shipped security module. Free during launch.</h2>
+          <p>Personal and Company workspaces get every currently shipped core security module at no charge. No subscription-based feature gates or usage quotas are active. Future plan prices are proposals only.</p>
         </div>
-        <div className="plans-billing-state"><span className="live-dot" /> BILLING DISABLED</div>
+        <div className="plans-billing-state"><span className="live-dot" /> FREE LAUNCH · PAYMENTS OFF</div>
       </div>
       {loading && <div className="plans-status">Loading the live plan catalogue…</div>}
       {error && <div className="plans-status plans-error">{error}</div>}
@@ -733,9 +740,6 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
         <>
           <div className="plans-grid">
             {catalog.plans.map((plan) => {
-              const limits = plan.limits?.by_workspace_type as Record<string, Record<string, number | string>> | undefined;
-              const personal = limits?.personal;
-              const company = limits?.company;
               return (
                 <article className={"plan-card " + (plan.code === catalog.default_plan_code ? "plan-card-featured" : "")} key={plan.code}>
                   <div className="plan-card-top">
@@ -747,9 +751,9 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
                   <p className="plan-description">{plan.notice ?? plan.planned_for}</p>
                   {plan.code === "free_early_access" && (
                     <div className="plan-limits">
-                      <div><b>Personal target</b><span>{personal?.max_assets ?? "—"} assets · {personal?.assessments_per_month ?? "—"} assessments/mo</span></div>
-                      <div><b>Company target</b><span>{company?.max_assets ?? "—"} assets · {company?.assessments_per_month ?? "—"} assessments/mo</span></div>
-                      <small>Usage ceilings are published targets; enforcement is not enabled yet.</small>
+                      <div><b>Feature access</b><span>All shipped security modules included for Personal and Company workspaces.</span></div>
+                      <div><b>Subscription quotas</b><span>No plan-based asset or assessment caps are enforced during Free Early Access.</span></div>
+                      <small>Authorized scope, abuse protection and infrastructure safety controls remain active for every account.</small>
                     </div>
                   )}
                   {plan.capacity_preview && (
@@ -766,6 +770,23 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
               );
             })}
           </div>
+          <section className="launch-feature-catalog" aria-labelledby="launch-feature-heading">
+            <div className="launch-feature-heading">
+              <div className="eyebrow"><span className="eyebrow-square" /> INCLUDED IN FREE EARLY ACCESS</div>
+              <h3 id="launch-feature-heading">The current SENTINEL toolkit, available to everyone.</h3>
+              <p>These are implemented product capabilities, not roadmap promises. Platform safety controls apply equally to every workspace.</p>
+            </div>
+            <div className="launch-feature-grid">
+              {catalog.feature_catalog
+                .filter((feature) => feature.status === "available" && catalog.plans.find((plan) => plan.code === catalog.default_plan_code)?.feature_codes?.includes(feature.code))
+                .map((feature) => (
+                  <article className="launch-feature-item" key={feature.code}>
+                    <span className="launch-feature-icon"><CheckCircle2 size={14} /></span>
+                    <div><b>{feature.name}</b><small>{feature.description}</small></div>
+                  </article>
+                ))}
+            </div>
+          </section>
           <p className="plans-footnote">{catalog.notice} Plan catalogue v{catalog.catalog_version}. All plan details are supplied by the live SENTINEL API.</p>
         </>
       )}

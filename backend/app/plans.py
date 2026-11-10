@@ -12,19 +12,129 @@ BILLING_ENABLED = False
 CHECKOUT_ENABLED = False
 DEFAULT_PLAN_CODE = "free_early_access"
 
-FREE_FEATURE_CODES = (
-    "asset_inventory",
-    "authorized_domain_assessments",
-    "assessment_jobs",
-    "security_findings",
-    "remediation_workflows",
-    "security_controls",
-    "audit_integrity",
-    "security_event_monitoring",
-    "secret_scanning",
-    "api_credential_management",
-    "csv_exports",
+_FEATURE_CATALOG: tuple[dict[str, str], ...] = (
+    {
+        "code": "asset_inventory",
+        "name": "Authorized asset inventory",
+        "category": "Asset governance",
+        "description": "Register approved assets with ownership, environment, criticality and authorization expiry.",
+        "status": "available",
+    },
+    {
+        "code": "authorized_domain_assessments",
+        "name": "Authorized posture assessments",
+        "category": "Assessment",
+        "description": "Run bounded DNS-pinned HTTPS posture checks only inside configured authorized asset scope.",
+        "status": "available",
+    },
+    {
+        "code": "dns_tls_posture",
+        "name": "DNS and TLS posture",
+        "category": "Assessment",
+        "description": "Review supported DNS email, certificate and TLS posture signals.",
+        "status": "available",
+    },
+    {
+        "code": "security_header_analysis",
+        "name": "Security-header analysis",
+        "category": "Assessment",
+        "description": "Evaluate supported HTTPS response-header policies including HSTS and CSP.",
+        "status": "available",
+    },
+    {
+        "code": "assessment_jobs",
+        "name": "Durable assessment jobs",
+        "category": "Automation",
+        "description": "Queue, lease, retry, recover and cooperatively cancel supported assessment jobs.",
+        "status": "available",
+    },
+    {
+        "code": "scheduled_assessments",
+        "name": "Scheduled assessments",
+        "category": "Automation",
+        "description": "Schedule authorized asset reviews within the supported scheduling window.",
+        "status": "available",
+    },
+    {
+        "code": "security_findings",
+        "name": "Explainable findings and risk scoring",
+        "category": "Risk",
+        "description": "Review evidence-backed security findings and explainable risk scores.",
+        "status": "available",
+    },
+    {
+        "code": "remediation_workflows",
+        "name": "Remediation workflows",
+        "category": "Remediation",
+        "description": "Assign, track, update and resolve security remediation actions.",
+        "status": "available",
+    },
+    {
+        "code": "security_controls",
+        "name": "Security control mapping",
+        "category": "Assurance",
+        "description": "Map observed findings to the platform's framework-neutral security controls.",
+        "status": "available",
+    },
+    {
+        "code": "audit_integrity",
+        "name": "Tamper-evident audit chain",
+        "category": "Audit",
+        "description": "Inspect hash-linked audit events and verify chain integrity.",
+        "status": "available",
+    },
+    {
+        "code": "csv_exports",
+        "name": "Audited CSV exports",
+        "category": "Reporting",
+        "description": "Export supported operational records with audit logging and formula-injection defenses.",
+        "status": "available",
+    },
+    {
+        "code": "security_event_monitoring",
+        "name": "Runtime security event monitoring",
+        "category": "Monitoring",
+        "description": "Review defensive evidence for suspicious requests reaching SENTINEL's own API.",
+        "status": "available",
+    },
+    {
+        "code": "secret_scanning",
+        "name": "Redacted secret scanning",
+        "category": "Developer security",
+        "description": "Identify supported secret patterns while redacting values and not persisting submitted source content.",
+        "status": "available",
+    },
+    {
+        "code": "api_credential_management",
+        "name": "API credential lifecycle",
+        "category": "Access control",
+        "description": "Create, expire, rotate and revoke machine API credentials with one-time secret display.",
+        "status": "available",
+    },
+    {
+        "code": "role_based_access_control",
+        "name": "Role-based access control",
+        "category": "Access control",
+        "description": "Apply route-level permissions and role-scoped service credential permissions.",
+        "status": "available",
+    },
+    {
+        "code": "shared_rate_limiting",
+        "name": "Shared abuse protection",
+        "category": "Platform security",
+        "description": "Use shared Redis-backed request budgets and fail-closed protection for supported API paths.",
+        "status": "available",
+    },
+    {
+        "code": "signed_alert_webhooks",
+        "name": "Signed security alert webhooks",
+        "category": "Notifications",
+        "description": "Deliver supported high and critical alerts with HMAC-SHA256 request signatures.",
+        "status": "available",
+    },
 )
+
+FREE_FEATURE_CODES = tuple(feature["code"] for feature in _FEATURE_CATALOG)
 
 _FREE_LIMITS_BY_WORKSPACE_TYPE: dict[str, dict[str, int | str]] = {
     "personal": {
@@ -158,19 +268,21 @@ def get_public_plan_catalog(workspace_type: str | None = None) -> dict[str, Any]
             "purchasable": False,
             "checkout_enabled": False,
             "limits_enforced": False,
-            "limit_enforcement_status": "planned",
+            "limit_enforcement_status": "not_enforced",
+            "capacity_guidance_only": True,
             "feature_codes": list(FREE_FEATURE_CODES),
             "limits": free_limits,
             "notice": (
-                "All currently shipped core security modules are included. "
-                "Fair-use values are planned ceilings; enforcement is not enabled yet."
+                "All currently shipped core security modules are free for Personal and Company "
+                "workspaces during Early Access. No subscription quota is enforced. "
+                "Capacity values are planning guidance only."
             ),
         }
     ]
     plans.extend(deepcopy(list(_PREVIEW_PLANS)))
 
     return {
-        "catalog_version": 1,
+        "catalog_version": 2,
         "launch_mode": "free_early_access",
         "default_plan_code": DEFAULT_PLAN_CODE,
         "billing_enabled": BILLING_ENABLED,
@@ -178,9 +290,12 @@ def get_public_plan_catalog(workspace_type: str | None = None) -> dict[str, Any]
         "usage_limits_enforced": False,
         "currency": "USD",
         "workspace_type": workspace_type,
+        "feature_catalog": deepcopy(list(_FEATURE_CATALOG)),
         "plans": plans,
         "notice": (
-            "SENTINEL is in Free Early Access. All current core modules are free. "
-            "Preview prices are proposals only; no payments or paid upgrades are enabled."
+            "SENTINEL Free Early Access includes every currently shipped core module for "
+            "Personal and Company workspaces. No subscription-based feature or usage quota "
+            "gates are active. Platform safety controls remain in force. Preview prices are "
+            "proposals only; checkout and payments are disabled."
         ),
     }
