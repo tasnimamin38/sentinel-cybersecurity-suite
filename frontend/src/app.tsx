@@ -1,12 +1,14 @@
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowUpRight, Bell, CalendarClock, CheckCircle2, Download,
   ChevronDown, ChevronRight, CircleDot, ClipboardCheck, Database, Fingerprint,
   Globe2, KeyRound, Layers3, ListChecks, LockKeyhole, Plus, Radar, RefreshCw,
-  ScanLine, Search, Server, Settings2, Shield, ShieldAlert, ShieldCheck, CreditCard,
+  ScanLine, Search, Server, Settings2, ShieldAlert, ShieldCheck, CreditCard,
   Workflow, FileSearch,
 } from "lucide-react";
+
+const CyberScene = lazy(() => import("./components/CyberScene"));
 
 type View = "overview" | "assets" | "findings" | "remediations" | "controls" | "audit" | "security" | "secrets" | "credentials" | "plans";
 type Finding = {
@@ -494,15 +496,32 @@ export default function App() {
         </header>
 
         <div className="page-content">
-          <section className="page-hero">
+          <section className="page-hero command-hero">
             <div className="hero-copy">
               <div className="eyebrow"><span className="eyebrow-square" /> SENTINEL SECURITY OPERATIONS CENTER <span className="eyebrow-rule" /></div>
               <h1>{viewLabels[view]}<em>.</em></h1>
               <p>Authorized visibility. Evidence-driven risk. Accountable remediation.</p>
+              <div className="hero-capabilities">
+                <span><ShieldCheck size={12} /> AUTHORIZATION FIRST</span>
+                <span><Activity size={12} /> EVIDENCE-LED OPERATIONS</span>
+                <span><Fingerprint size={12} /> AUDITABLE ACTIONS</span>
+              </div>
+            </div>
+            <div className="hero-scene-wrap">
+              <Suspense fallback={<div className="three-cyber-scene scene-loading" aria-hidden="true"><div className="scene-loading-core" /></div>}>
+                <CyberScene compact status={connected ? "API SESSION VERIFIED" : "AUTHENTICATION REQUIRED"} />
+              </Suspense>
+              <div className="hero-scene-corner hero-scene-corner-tl">CORE / 3D</div>
+              <div className="hero-scene-corner hero-scene-corner-br">SECURE CONTROL PLANE</div>
             </div>
             <div className="hero-right">
               <div className="environment-tag"><CircleDot size={11} /> {environmentLabel}</div>
               <div className="hero-time"><span>LAST DATA REFRESH</span><b>{connected ? "LIVE API SNAPSHOT" : "AWAITING API CONNECTION"}</b></div>
+              <div className="hero-health-list">
+                <div><span>IDENTITY GATE</span><b className={connected ? "state-online" : "state-locked"}>{connected ? "VERIFIED" : "LOCKED"}</b></div>
+                <div><span>SCOPE GATE</span><b className="state-online">ENFORCED</b></div>
+                <div><span>DATA CHANNEL</span><b className={connected ? "state-online" : "state-locked"}>{connected ? "CONNECTED" : "WAITING"}</b></div>
+              </div>
             </div>
           </section>
 
@@ -517,44 +536,18 @@ export default function App() {
 
           {!connected ? (
             <>
-              <section className="disconnected-panel">
-                <div className="cyber-scene" aria-hidden="true">
-                  <div className="cyber-scene-grid" />
-                  <div className="cyber-scene-halo halo-one" />
-                  <div className="cyber-scene-halo halo-two" />
-                  <div className="cyber-stage">
-                    <div className="cyber-platform platform-base" />
-                    <div className="cyber-platform platform-mid" />
-                    <div className="cyber-platform platform-top" />
-                    <div className="cyber-orbit orbit-a"><i /><i /><i /></div>
-                    <div className="cyber-orbit orbit-b"><i /><i /></div>
-                    <div className="cyber-core">
-                      <div className="cyber-core-aura" />
-                      <div className="cyber-cube">
-                        <div className="cyber-cube-face face-front"><Shield size={39} strokeWidth={1.35} /><small>SENTINEL CORE</small></div>
-                        <div className="cyber-cube-face face-back" />
-                        <div className="cyber-cube-face face-right" />
-                        <div className="cyber-cube-face face-left" />
-                        <div className="cyber-cube-face face-top" />
-                        <div className="cyber-cube-face face-bottom" />
-                      </div>
-                      <div className="cyber-core-scanline" />
-                    </div>
-                    <div className="cyber-node node-one" />
-                    <div className="cyber-node node-two" />
-                    <div className="cyber-node node-three" />
-                  </div>
-                  <div className="cyber-data-chip chip-left"><span>IDENTITY GATE</span><b>API KEY REQUIRED</b></div>
-                  <div className="cyber-data-chip chip-right"><span>ASSESSMENT SCOPE</span><b>ALLOWLIST ENFORCED</b></div>
-                  <div className="cyber-data-chip chip-bottom"><span>DATA MODE</span><b>LIVE API · NO DEMO</b></div>
-                  <div className="cyber-scene-caption"><span className="scene-caption-dot" /> DEFENSIVE CONTROL ARCHITECTURE <span> / 01</span></div>
-                </div>
-                <div className="disconnected-copy">
+              <section className="disconnected-panel auth-state-panel">
+                <div className="auth-state-icon"><LockKeyhole size={28} /></div>
+                <div className="auth-state-copy">
                   <div className="eyebrow"><span className="eyebrow-square" /> CONTROL PLANE · AUTHENTICATION REQUIRED</div>
-                  <h2>Your security command layer.</h2>
-                  <p>Connect a workspace API key to unlock real inventory, assessments, remediation and audit data. SENTINEL never fills an empty dashboard with demo metrics or fabricated telemetry.</p>
+                  <h2>Live security telemetry is protected.</h2>
+                  <p>Connect your SENTINEL API credential to reveal real assets, assessments, findings, remediation activity and audit evidence. Until then, protected data remains hidden—no demo numbers, synthetic events or fabricated scan results.</p>
                   <div className="disconnected-actions"><span><LockKeyhole size={13} /> API KEY REQUIRED</span><span><Database size={13} /> DATABASE-BACKED DATA</span><span><ShieldCheck size={13} /> SCOPE ENFORCED</span></div>
-                  <div className="cyber-copy-foot"><span>01 / IDENTITY</span><span>02 / AUTHORIZATION</span><span>03 / EVIDENCE</span></div>
+                </div>
+                <div className="auth-state-rail">
+                  <div><span>AUTHENTICATION</span><b>NOT CONNECTED</b></div>
+                  <div><span>AUTHORIZED SCOPE</span><b>SERVER ENFORCED</b></div>
+                  <div><span>TELEMETRY SOURCE</span><b>LIVE API ONLY</b></div>
                 </div>
               </section>
               <PublicPlans catalog={planCatalog} loading={plansLoading} error={plansError} />
