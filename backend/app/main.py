@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
+from app import tenant_scope  # noqa: F401 - registers fail-closed ORM tenant filters
 from app.auth import ROLE_PERMISSIONS, ApiPrincipal, require_api_key
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, get_db
@@ -286,6 +287,7 @@ async def security_response_headers(request, call_next):
                     request_id=request_id,
                     auth_failure_threshold=settings.auth_failure_threshold,
                     auth_failure_window_seconds=settings.auth_failure_window_seconds,
+                    tenant_id=getattr(request.state, "tenant_id", None),
                 )
                 db.commit()
             if settings.security_alert_webhook_url and settings.security_alert_webhook_secret:
@@ -336,6 +338,7 @@ def read_api_identity(principal: ApiPrincipal = Depends(require_api_key)):
         "credential_id": principal.credential_id,
         "role": principal.role,
         "credential_source": principal.credential_source,
+        "tenant_id": principal.tenant_id,
         "permissions": sorted(permissions),
     }
 

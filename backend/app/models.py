@@ -17,10 +17,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app import tenant_constants
 from app.database import Base
 
-LEGACY_TENANT_ID = "00000000-0000-4000-8000-000000000001"
-_LEGACY_TENANT_DEFAULT = text(f"'{LEGACY_TENANT_ID}'")
+
+_LEGACY_TENANT_DEFAULT = text(f"'{tenant_constants.LEGACY_TENANT_ID}'")
 
 
 class Tenant(Base):
