@@ -29,7 +29,8 @@ def test_free_early_access_unlocks_all_current_core_security_modules(workspace_t
     assert free["price"]["amount_cents"] == 0
     assert free["purchasable"] is False
     assert free["limits_enforced"] is False
-    assert free["limit_enforcement_status"] == "planned"
+    assert free["limit_enforcement_status"] == "not_enforced"
+    assert free["capacity_guidance_only"] is True
     assert set(free["feature_codes"]) == set(FREE_FEATURE_CODES)
     assert free["limits"]["workspace_type"] == workspace_type
 
