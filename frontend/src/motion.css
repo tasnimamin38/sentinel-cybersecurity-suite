@@ -56,3 +56,34 @@
     transition-duration: .01ms !important;
   }
 }
+
+
+/* 3D holographic architecture — non-data-bearing ambient motion. */
+.cyber-stage {
+  will-change: transform;
+}
+.cyber-orbit,
+.cyber-cube,
+.cyber-core {
+  will-change: transform;
+}
+@keyframes sentinel-stage-float {
+  0%, 100% { transform: translate(-50%, -50%) rotateX(53deg) rotateZ(-22deg) translateY(0); }
+  50% { transform: translate(-50%, -50%) rotateX(53deg) rotateZ(-22deg) translateY(-8px); }
+}
+@keyframes sentinel-orbit-a {
+  from { transform: translateZ(49px) rotateX(58deg) rotateZ(10deg); }
+  to { transform: translateZ(49px) rotateX(58deg) rotateZ(370deg); }
+}
+@keyframes sentinel-orbit-b {
+  from { transform: translateZ(78px) rotateY(68deg) rotateX(17deg) rotateZ(0deg); }
+  to { transform: translateZ(78px) rotateY(68deg) rotateX(17deg) rotateZ(360deg); }
+}
+@keyframes sentinel-core-hover {
+  0%, 100% { transform: translateZ(70px) rotateX(-18deg) rotateY(24deg) translateY(0); }
+  50% { transform: translateZ(78px) rotateX(-18deg) rotateY(24deg) translateY(-5px); }
+}
+@keyframes sentinel-cube-turn {
+  from { transform: rotateY(0deg) rotateX(0deg); }
+  to { transform: rotateY(360deg) rotateX(7deg); }
+}
