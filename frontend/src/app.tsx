@@ -747,7 +747,7 @@ function PublicPlans({ catalog, loading, error }: { catalog: PublicPlanCatalog |
                     {plan.default_for_new_workspaces && <span className="plan-default">DEFAULT</span>}
                   </div>
                   <h3>{plan.name}</h3>
-                  <div className="plan-price">{plan.price.display}<small>{plan.price.interval === "month" ? "/ month" : ""}</small></div>
+                  <div className="plan-price">{plan.price.display}</div>
                   <p className="plan-description">{plan.notice ?? plan.planned_for}</p>
                   {plan.code === "free_early_access" && (
                     <div className="plan-limits">
