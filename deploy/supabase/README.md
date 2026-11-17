@@ -8,7 +8,7 @@ This project is dedicated to SENTINEL staging. Do not point unrelated apps at it
 
 ## Bootstrap
 
-**Live staging project status (updated 2026-11-18):** the project is provisioned with the private `sentinel` schema, six operational tables, five tenant-registry tables, `alembic_version`, and the restricted `sentinel_app` runtime role. The hosted application Alembic revision is now `0006_auth_identity_uuids`. Supabase migration history includes three Phase 1 tenant-security migrations (RLS/grants, composite FK indexes, and Auth UUID foreign keys). The Supabase security advisor reports zero security lints. Do not reapply `bootstrap.sql` or `001_sentinel_schema.sql` to this existing project.
+**Live staging project status (updated 2026-11-18):** the project is provisioned with the private `sentinel` schema, six operational tables, five tenant-registry tables, `alembic_version`, and the restricted `sentinel_app` runtime role. The hosted application Alembic revision is now `0006_auth_identity_uuids`. Supabase migration history includes four Phase 1 tenant-security migrations (RLS/grants, operational composite FK indexes, Auth UUID foreign keys, and Auth FK indexes). The Supabase security advisor reports zero security lints. Do not reapply `bootstrap.sql` or `001_sentinel_schema.sql` to this existing project.
 
 For a genuinely fresh, empty SENTINEL Supabase project only, apply `bootstrap.sql` once as its database owner. It:
 
