@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Uuid,
     UniqueConstraint,
     text,
 )
@@ -54,7 +55,7 @@ class HumanProfile(Base):
         UniqueConstraint("username_normalized", name="uq_human_profiles_username_normalized"),
     )
 
-    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
     username: Mapped[str] = mapped_column(String(40), nullable=False)
     username_normalized: Mapped[str] = mapped_column(String(40), nullable=False)
     first_name: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -89,10 +90,10 @@ class TenantMembership(Base):
     tenant_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(24), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="invited")
-    invited_by_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    invited_by_user_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
     invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -146,7 +147,7 @@ class CompanyDomainChallenge(Base):
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_by_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    created_by_user_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
