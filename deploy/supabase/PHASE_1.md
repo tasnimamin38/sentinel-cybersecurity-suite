@@ -33,6 +33,7 @@ Supabase migration history includes these Phase 1 migrations:
 1. `20261117200510_tenant_registry_auth_rls`
 2. `20261117200612_tenant_scoped_fk_indexes`
 3. `20261117200857_tenant_identity_auth_foreign_keys`
+4. `20261117202023_tenant_identity_fk_indexes`
 
 These migrations are stored in this repository under `deploy/supabase/migrations/`.
 
@@ -68,7 +69,7 @@ The backend SQLAlchemy model types and Alembic revision `0006_auth_identity_uuid
 ### Verification results
 
 - Supabase security advisor: zero security lints after Phase 1.
-- Supabase performance advisor: the five unindexed tenant-composite foreign keys were indexed.
+- Supabase performance advisor: the five operational tenant-composite foreign keys and two Auth identity foreign keys were indexed; no unindexed-foreign-key warning remains.
 - Remaining unused-index notices are informational on a low-traffic staging project; do not delete indexes until real query workload is measured.
 - Live table inspection: all 12 `sentinel` tables report RLS enabled.
 - Grants: `anon` cannot use the `sentinel` schema; the authenticated role has only explicit table grants; the domain-challenge table is not granted to `authenticated`.
