@@ -26,8 +26,18 @@ IDENTITY_COLUMNS = (
 AUTH_FOREIGN_KEYS = (
     ("human_profiles", "fk_human_profiles_auth_user", "user_id", "CASCADE"),
     ("tenant_memberships", "fk_tenant_memberships_auth_user", "user_id", "RESTRICT"),
-    ("tenant_memberships", "fk_tenant_memberships_invited_by_auth_user", "invited_by_user_id", "SET NULL"),
-    ("company_domain_challenges", "fk_company_domain_challenges_created_by_auth_user", "created_by_user_id", "RESTRICT"),
+    (
+        "tenant_memberships",
+        "fk_tenant_memberships_invited_by_auth_user",
+        "invited_by_user_id",
+        "SET NULL",
+    ),
+    (
+        "company_domain_challenges",
+        "fk_company_domain_challenges_created_by_auth_user",
+        "created_by_user_id",
+        "RESTRICT",
+    ),
 )
 
 
@@ -67,7 +77,7 @@ def _ensure_uuid_type(table: str, name: str) -> None:
         op.execute(
             text(
                 f'UPDATE "{table}" '
-                f'SET "{name}" = lower(replace("{name}", \'-\', \'\')) '
+                f"SET \\"{name}\\" = lower(replace(\\"{name}\\", '-', '')) "
                 f'WHERE "{name}" IS NOT NULL'
             )
         )
@@ -150,10 +160,10 @@ def downgrade() -> None:
             op.execute(
                 text(
                     f'UPDATE "{table}" SET "{column_name}" = '
-                    f'substr("{column_name}",1,8) || \'-\' || '
-                    f'substr("{column_name}",9,4) || \'-\' || '
-                    f'substr("{column_name}",13,4) || \'-\' || '
-                    f'substr("{column_name}",17,4) || \'-\' || '
+                    f"substr(\\"{column_name}\\",1,8) || '-' || "
+                    f"substr(\\"{column_name}\\",9,4) || '-' || "
+                    f"substr(\\"{column_name}\\",13,4) || '-' || "
+                    f"substr(\\"{column_name}\\",17,4) || '-' || "
                     f'substr("{column_name}",21,12) '
                     f'WHERE "{column_name}" IS NOT NULL AND length("{column_name}") = 32'
                 )
