@@ -8,8 +8,8 @@ supported for isolated repository migration tests.
 """
 
 import sqlalchemy as sa
-from sqlalchemy import inspect, text
 from alembic import op
+from sqlalchemy import inspect, text
 
 revision = "0006_auth_identity_uuids"
 down_revision = "0005_tenant_registry"
@@ -139,7 +139,7 @@ def upgrade() -> None:
 def _drop_auth_foreign_keys() -> None:
     if op.get_bind().dialect.name != "postgresql":
         return
-    for table, name, column, ondelete in AUTH_FOREIGN_KEYS:
+    for table, name, _column, _ondelete in AUTH_FOREIGN_KEYS:
         names = {item.get("name") for item in _inspector().get_foreign_keys(table)}
         if name in names:
             op.drop_constraint(name, table, type_="foreignkey", schema="sentinel")
