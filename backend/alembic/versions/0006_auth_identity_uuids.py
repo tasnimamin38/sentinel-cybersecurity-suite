@@ -8,8 +8,9 @@ supported for isolated repository migration tests.
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import inspect, text
+
+from alembic import op
 
 revision = "0006_auth_identity_uuids"
 down_revision = "0005_tenant_registry"
