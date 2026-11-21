@@ -71,13 +71,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check required Cloudflare secrets are configured
+      - name: Check Cloudflare deployment token
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SENTINEL_WORKER_TICK_SECRET: ${{ secrets.SENTINEL_WORKER_TICK_SECRET }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret."; exit 1; }
-          test -n "$SENTINEL_WORKER_TICK_SECRET" || { echo "::error::Add the SENTINEL_WORKER_TICK_SECRET repository secret."; exit 1; }
 
       - name: Publish SENTINEL API edge Worker
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
@@ -94,40 +92,3 @@ jobs:
           accountId: 91992e73411a4093fdc88d5aa5a9d366
           workingDirectory: deploy/cloudflare/worker-tick
           command: deploy
-          secrets: |
-            SENTINEL_WORKER_TICK_SECRET
-        env:
-          SENTINEL_WORKER_TICK_SECRET: ${{ secrets.SENTINEL_WORKER_TICK_SECRET }}
-
-  deploy-vercel:
-    name: Deploy Vercel production frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [gitleaks, codeql]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      deployments: write
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check Vercel token is configured
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          test -n "$VERCEL_TOKEN" || { echo "::error::Add the VERCEL_TOKEN repository secret."; exit 1; }
-
-      - name: Build and deploy production frontend
-        uses: amondnet/vercel-action@de09aeac2ace6599ec9b11ef87558759a496bac4 # v42.3.0
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: team_6davl2yJSDkRJcHcNWiybQFt
-          vercel-project-id: prj_xsu0HYcQ4zi9dePz9pYQyLuk2xgX
-          working-directory: frontend
-          vercel-build: true
-          vercel-args: --prod
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-comment: false
-          github-deployment: true
-          github-deployment-environment: production
