@@ -101,7 +101,7 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIsNone(audit[1])
             self.assertEqual(audit[2], 1)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0005_tenant_registry")
+            self.assertEqual(revision[0], "0006_auth_identity_uuids")
             connection.close()
 
 
@@ -271,7 +271,7 @@ class TenantRegistryMigrationTests(unittest.TestCase):
                 0,
             )
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0005_tenant_registry")
+            self.assertEqual(revision[0], "0006_auth_identity_uuids")
             connection.close()
 
     def test_tenant_scoped_hostname_and_idempotency_constraints_prevent_cross_tenant_links(self):
@@ -513,7 +513,7 @@ class TenantRegistryMigrationTests(unittest.TestCase):
             tenant_count = connection.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
             self.assertEqual(tenant_count, 2)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0005_tenant_registry")
+            self.assertEqual(revision[0], "0006_auth_identity_uuids")
             connection.close()
 
     def test_tenant_migration_downgrade_without_customer_workspaces_preserves_legacy_rows(self):

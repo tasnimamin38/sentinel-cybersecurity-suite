@@ -53,7 +53,8 @@ def _column(table: str, name: str) -> dict:
 
 
 def _is_uuid_type(value) -> bool:
-    return str(value).strip().lower() == "uuid" or isinstance(value, sa.Uuid)
+    normalized = str(value).strip().lower()
+    return normalized == "uuid" or normalized.startswith("char(32") or isinstance(value, sa.Uuid)
 
 
 def _ensure_uuid_type(table: str, name: str) -> None:
