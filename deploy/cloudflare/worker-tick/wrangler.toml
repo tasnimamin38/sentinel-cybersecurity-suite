@@ -5,7 +5,7 @@ workers_dev = false
 
 [vars]
 # Replace with the verified HTTPS origin after the Render API service exists.
-SENTINEL_API_URL = "https://sentinel-staging-api-q2nk.onrender.com"
+SENTINEL_API_URL = "https://sentinel-api.tasnimamin38.workers.dev"
 
 [triggers]
 crons = ["* * * * *"]
