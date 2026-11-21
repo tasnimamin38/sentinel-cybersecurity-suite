@@ -513,7 +513,7 @@ class TenantRegistryMigrationTests(unittest.TestCase):
             tenant_count = connection.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
             self.assertEqual(tenant_count, 2)
             revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-            self.assertEqual(revision[0], "0006_auth_identity_uuids")
+            self.assertEqual(revision[0], "0005_tenant_registry")
             connection.close()
 
     def test_tenant_migration_downgrade_without_customer_workspaces_preserves_legacy_rows(self):
