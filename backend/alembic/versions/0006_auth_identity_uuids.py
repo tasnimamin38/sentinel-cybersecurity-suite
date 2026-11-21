@@ -77,7 +77,7 @@ def _ensure_uuid_type(table: str, name: str) -> None:
         op.execute(
             text(
                 f'UPDATE "{table}" '
-                f"SET \\"{name}\\" = lower(replace(\\"{name}\\", '-', '')) "
+                f"""SET "{name}" = lower(replace("{name}", '-', '')) """
                 f'WHERE "{name}" IS NOT NULL'
             )
         )
@@ -164,13 +164,7 @@ def downgrade() -> None:
         elif dialect == "sqlite":
             op.execute(
                 text(
-                    f'UPDATE "{table}" SET "{column_name}" = '
-                    f"substr(\\"{column_name}\\",1,8) || '-' || "
-                    f"substr(\\"{column_name}\\",9,4) || '-' || "
-                    f"substr(\\"{column_name}\\",13,4) || '-' || "
-                    f"substr(\\"{column_name}\\",17,4) || '-' || "
-                    f'substr("{column_name}",21,12) '
-                    f'WHERE "{column_name}" IS NOT NULL AND length("{column_name}") = 32'
+                    f"""UPDATE "{table}" SET "{column_name}" = substr("{column_name}",1,8) || '-' || substr("{column_name}",9,4) || '-' || substr("{column_name}",13,4) || '-' || substr("{column_name}",17,4) || '-' || substr("{column_name}",21,12) WHERE "{column_name}" IS NOT NULL AND length("{column_name}") = 32"""
                 )
             )
             with op.batch_alter_table(table, recreate="always") as batch:
