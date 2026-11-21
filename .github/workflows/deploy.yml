@@ -79,6 +79,14 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret."; exit 1; }
           test -n "$SENTINEL_WORKER_TICK_SECRET" || { echo "::error::Add the SENTINEL_WORKER_TICK_SECRET repository secret."; exit 1; }
 
+      - name: Publish SENTINEL API edge Worker
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 91992e73411a4093fdc88d5aa5a9d366
+          workingDirectory: deploy/cloudflare/api-worker
+          command: deploy
+
       - name: Publish SENTINEL scheduled Worker
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
         with:

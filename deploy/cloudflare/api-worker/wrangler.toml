@@ -1,0 +1,7 @@
+name = "sentinel-api"
+main = "worker.js"
+compatibility_date = "2026-11-21"
+workers_dev = true
+
+[vars]
+SENTINEL_API_ORIGIN = "https://sentinel-staging-api-q2nk.onrender.com"

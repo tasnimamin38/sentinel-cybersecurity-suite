@@ -88,6 +88,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Test Cloudflare scheduled worker
         run: node --test ../deploy/cloudflare/worker-tick/worker.test.mjs
+      - name: Test Cloudflare API edge worker
+        run: node --test ../deploy/cloudflare/api-worker/worker.test.mjs
       - name: Install exact dependency lock
         run: npm ci
       - name: Dependency vulnerability audit

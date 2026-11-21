@@ -5,7 +5,8 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM nginx:1.30.6-alpine
+FROM nginx:1.30.7-alpine3.24
+RUN apk upgrade --no-cache
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 RUN nginx -t
 COPY --from=build /app/dist /usr/share/nginx/html
