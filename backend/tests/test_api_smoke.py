@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from app.auth import PUBLIC_API_ROUTES, ROUTE_PERMISSIONS, require_api_key
 from app.database import SessionLocal
 from app.main import _persist_assessment, app, settings
-from app.models import ApiCredential, Assessment, AssessmentJob, RemediationTask
+from app.models import ApiCredential, Assessment, AssessmentJob, RemediationTask, Tenant
 
 API_HEADERS = {"X-API-Key": "S" * 40}
 
@@ -40,6 +40,96 @@ def _asset_payload(hostname="app.example.com"):
         "authorization_reference": "CHANGE-SEC-2048",
         "tags": ["internet-facing", "tier-1"],
     }
+
+
+def test_managed_api_key_can_only_access_its_own_tenant(client):
+    tenant_id = str(uuid4())
+    managed_key = "B" * 40
+    now = datetime.now(UTC)
+
+    with SessionLocal() as db:
+        db.info.pop("tenant_id", None)
+        db.info.pop("worker_mode", None)
+        db.add(
+            Tenant(
+                id=tenant_id,
+                slug=f"tenant-{tenant_id[:8]}",
+                name="Tenant B",
+                workspace_type="company",
+                status="active",
+            )
+        )
+        db.add(
+            ApiCredential(
+                tenant_id=tenant_id,
+                label="Tenant B integration",
+                role="admin",
+                key_hash=hashlib.sha256(managed_key.encode("utf-8")).hexdigest(),
+                key_prefix=managed_key[:12],
+                expires_at=now + timedelta(days=90),
+                revoked_at=None,
+                created_by="tenant-b-owner",
+                created_at=now,
+            )
+        )
+        db.commit()
+
+    legacy_asset = client.post(
+        "/api/v1/assets",
+        headers=API_HEADERS,
+        json=_asset_payload(f"legacy-{tenant_id[:8]}.example.com"),
+    )
+    assert legacy_asset.status_code == 201
+
+    tenant_headers = {"X-API-Key": managed_key}
+    identity = client.get("/api/v1/me", headers=tenant_headers)
+    assert identity.status_code == 200
+    assert identity.json()["tenant_id"] == tenant_id
+
+    tenant_asset = client.post(
+        "/api/v1/assets",
+        headers=tenant_headers,
+        json=_asset_payload(f"tenant-b-{tenant_id[:8]}.example.com"),
+    )
+    assert tenant_asset.status_code == 201
+
+    listed = client.get("/api/v1/assets", headers=tenant_headers)
+    assert listed.status_code == 200
+    listed_hostnames = {item["hostname"] for item in listed.json()}
+    assert tenant_asset.json()["hostname"] in listed_hostnames
+    assert legacy_asset.json()["hostname"] not in listed_hostnames
+
+    overview = client.get("/api/v1/overview", headers=tenant_headers)
+    assert overview.status_code == 200
+    assert overview.json()["asset_count"] == 1
+
+    foreign_asset_assessments = client.post(
+        f"/api/v1/assets/{legacy_asset.json()['id']}/assessments",
+        headers=tenant_headers,
+    )
+    assert foreign_asset_assessments.status_code == 404
+
+    audit = client.get("/api/v1/audit", headers=tenant_headers)
+    assert audit.status_code == 200
+    assert audit.json()
+    assert all(
+        item["subject"] == tenant_asset.json()["hostname"]
+        for item in audit.json()
+        if item["event_type"] == "asset.registered"
+    )
+    integrity = client.get("/api/v1/audit/integrity", headers=tenant_headers)
+    assert integrity.status_code == 200
+    assert integrity.json()["integrity_valid"] is True
+    assert integrity.json()["total_events"] == 1
+
+    credentials = client.get("/api/v1/credentials", headers=tenant_headers)
+    assert credentials.status_code == 200
+    assert [item["label"] for item in credentials.json()] == ["Tenant B integration"]
+
+    export = client.get("/api/v1/exports/assets.csv", headers=tenant_headers)
+    assert export.status_code == 200
+    assert tenant_asset.json()["hostname"] in export.text
+    assert legacy_asset.json()["hostname"] not in export.text
 
 
 def test_health_endpoint_is_public_and_returns_security_headers(client):
