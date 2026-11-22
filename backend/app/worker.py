@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app import tenant_scope  # noqa: F401 - scopes worker sessions to the legacy tenant
 from app.config import get_settings
 from app.database import SessionLocal, engine
 from app.models import AssessmentJob, Asset

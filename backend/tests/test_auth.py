@@ -34,6 +34,7 @@ class ApiKeyAuthTests(unittest.TestCase):
 
     def setUp(self):
         self.db = MagicMock()
+        self.db.info = {}
         self.db.scalar.return_value = None
 
     def test_valid_legacy_admin_key_is_accepted(self):
@@ -41,6 +42,38 @@ class ApiKeyAuthTests(unittest.TestCase):
             principal = require_api_key(make_request(), "A" * 40, self.db)
         self.assertEqual(principal.role, "admin")
         self.assertEqual(principal.credential_source, "environment")
+
+    def test_valid_legacy_admin_key_is_bound_to_the_legacy_tenant(self):
+        with patch("app.auth.get_settings", return_value=self.settings(["A" * 40])):
+            principal = require_api_key(make_request(), "A" * 40, self.db)
+        self.assertEqual(principal.tenant_id, "00000000-0000-4000-8000-000000000001")
+        self.assertEqual(self.db.info["tenant_id"], principal.tenant_id)
+
+    def test_session_cannot_switch_tenants_after_authentication(self):
+        from app.tenant_scope import TenantScopeViolation, set_tenant_context
+
+        set_tenant_context(self.db, "00000000-0000-4000-8000-00000000000a")
+        with self.assertRaises(TenantScopeViolation):
+            set_tenant_context(self.db, "00000000-0000-4000-8000-00000000000b")
+
+    def test_managed_api_key_selects_its_own_tenant_context(self):
+        import hashlib
+
+        tenant_id = "00000000-0000-4000-8000-00000000000b"
+        secret = "B" * 48
+        self.db.scalar.return_value = SimpleNamespace(
+            id="managed-company-b",
+            role="analyst",
+            key_hash=hashlib.sha256(secret.encode()).hexdigest(),
+            tenant_id=tenant_id,
+            revoked_at=None,
+            expires_at=None,
+            last_used_at=None,
+        )
+        with patch("app.auth.get_settings", return_value=self.settings()):
+            principal = require_api_key(make_request(), secret, self.db)
+        self.assertEqual(principal.tenant_id, tenant_id)
+        self.assertEqual(self.db.info["tenant_id"], tenant_id)
 
     def test_invalid_key_is_rejected(self):
         with patch("app.auth.get_settings", return_value=self.settings(["A" * 40])):

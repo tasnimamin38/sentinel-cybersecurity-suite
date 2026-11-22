@@ -46,13 +46,14 @@ def record_audit_event(
     subject: str = "",
     result: str = "success",
     details: str = "",
-    tenant_id: str = LEGACY_TENANT_ID,
+    tenant_id: str | None = None,
 ) -> AuditEvent:
     """Append a sequence-numbered, hash-linked event.
 
     PostgreSQL serializes writers independently per tenant. A tenant-scoped unique
     sequence constraint provides a second integrity guard at the storage boundary.
     """
+    tenant_id = tenant_id or db.info.get("tenant_id") or LEGACY_TENANT_ID
     if not tenant_id:
         raise ValueError("tenant_id is required for audit events.")
 
@@ -84,7 +85,8 @@ def record_audit_event(
     return event
 
 
-def verify_audit_chain(db: Session, *, tenant_id: str = LEGACY_TENANT_ID) -> dict:
+def verify_audit_chain(db: Session, *, tenant_id: str | None = None) -> dict:
+    tenant_id = tenant_id or db.info.get("tenant_id") or LEGACY_TENANT_ID
     if not tenant_id:
         raise ValueError("tenant_id is required to verify an audit chain.")
 
